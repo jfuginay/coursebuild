@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Play, BookOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import Header from '@/components/Header';
+import CoursesShowcase from '@/components/CoursesShowcase';
 
 // YouTube URL validation schema
 const courseGenerationSchema = z.object({
@@ -189,8 +190,11 @@ export default function Home() {
               </AlertDescription>
             </Alert>
           )}
+        </div>
 
-
+        {/* Courses Showcase Section */}
+        <div className="mt-16">
+          <CoursesShowcase limit={6} />
         </div>
       </div>
     </div>
