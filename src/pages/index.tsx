@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import Head from "next/head";
 import { motion } from "framer-motion";
+import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -203,6 +204,7 @@ export default function Home() {
       </Head>
 
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+        <Header />
         {/* Hero Section */}
         <div className="relative overflow-hidden">
           {/* Background Pattern */}
