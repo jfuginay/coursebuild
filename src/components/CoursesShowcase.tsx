@@ -63,7 +63,7 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
   };
 
   const handleCourseClick = (courseId: string) => {
-    router.push(`/course/${courseId}`);
+    router.push(`/course/${courseId}/preview`);
   };
 
   const formatDate = (dateString: string) => {
