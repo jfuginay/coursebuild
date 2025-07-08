@@ -45,16 +45,27 @@ function extractVideoId(url: string): string | null {
   return null;
 }
 
-// Transform edge function response to match expected structure
+// Transform enhanced quiz service response to expected frontend structure
 function transformResponseToExpectedFormat(edgeResponse: any): any {
-  const { questions } = edgeResponse;
+  const { 
+    questions = [], 
+    video_summary = "AI Generated Course", 
+    total_duration,
+    visual_moments = [],
+    enhanced_features = {}
+  } = edgeResponse;
   
   if (!questions || !Array.isArray(questions)) {
     return {
       title: "AI Generated Course",
       description: "Interactive course generated from YouTube video content using AI analysis.",
       duration: "30 minutes",
-      segments: []
+      segments: [],
+      enhanced_features: {
+        visual_questions_enabled: false,
+        visual_questions_count: 0,
+        frame_capture_available: false
+      }
     };
   }
   
@@ -66,7 +77,8 @@ function transformResponseToExpectedFormat(edgeResponse: any): any {
     title: "Introduction",
     timestamp: "00:00",
     concepts: [] as string[],
-    questions: [] as any[]
+    questions: [] as any[],
+    visual_moments: [] as any[]
   };
   
   sortedQuestions.forEach((q: any, index: number) => {
@@ -81,24 +93,76 @@ function transformResponseToExpectedFormat(edgeResponse: any): any {
         title: `Segment ${segments.length + 1}`,
         timestamp: timestamp,
         concepts: [] as string[],
-        questions: [] as any[]
+        questions: [] as any[],
+        visual_moments: [] as any[]
       };
     }
     
-    // Transform question format
-    const transformedQuestion = {
-      type: 'multiple_choice' as const,
-      question: q.question || 'Sample question',
-      options: q.options || ["True", "False", "Not sure", "Skip"],
-      correct: typeof q.correct_answer === 'string' ? parseInt(q.correct_answer) || 0 : (q.correct_answer || 0),
-      explanation: q.explanation || 'No explanation provided'
-    };
+    // Transform question format based on type
+    let transformedQuestion: any;
+    
+    switch (q.type) {
+      case 'hotspot':
+        transformedQuestion = {
+          type: 'hotspot',
+          question: q.question || 'Identify the highlighted element',
+          visual_context: q.visual_context,
+          frame_url: q.frame_url,
+          bounding_boxes: q.bounding_boxes || [],
+          detected_objects: q.detected_objects || [],
+          visual_asset_id: q.visual_asset_id,
+          correct_answer: q.correct_answer,
+          explanation: q.explanation || 'Visual identification question'
+        };
+        break;
+        
+      case 'matching':
+        transformedQuestion = {
+          type: 'matching',
+          question: q.question || 'Match the following elements',
+          matching_pairs: q.matching_pairs || [],
+          visual_context: q.visual_context,
+          frame_url: q.frame_url,
+          visual_asset_id: q.visual_asset_id,
+          explanation: q.explanation || 'Matching question'
+        };
+        break;
+        
+      case 'multiple-choice':
+      case 'true-false':
+      default:
+        transformedQuestion = {
+          type: q.type === 'true-false' ? 'true_false' : 'multiple_choice',
+          question: q.question || 'Sample question',
+          options: q.options || (q.type === 'true-false' ? ["True", "False"] : ["Option A", "Option B", "Option C", "Option D"]),
+          correct: typeof q.correct_answer === 'string' ? parseInt(q.correct_answer) || 0 : (q.correct_answer || 0),
+          explanation: q.explanation || 'No explanation provided',
+          visual_context: q.visual_context
+        };
+        break;
+    }
+    
+    // Add additional metadata
+    transformedQuestion.timestamp = q.timestamp;
+    transformedQuestion.has_visual_asset = q.has_visual_asset || false;
+    transformedQuestion.visual_question_type = q.visual_question_type;
     
     currentSegment.questions.push(transformedQuestion);
     
     // Add visual context as concepts
     if (q.visual_context) {
-      currentSegment.concepts.push(q.visual_context.substring(0, 50));
+      const conceptText = q.visual_context.substring(0, 50);
+      if (!currentSegment.concepts.includes(conceptText)) {
+        currentSegment.concepts.push(conceptText);
+      }
+    }
+    
+    // Add visual moments for this segment
+    const relatedVisualMoment = visual_moments.find((vm: any) => 
+      Math.abs(vm.timestamp - q.timestamp) < 30
+    );
+    if (relatedVisualMoment && !currentSegment.visual_moments.some((vm: any) => vm.timestamp === relatedVisualMoment.timestamp)) {
+      currentSegment.visual_moments.push(relatedVisualMoment);
     }
   });
   
@@ -118,16 +182,26 @@ function transformResponseToExpectedFormat(edgeResponse: any): any {
         question: 'What is this video about?',
         options: ["Educational content", "Entertainment", "Tutorial", "Other"],
         correct: 0,
-        explanation: 'This appears to be educational content based on the analysis.'
-      }]
+        explanation: 'This appears to be educational content based on the analysis.',
+        has_visual_asset: false
+      }],
+      visual_moments: []
     });
   }
   
+  // Calculate duration from total_duration or estimate
+  const durationText = total_duration 
+    ? `${Math.ceil(parseInt(total_duration) / 60)} minutes`
+    : "30 minutes";
+  
   return {
-    title: "AI Generated Course",
-    description: "Interactive course generated from YouTube video content using AI analysis.",
-    duration: "30 minutes", // You could calculate this from total_duration if available
-    segments: segments
+    title: video_summary.substring(0, 80) + (video_summary.length > 80 ? "..." : ""),
+    description: `Interactive course with ${enhanced_features.visual_questions_count || 0} visual questions generated from YouTube video content using AI analysis.`,
+    duration: durationText,
+    segments: segments,
+    video_summary: video_summary,
+    visual_moments: visual_moments,
+    enhanced_features: enhanced_features
   };
 }
 
@@ -182,21 +256,23 @@ export default async function handler(
 
     console.log('✅ Course created:', course.id);
 
-    // Step 2: Call Supabase edge function
+    // Step 2: Call Enhanced Quiz Service with visual questions support
     const edgeResponse = await fetch(
-      'https://nkqehqwbxkxrgecmgzuq.supabase.co/functions/v1/gemini-quiz-service',
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/enhanced-quiz-service`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`
+          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
         },
         body: JSON.stringify({
           course_id: course.id,
           youtube_url: youtubeUrl,
           max_questions: 10,
           difficulty_level: 'medium',
-          focus_topics: []
+          focus_topics: ['visual learning', 'educational content'],
+          enable_visual_questions: true
         })
       }
     );
@@ -211,7 +287,11 @@ export default async function handler(
     }
 
     const edgeData = await edgeResponse.json();
-    console.log('✅ Questions generated:', edgeData.questions?.length || 0);
+    console.log('✅ Enhanced Quiz Service completed successfully!');
+    console.log(`   - Questions generated: ${edgeData.questions?.length || 0}`);
+    console.log(`   - Visual questions: ${edgeData.enhanced_features?.visual_questions_count || 0}`);
+    console.log(`   - Video summary: ${edgeData.video_summary?.substring(0, 100) || 'N/A'}...`);
+    console.log(`   - Visual moments identified: ${edgeData.visual_moments?.length || 0}`);
 
     // Step 3: Transform response to expected format
     const transformedData = transformResponseToExpectedFormat(edgeData);
@@ -231,10 +311,23 @@ export default async function handler(
       // Continue anyway, as the main content was generated
     }
 
+    console.log('🎉 Course generation completed successfully!');
+    console.log(`   - Course ID: ${course.id}`);
+    console.log(`   - Total segments: ${transformedData.segments?.length || 0}`);
+    console.log(`   - Enhanced features: ${JSON.stringify(transformedData.enhanced_features)}`);
+
     return res.status(200).json({
       success: true,
       data: transformedData,
-      course_id: course.id
+      course_id: course.id,
+      enhanced_features: transformedData.enhanced_features,
+      processing_summary: {
+        total_questions: edgeData.questions?.length || 0,
+        visual_questions: edgeData.enhanced_features?.visual_questions_count || 0,
+        segments_created: transformedData.segments?.length || 0,
+        video_duration: transformedData.duration,
+        visual_moments: edgeData.visual_moments?.length || 0
+      }
     });
 
   } catch (error) {
