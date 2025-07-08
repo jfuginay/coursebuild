@@ -62,12 +62,13 @@ export default function Home() {
     register,
     handleSubmit,
     formState: { errors },
-    reset
+    reset,
+    watch
   } = useForm<CourseGenerationFormData>({
     resolver: zodResolver(courseGenerationSchema)
   });
 
-  const handleGenerateCourse = async (data: CourseGenerationFormData) => {
+  const generateCourse = async (data: CourseGenerationFormData, useEnhanced: boolean = false) => {
     setIsLoading(true);
     setError(null);
 
@@ -79,6 +80,7 @@ export default function Home() {
         },
         body: JSON.stringify({
           youtubeUrl: data.youtubeUrl,
+          useEnhanced: useEnhanced,
         }),
       });
 
@@ -90,7 +92,7 @@ export default function Home() {
       const result: ApiResponse = await response.json();
       
       if (result.success) {
-        toast.success('Course generated successfully!');
+        toast.success(`Course generated successfully${useEnhanced ? ' (PRO)' : ''}!`);
         reset();
         
         // Navigate to create page with course data
@@ -112,6 +114,9 @@ export default function Home() {
       setIsLoading(false);
     }
   };
+
+  const handleGenerateCourse = (data: CourseGenerationFormData) => generateCourse(data, false);
+  const handleGenerateCoursePro = (data: CourseGenerationFormData) => generateCourse(data, true);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
@@ -160,24 +165,48 @@ export default function Home() {
                   )}
                 </div>
 
-                <Button 
-                  type="submit" 
-                  className="w-full" 
-                  disabled={isLoading}
-                  size="lg"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating Course...
-                    </>
-                  ) : (
-                    <>
-                      <BookOpen className="mr-2 h-4 w-4" />
-                      Generate Course
-                    </>
-                  )}
-                </Button>
+                <div className="flex gap-3">
+                  <Button 
+                    type="button"
+                    onClick={handleSubmit(handleGenerateCourse)}
+                    className="flex-1" 
+                    disabled={isLoading}
+                    size="lg"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Generating Course...
+                      </>
+                    ) : (
+                      <>
+                        <BookOpen className="mr-2 h-4 w-4" />
+                        Generate Course
+                      </>
+                    )}
+                  </Button>
+
+                  <Button 
+                    type="button"
+                    onClick={handleSubmit(handleGenerateCoursePro)}
+                    className="flex-1" 
+                    disabled={isLoading}
+                    size="lg"
+                    variant="outline"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Generating Course...
+                      </>
+                    ) : (
+                      <>
+                        <BookOpen className="mr-2 h-4 w-4" />
+                        Generate Course (PRO)
+                      </>
+                    )}
+                  </Button>
+                </div>
               </form>
             </CardContent>
           </Card>
