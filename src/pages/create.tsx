@@ -5,9 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, Play, BookOpen, Clock, Users, CheckCircle, Check, X, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
-import { Toaster } from '@/components/ui/sonner';
+import { ArrowLeft, Play, BookOpen, Clock, Users, CheckCircle } from 'lucide-react';
 import Header from '@/components/Header';
 
 interface CourseData {
@@ -28,118 +26,19 @@ interface CourseData {
   }>;
 }
 
-interface DatabaseQuestion {
-  id: string;
-  course_id: string;
-  timestamp: number;
-  question: string;
-  type: string;
-  options: string | null;
-  correct_answer: string;
-  explanation: string;
-  visual_context: string;
-  accepted: boolean;
-  created_at: string;
-}
-
 export default function Create() {
   const router = useRouter();
   const [courseData, setCourseData] = useState<CourseData | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState<string>('');
   const [videoId, setVideoId] = useState<string>('');
-  const [courseId, setCourseId] = useState<string>('');
-  const [databaseQuestions, setDatabaseQuestions] = useState<DatabaseQuestion[]>([]);
-  const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
-  const [processingQuestions, setProcessingQuestions] = useState<Set<string>>(new Set());
-
-  const fetchDatabaseQuestions = async (courseId: string) => {
-    setIsLoadingQuestions(true);
-    try {
-      const response = await fetch(`/api/course/${courseId}/questions`);
-      const data = await response.json();
-      
-      if (data.success) {
-        setDatabaseQuestions(data.questions);
-      } else {
-        console.error('Failed to fetch questions:', data.error);
-        toast.error('Failed to fetch questions');
-      }
-    } catch (error) {
-      console.error('Error fetching questions:', error);
-      toast.error('Error fetching questions');
-    } finally {
-      setIsLoadingQuestions(false);
-    }
-  };
-
-  const handleAcceptQuestion = async (questionId: string) => {
-    setProcessingQuestions(prev => new Set(prev).add(questionId));
-    
-    try {
-      const response = await fetch(`/api/question/${questionId}/accept`, {
-        method: 'POST',
-      });
-      
-      if (response.ok) {
-        // Update the question in the local state
-        setDatabaseQuestions(prev => 
-          prev.map(q => 
-            q.id === questionId ? { ...q, accepted: true } : q
-          )
-        );
-        toast.success('Question accepted!');
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to accept question');
-      }
-    } catch (error) {
-      console.error('Error accepting question:', error);
-      toast.error('Failed to accept question');
-    } finally {
-      setProcessingQuestions(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(questionId);
-        return newSet;
-      });
-    }
-  };
-
-  const handleRejectQuestion = async (questionId: string) => {
-    setProcessingQuestions(prev => new Set(prev).add(questionId));
-    
-    try {
-      const response = await fetch(`/api/question/${questionId}/reject`, {
-        method: 'DELETE',
-      });
-      
-      if (response.ok) {
-        // Remove the question from the local state
-        setDatabaseQuestions(prev => prev.filter(q => q.id !== questionId));
-        toast.success('Question rejected and deleted!');
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to reject question');
-      }
-    } catch (error) {
-      console.error('Error rejecting question:', error);
-      toast.error('Failed to reject question');
-    } finally {
-      setProcessingQuestions(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(questionId);
-        return newSet;
-      });
-    }
-  };
 
   useEffect(() => {
     // Get data from router state
-    if (router.query.data && router.query.youtubeUrl && router.query.course_id) {
+    if (router.query.data && router.query.youtubeUrl) {
       try {
         const parsedData = JSON.parse(router.query.data as string);
         setCourseData(parsedData);
         setYoutubeUrl(router.query.youtubeUrl as string);
-        setCourseId(router.query.course_id as string);
         
         // Extract video ID from YouTube URL
         const extractVideoId = (url: string): string => {
@@ -158,9 +57,6 @@ export default function Create() {
         };
         
         setVideoId(extractVideoId(router.query.youtubeUrl as string));
-        
-        // Fetch actual questions from database
-        fetchDatabaseQuestions(router.query.course_id as string);
       } catch (error) {
         console.error('Error parsing course data:', error);
       }
@@ -169,18 +65,6 @@ export default function Create() {
 
   const handleBackToHome = () => {
     router.push('/');
-  };
-
-  const parseQuestionOptions = (options: string | null): string[] => {
-    if (!options) return [];
-    
-    try {
-      const parsed = JSON.parse(options);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (error) {
-      console.error('Error parsing question options:', error);
-      return [];
-    }
   };
 
   if (!courseData) {
@@ -198,14 +82,13 @@ export default function Create() {
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Home
             </Button>
-                  </div>
+          </div>
+        </div>
       </div>
-      <Toaster />
-    </div>
-  );
-}
+    );
+  }
 
-  const totalQuestions = databaseQuestions.length;
+  const totalQuestions = courseData.segments.reduce((total, segment) => total + segment.questions.length, 0);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
@@ -285,76 +168,34 @@ export default function Create() {
               <CardHeader>
                 <CardTitle>Course Structure</CardTitle>
                 <CardDescription>
-                  Overview of generated questions and their status
+                  Interactive segments with questions and concepts
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {isLoadingQuestions ? (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    <span className="text-sm">Loading questions...</span>
-                  </div>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <BookOpen className="h-4 w-4 text-primary" />
-                          <span>Total Questions: {databaseQuestions.length}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="h-4 w-4 text-green-600" />
-                          <span>Accepted: {databaseQuestions.filter(q => q.accepted).length}</span>
-                        </div>
+                {courseData.segments.map((segment, index) => (
+                  <div key={index} className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium text-sm">
+                        Segment {index + 1}: {segment.title}
+                      </h4>
+                      <Badge variant="secondary" className="text-xs">
+                        {segment.timestamp}
+                      </Badge>
+                    </div>
+                    
+                    <div className="space-y-2 text-sm text-muted-foreground">
+                      <div>
+                        <strong>Concepts:</strong> {segment.concepts.length > 0 ? segment.concepts.join(', ') : 'None specified'}
                       </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-yellow-600" />
-                          <span>Pending: {databaseQuestions.filter(q => !q.accepted).length}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Users className="h-4 w-4 text-blue-600" />
-                          <span>Question Types: {Array.from(new Set(databaseQuestions.map(q => q.type))).join(', ')}</span>
-                        </div>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-primary" />
+                        {segment.questions.length} interactive question{segment.questions.length !== 1 ? 's' : ''}
                       </div>
                     </div>
                     
-                    {databaseQuestions.length > 0 && (
-                      <>
-                        <Separator />
-                        <div>
-                          <h4 className="font-medium mb-3 text-sm">Question Timeline:</h4>
-                          <div className="space-y-2">
-                            {databaseQuestions
-                              .sort((a, b) => a.timestamp - b.timestamp)
-                              .map((question, index) => (
-                                <div key={question.id} className="flex items-center justify-between text-xs">
-                                  <div className="flex items-center gap-2">
-                                    <Badge variant="outline" className="text-xs">
-                                      {Math.floor(question.timestamp / 60)}:{(question.timestamp % 60).toString().padStart(2, '0')}
-                                    </Badge>
-                                    <span className="truncate max-w-xs">{question.question}</span>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    {question.accepted ? (
-                                      <Badge variant="default" className="text-xs">
-                                        <CheckCircle className="h-3 w-3 mr-1" />
-                                        Accepted
-                                      </Badge>
-                                    ) : (
-                                      <Badge variant="secondary" className="text-xs">
-                                        Pending
-                                      </Badge>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </>
-                )}
+                    {index < courseData.segments.length - 1 && <Separator />}
+                  </div>
+                ))}
               </CardContent>
             </Card>
           </div>
@@ -362,123 +203,88 @@ export default function Create() {
           {/* Course Details */}
           <Card>
             <CardHeader>
-              <CardTitle>Generated Questions</CardTitle>
+              <CardTitle>Course Details</CardTitle>
               <CardDescription>
-                Review and accept/reject the AI-generated questions for your course
+                Detailed breakdown of each segment and its interactive elements
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {isLoadingQuestions ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                  <span>Loading questions...</span>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {databaseQuestions.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      No questions generated yet.
+              <div className="space-y-6">
+                {courseData.segments.map((segment, segmentIndex) => (
+                  <div key={segmentIndex} className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <Badge variant="outline" className="text-xs">
+                        {segment.timestamp}
+                      </Badge>
+                      <h3 className="text-lg font-semibold">{segment.title}</h3>
                     </div>
-                  ) : (
-                    databaseQuestions.map((question, index) => {
-                      const options = parseQuestionOptions(question.options);
-                      const correctIndex = parseInt(question.correct_answer, 10);
-                      const isProcessing = processingQuestions.has(question.id);
-                      
-                      return (
-                        <div key={question.id} className="p-4 bg-muted/30 rounded-lg">
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-xs">
-                                {question.type}
-                              </Badge>
-                              <Badge variant="secondary" className="text-xs">
-                                {Math.floor(question.timestamp / 60)}:{(question.timestamp % 60).toString().padStart(2, '0')}
-                              </Badge>
-                              <span className="text-sm font-medium">
-                                Question {index + 1}
-                              </span>
-                              {question.accepted && (
-                                <Badge variant="default" className="text-xs">
-                                  <CheckCircle className="h-3 w-3 mr-1" />
-                                  Accepted
+
+                    {segment.concepts.length > 0 && (
+                      <div>
+                        <h4 className="font-medium mb-2 text-sm">Key Concepts:</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {segment.concepts.map((concept, conceptIndex) => (
+                            <Badge key={conceptIndex} variant="secondary">
+                              {concept}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {segment.questions.length > 0 && (
+                      <div>
+                        <h4 className="font-medium mb-3 text-sm">
+                          Interactive Questions ({segment.questions.length}):
+                        </h4>
+                        <div className="space-y-3">
+                          {segment.questions.map((question, questionIndex) => (
+                            <div key={questionIndex} className="p-4 bg-muted/30 rounded-lg">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Badge variant="outline" className="text-xs">
+                                  {question.type}
                                 </Badge>
+                                <span className="text-sm font-medium">
+                                  Question {questionIndex + 1}
+                                </span>
+                              </div>
+                              <p className="text-sm mb-2">{question.question}</p>
+                              {question.options.length > 0 && (
+                                <div className="space-y-1">
+                                  {question.options.map((option, optionIndex) => (
+                                    <div 
+                                      key={optionIndex} 
+                                      className={`text-xs p-2 rounded ${
+                                        optionIndex === question.correct 
+                                          ? 'bg-primary/10 border border-primary/20' 
+                                          : 'bg-background'
+                                      }`}
+                                    >
+                                      {String.fromCharCode(65 + optionIndex)}. {option}
+                                      {optionIndex === question.correct && (
+                                        <CheckCircle className="inline h-3 w-3 ml-2 text-primary" />
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {question.explanation && (
+                                <div className="mt-2 text-xs text-muted-foreground">
+                                  <strong>Explanation:</strong> {question.explanation}
+                                </div>
                               )}
                             </div>
-                            
-                            {!question.accepted && (
-                              <div className="flex items-center gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleAcceptQuestion(question.id)}
-                                  disabled={isProcessing}
-                                  className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                                >
-                                  {isProcessing ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Check className="h-4 w-4" />
-                                  )}
-                                  Accept
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleRejectQuestion(question.id)}
-                                  disabled={isProcessing}
-                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                >
-                                  {isProcessing ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <X className="h-4 w-4" />
-                                  )}
-                                  Reject
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                          
-                          <p className="text-sm mb-3">{question.question}</p>
-                          
-                          {options.length > 0 && (
-                            <div className="space-y-1 mb-3">
-                              {options.map((option, optionIndex) => (
-                                <div 
-                                  key={optionIndex} 
-                                  className={`text-xs p-2 rounded ${
-                                    optionIndex === correctIndex 
-                                      ? 'bg-primary/10 border border-primary/20' 
-                                      : 'bg-background'
-                                  }`}
-                                >
-                                  {String.fromCharCode(65 + optionIndex)}. {option}
-                                  {optionIndex === correctIndex && (
-                                    <CheckCircle className="inline h-3 w-3 ml-2 text-primary" />
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          
-                          {question.explanation && (
-                            <div className="mb-3 text-xs text-muted-foreground">
-                              <strong>Explanation:</strong> {question.explanation}
-                            </div>
-                          )}
-                          
-                          {question.visual_context && (
-                            <div className="text-xs text-muted-foreground">
-                              <strong>Visual Context:</strong> {question.visual_context}
-                            </div>
-                          )}
+                          ))}
                         </div>
-                      );
-                    })
-                  )}
-                </div>
-              )}
+                      </div>
+                    )}
+
+                    {segmentIndex < courseData.segments.length - 1 && (
+                      <Separator className="my-6" />
+                    )}
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
 
