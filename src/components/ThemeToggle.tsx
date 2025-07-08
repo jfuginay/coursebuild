@@ -16,25 +16,25 @@ export function ThemeToggle() {
   const { setTheme } = useTheme()
 
   return (
-    &lt;DropdownMenu&gt;
-      &lt;DropdownMenuTrigger asChild&gt;
-        &lt;Button variant="outline" size="icon"&gt;
-          &lt;Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" /&gt;
-          &lt;Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" /&gt;
-          &lt;span className="sr-only"&gt;Toggle theme&lt;/span&gt;
-        &lt;/Button&gt;
-      &lt;/DropdownMenuTrigger&gt;
-      &lt;DropdownMenuContent align="end"&gt;
-        &lt;DropdownMenuItem onClick={() =&gt; setTheme("light")}&gt;
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="icon">
+          <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+          <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+          <span className="sr-only">Toggle theme</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => setTheme("light")}>
           Light
-        &lt;/DropdownMenuItem&gt;
-        &lt;DropdownMenuItem onClick={() =&gt; setTheme("dark")}&gt;
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme("dark")}>
           Dark
-        &lt;/DropdownMenuItem&gt;
-        &lt;DropdownMenuItem onClick={() =&gt; setTheme("system")}&gt;
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme("system")}>
           System
-        &lt;/DropdownMenuItem&gt;
-      &lt;/DropdownMenuContent&gt;
-    &lt;/DropdownMenu&gt;
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
