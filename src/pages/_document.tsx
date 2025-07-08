@@ -6,9 +6,7 @@ export default function Document() {
     <Html lang="en">
       <Head />
       <body>
-        <Script src="https://assets.co.dev/files/codevscript.js" strategy="afterInteractive" />
         <Main />
-        <Script src="https://assets.co.dev/files/codevscript.js" strategy="afterInteractive" />
         <NextScript />
       </body>
     </Html>
