@@ -77,7 +77,6 @@ export default function CoursePage() {
   const [answeredQuestions, setAnsweredQuestions] = useState<Set<number>>(new Set());
   const [correctAnswers, setCorrectAnswers] = useState(0);
   const [isVideoReady, setIsVideoReady] = useState(false);
-  const [isYTApiLoaded, setIsYTApiLoaded] = useState(false);
 
   const playerRef = useRef<YTPlayer | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -90,25 +89,20 @@ export default function CoursePage() {
   }, [id]);
 
   useEffect(() => {
-    // Check if YT API is already loaded
-    if (window.YT && window.YT.Player) {
-      setIsYTApiLoaded(true);
-      return;
-    }
-
-    // Load YouTube iframe API if not already loaded
-    if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+    // Load YouTube iframe API only once
+    if (!window.YT && !document.querySelector('script[src*="youtube.com/iframe_api"]')) {
       const script = document.createElement('script');
       script.src = 'https://www.youtube.com/iframe_api';
       script.async = true;
       document.body.appendChild(script);
+      
+      // Set up the API ready callback
+      window.onYouTubeIframeAPIReady = () => {
+        console.log('YouTube API loaded');
+        // Trigger re-render to initialize player
+        setIsVideoReady(false);
+      };
     }
-
-    // Set up the callback for when API is ready
-    window.onYouTubeIframeAPIReady = () => {
-      console.log('YouTube API loaded');
-      setIsYTApiLoaded(true);
-    };
 
     return () => {
       if (intervalRef.current) {
@@ -118,10 +112,11 @@ export default function CoursePage() {
   }, []);
 
   useEffect(() => {
-    if (videoId && isYTApiLoaded && window.YT && window.YT.Player && !player) {
+    // Initialize player when we have video ID and YouTube API is ready
+    if (videoId && window.YT && window.YT.Player && !player) {
       initializePlayer();
     }
-  }, [videoId, isYTApiLoaded, player]);
+  }, [videoId, player]);
 
   useEffect(() => {
     if (player && questions.length > 0) {
@@ -137,6 +132,7 @@ export default function CoursePage() {
       if (data.success) {
         setCourse(data.course);
         const extractedVideoId = extractVideoId(data.course.youtube_url);
+        console.log('Extracted video ID:', extractedVideoId, 'from URL:', data.course.youtube_url);
         setVideoId(extractedVideoId);
       } else {
         setError(data.error || 'Failed to fetch course');
@@ -202,12 +198,21 @@ export default function CoursePage() {
 
   const initializePlayer = () => {
     if (!window.YT || !window.YT.Player || !videoId) {
-      console.warn('YouTube API not ready or no video ID');
+      console.log('YouTube API not ready yet, retrying...');
+      setTimeout(initializePlayer, 100);
+      return;
+    }
+
+    // Check if the target element exists
+    const targetElement = document.getElementById('youtube-player');
+    if (!targetElement) {
+      console.log('YouTube player element not found, retrying...');
+      setTimeout(initializePlayer, 100);
       return;
     }
 
     try {
-      console.log('Initializing YouTube player for video:', videoId);
+      console.log('Initializing YouTube player with video ID:', videoId);
       
       const newPlayer = new window.YT.Player('youtube-player', {
         videoId: videoId,
@@ -237,13 +242,35 @@ export default function CoursePage() {
           },
           onError: (event: any) => {
             console.error('YouTube player error:', event.data);
-            setError('Error loading video player');
-          }
+            // Handle different error types
+            switch (event.data) {
+              case 2:
+                console.error('Invalid video ID');
+                setError('Invalid video ID. Please check the YouTube URL.');
+                break;
+              case 5:
+                console.error('Video not supported in HTML5 player');
+                setError('Video format not supported. Please try a different video.');
+                break;
+              case 100:
+                console.error('Video not found or private');
+                setError('Video not found or is private. Please check the YouTube URL.');
+                break;
+              case 101:
+              case 150:
+                console.error('Video cannot be embedded');
+                setError('This video cannot be embedded. Please try a different video.');
+                break;
+              default:
+                console.error('Unknown YouTube player error');
+                setError('Unable to load video. Please try again later.');
+            }
+          },
         },
       });
     } catch (error) {
       console.error('Error initializing YouTube player:', error);
-      setError('Failed to initialize video player');
+      setError('Failed to initialize video player. Please refresh the page.');
     }
   };
 
@@ -441,7 +468,7 @@ export default function CoursePage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="aspect-video bg-muted rounded-lg overflow-hidden relative">
-                {!isYTApiLoaded && (
+                {!isVideoReady && (
                   <div className="absolute inset-0 flex items-center justify-center bg-muted">
                     <div className="text-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
@@ -549,4 +576,4 @@ export default function CoursePage() {
       )}
     </div>
   );
-} 
+}
