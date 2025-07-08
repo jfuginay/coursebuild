@@ -417,7 +417,7 @@ export default function CoursePage() {
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="h-4 w-4" />
-                {correctAnswers}/{answeredQuestions.size} Correct
+                {correctAnswers}/{questions.length} Correct
               </div>
               {duration > 0 && (
                 <div className="flex items-center gap-2">

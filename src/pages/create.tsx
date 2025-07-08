@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, Play, BookOpen, Clock, Users, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Play, BookOpen, Clock, Users, CheckCircle, Check, X } from 'lucide-react';
 import Header from '@/components/Header';
 
 interface CourseData {
@@ -23,6 +23,7 @@ interface CourseData {
     timestamp: string;
     concepts: string[];
     questions: Array<{
+      id?: string;
       type: string;
       question: string;
       options?: string[];
@@ -46,6 +47,8 @@ export default function Create() {
   const [courseData, setCourseData] = useState<CourseData | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState<string>('');
   const [videoId, setVideoId] = useState<string>('');
+  const [questionStatuses, setQuestionStatuses] = useState<Record<string, 'accepted' | 'rejected' | 'pending'>>({});
+  const [processingQuestions, setProcessingQuestions] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     // Get data from router state
@@ -80,6 +83,72 @@ export default function Create() {
 
   const handleBackToHome = () => {
     router.push('/');
+  };
+
+  const handleAcceptQuestion = async (questionId: string) => {
+    if (!questionId) return;
+    
+    setProcessingQuestions(prev => new Set(prev).add(questionId));
+    
+    try {
+      const response = await fetch(`/api/course/question/${questionId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to accept question');
+      }
+
+      setQuestionStatuses(prev => ({
+        ...prev,
+        [questionId]: 'accepted'
+      }));
+    } catch (error) {
+      console.error('Error accepting question:', error);
+      // You might want to show a toast notification here
+    } finally {
+      setProcessingQuestions(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(questionId);
+        return newSet;
+      });
+    }
+  };
+
+  const handleRejectQuestion = async (questionId: string) => {
+    if (!questionId) return;
+    
+    setProcessingQuestions(prev => new Set(prev).add(questionId));
+    
+    try {
+      const response = await fetch(`/api/course/question/${questionId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to reject question');
+      }
+
+      setQuestionStatuses(prev => ({
+        ...prev,
+        [questionId]: 'rejected'
+      }));
+    } catch (error) {
+      console.error('Error rejecting question:', error);
+      // You might want to show a toast notification here
+    } finally {
+      setProcessingQuestions(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(questionId);
+        return newSet;
+      });
+    }
   };
 
   if (!courseData) {
@@ -268,49 +337,102 @@ export default function Create() {
                           Interactive Questions ({segment.questions.length}):
                         </h4>
                         <div className="space-y-3">
-                          {segment.questions.map((question, questionIndex) => (
-                            <div key={questionIndex} className="p-4 bg-muted/30 rounded-lg">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Badge variant="outline" className="text-xs">
-                                  {question.type}
-                                </Badge>
-                                <span className="text-sm font-medium">
-                                  Question {questionIndex + 1}
-                                </span>
-                              </div>
-                              <p className="text-sm mb-2">{question.question}</p>
-                              {question.options && question.options.length > 0 && (
-                                <div className="space-y-1">
-                                  {question.options.map((option, optionIndex) => (
-                                    <div 
-                                      key={optionIndex} 
-                                      className={`text-xs p-2 rounded ${
-                                        question.correct !== undefined && optionIndex === question.correct 
-                                          ? 'bg-primary/10 border border-primary/20' 
-                                          : 'bg-background'
-                                      }`}
-                                    >
-                                      {String.fromCharCode(65 + optionIndex)}. {option}
-                                      {question.correct !== undefined && optionIndex === question.correct && (
-                                        <CheckCircle className="inline h-3 w-3 ml-2 text-primary" />
-                                      )}
+                          {segment.questions.map((question, questionIndex) => {
+                            const questionId = question.id || `${segmentIndex}-${questionIndex}`;
+                            const questionStatus = questionStatuses[questionId] || 'pending';
+                            const isProcessing = processingQuestions.has(questionId);
+                            
+                            // Don't render rejected questions
+                            if (questionStatus === 'rejected') {
+                              return null;
+                            }
+                            
+                            return (
+                              <div key={questionIndex} className="p-4 bg-muted/30 rounded-lg">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant="outline" className="text-xs">
+                                      {question.type}
+                                    </Badge>
+                                    <span className="text-sm font-medium">
+                                      Question {questionIndex + 1}
+                                    </span>
+                                    {question.visual_question_type && (
+                                      <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
+                                        {question.visual_question_type}
+                                      </Badge>
+                                    )}
+                                    {question.has_visual_asset && (
+                                      <Badge variant="secondary" className="text-xs bg-purple-100 text-purple-800">
+                                        Interactive
+                                      </Badge>
+                                    )}
+                                    {questionStatus === 'accepted' && (
+                                      <Badge variant="default" className="text-xs bg-green-100 text-green-800">
+                                        Accepted
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  
+                                  {questionStatus === 'pending' && (
+                                    <div className="flex items-center gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleAcceptQuestion(questionId)}
+                                        disabled={isProcessing}
+                                        className="h-8 px-3 text-xs bg-green-50 border-green-200 hover:bg-green-100 text-green-700"
+                                      >
+                                        <Check className="h-3 w-3 mr-1" />
+                                        Accept
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleRejectQuestion(questionId)}
+                                        disabled={isProcessing}
+                                        className="h-8 px-3 text-xs bg-red-50 border-red-200 hover:bg-red-100 text-red-700"
+                                      >
+                                        <X className="h-3 w-3 mr-1" />
+                                        Reject
+                                      </Button>
                                     </div>
-                                  ))}
+                                  )}
                                 </div>
-                              )}
-                              {question.visual_question_type && (
-                                <div className="mt-2 text-xs text-muted-foreground">
-                                  <strong>Visual Type:</strong> {question.visual_question_type}
-                                  {question.has_visual_asset && ' (Interactive)'}
-                                </div>
-                              )}
-                              {question.explanation && (
-                                <div className="mt-2 text-xs text-muted-foreground">
-                                  <strong>Explanation:</strong> {question.explanation}
-                                </div>
-                              )}
-                            </div>
-                          ))}
+                                <p className="text-sm mb-2">{question.question}</p>
+                                {question.options && question.options.length > 0 && (
+                                  <div className="space-y-1">
+                                    {question.options.map((option, optionIndex) => (
+                                      <div 
+                                        key={optionIndex} 
+                                        className={`text-xs p-2 rounded ${
+                                          question.correct !== undefined && optionIndex === question.correct 
+                                            ? 'bg-primary/10 border border-primary/20' 
+                                            : 'bg-background'
+                                        }`}
+                                      >
+                                        {String.fromCharCode(65 + optionIndex)}. {option}
+                                        {question.correct !== undefined && optionIndex === question.correct && (
+                                          <CheckCircle className="inline h-3 w-3 ml-2 text-primary" />
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                {question.visual_question_type && (
+                                  <div className="mt-2 text-xs text-muted-foreground">
+                                    <strong>Visual Type:</strong> {question.visual_question_type}
+                                    {question.has_visual_asset && ' (Interactive)'}
+                                  </div>
+                                )}
+                                {question.explanation && (
+                                  <div className="mt-2 text-xs text-muted-foreground">
+                                    <strong>Explanation:</strong> {question.explanation}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
