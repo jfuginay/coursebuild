@@ -326,15 +326,18 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/gemini-quiz-service/deno.json"
 entrypoint = "./functions/gemini-quiz-service/index.ts"
+timeout = 400
 
 [functions.visual-frame-service]
 enabled = true
 verify_jwt = true
 import_map = "./functions/visual-frame-service/deno.json"
 entrypoint = "./functions/visual-frame-service/index.ts"
+timeout = 400
 
 [functions.enhanced-quiz-service]
 enabled = true
 verify_jwt = true
 import_map = "./functions/enhanced-quiz-service/deno.json"
 entrypoint = "./functions/enhanced-quiz-service/index.ts"
+timeout = 400

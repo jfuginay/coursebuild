@@ -124,8 +124,8 @@ For detailed deployment instructions, API specifications, troubleshooting, and d
 #### Visual Quiz Feature:
 For the new visual quiz enhancement system with interactive hotspot and matching questions, see **[`VISUAL_QUIZ_IMPLEMENTATION.md`](VISUAL_QUIZ_IMPLEMENTATION.md)**.
 
-#### 🎬 Visual Questions System - **PRODUCTION READY**:
-The complete visual questions pipeline is **fully operational** and successfully processing real YouTube videos with **AI-powered interactive elements**:
+#### 🎬 Visual Questions System - **BACKEND OPERATIONAL, FRONTEND INTEGRATION IN PROGRESS**:
+The visual questions backend pipeline is **working** and successfully processing real YouTube videos with **AI-powered interactive elements**. Frontend integration needs completion:
 
 ```bash
 # Test the complete pipeline with real YouTube videos
@@ -141,11 +141,13 @@ npm run supabase:logs
 npm run supabase:deploy:all
 ```
 
-**✅ SYSTEM STATUS: FULLY OPERATIONAL**
-- **Pipeline Status**: ✅ Working with real YouTube videos
-- **Processing Time**: ~2.4 minutes for 7-minute videos
-- **Success Rate**: 100% with proper configuration
-- **Edge Functions**: All deployed and responding
+**🔧 SYSTEM STATUS: BACKEND WORKING, FRONTEND FIXES NEEDED**
+- **Backend Pipeline**: ✅ Working with real YouTube videos
+- **Processing Time**: ~2.4 minutes for 7-minute videos  
+- **Edge Functions**: ✅ All deployed with 400-second timeout
+- **Visual Assets**: ✅ Generated with bounding boxes and object detection
+- **Frontend Integration**: ⚠️ Visual questions showing as multiple choice (needs type detection fix)
+- **Database Queries**: ✅ Resolved relationship conflicts
 
 **🎯 Visual Questions Pipeline:**
 1. **Video Analysis** → Enhanced Quiz Service extracts visual moments from YouTube videos
@@ -156,10 +158,11 @@ npm run supabase:deploy:all
 6. **User Interaction** → Frontend renders interactive visual elements for learners
 
 **📊 Real Performance Metrics (Tested with YouTube Videos):**
-- **Questions Generated**: 8 total (5 visual + 3 text-based)
-- **Processing Speed**: 141 seconds for full video analysis
-- **Visual Accuracy**: Precise bounding box detection with educational context
-- **Question Types**: Multiple-choice, hotspot, matching, true-false
+- **Questions Generated**: 10 total (2 with bounding boxes + 8 text-based)
+- **Processing Speed**: ~141 seconds for full video analysis
+- **Visual Assets**: ✅ Generated with precise bounding box detection and educational context
+- **Backend Question Types**: Multiple-choice, hotspot, matching, true-false
+- **Frontend Display**: ⚠️ Visual questions currently showing as multiple-choice (type detection issue)
 
 **🚀 Deployed Services (Production Ready):**
 - `enhanced-quiz-service` (81.7kB) - ✅ YouTube analysis with visual context extraction
@@ -202,6 +205,25 @@ npm run test:full-pipeline
 npm run test:full-pipeline:summary
 ```
 
+**🐛 Known Issues & Current Status:**
+
+**✅ WORKING:**
+- Enhanced-quiz-service generates questions with visual context
+- Visual-frame-service creates bounding boxes with AI object detection
+- Frame-capture-service extracts frames at precise timestamps
+- Database stores visual assets with proper relationships
+- API endpoints return questions with bounding box data
+
+**⚠️ NEEDS FIXING:**
+- **Visual Question Type Detection**: Questions with bounding boxes are not being identified as `type: 'hotspot'` in frontend
+- **QuestionOverlay Routing**: Visual questions are falling through to multiple-choice display instead of visual components
+- **Question Type Field**: Backend may not be setting correct `question_type` field for visual questions
+
+**🔍 Debug Info:**
+- Console shows: "📊 Visual questions: 0" and "🎯 Questions with bounding boxes: 2"
+- Questions have `bounding_boxes` array but `type` field is not 'hotspot' or 'matching'
+- Frontend components exist (HotspotQuestion, MatchingQuestion) but aren't being triggered
+
 ### Frontend Deployment
 
 Deploy the Next.js frontend to Vercel:
@@ -236,21 +258,22 @@ npm run build
 - [x] Supabase edge functions deployment
 - [x] Database implementation with courses and questions tables
 - [x] Visual context extraction from video frames
-- [x] **✅ COMPLETED: Visual Quiz Enhancement System**
+- [x] **🔧 PARTIALLY COMPLETED: Visual Quiz Enhancement System**
   - [x] Frame capture and analysis with Gemini Vision API
-  - [x] Interactive hotspot questions with bounding boxes
-  - [x] Visual matching questions with object detection
+  - [x] Interactive hotspot questions with bounding boxes (backend)
+  - [x] Visual matching questions with object detection (backend)
   - [x] Enhanced database schema for visual assets
-  - [x] Production-ready edge functions deployment
+  - [x] Production-ready edge functions deployment with 400s timeout
   - [x] **Real YouTube video processing pipeline**
   - [x] **Full pipeline testing and validation**
   - [x] **Context-aware object detection with educational prompts**
+  - [x] **Database relationship conflict resolution**
+  - [ ] **🚨 URGENT: Visual question type detection in frontend**
+  - [ ] **🚨 URGENT: QuestionOverlay component visual question routing**
 - [ ] Course creation wizard enhancements
 - [ ] Student learning interface with video player
 - [ ] Question acceptance/rejection workflow
 - [ ] Instructor analytics dashboard
-- [ ] **Visual question frontend rendering components**
-- [ ] **Interactive visual quiz player interface**
 
 ## 🏗️ Project Structure
 
