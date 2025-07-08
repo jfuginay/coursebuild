@@ -343,6 +343,43 @@ async function storeEnhancedQuestions(
   return createdQuestions;
 }
 
+// Update stored questions with visual asset IDs after frame processing
+async function updateQuestionsWithVisualAssets(
+  supabaseClient: any,
+  storedQuestions: any[],
+  processedQuestions: any[]
+): Promise<any[]> {
+  console.log('🔗 Updating questions with visual asset links...');
+  
+  for (let i = 0; i < storedQuestions.length; i++) {
+    const storedQuestion = storedQuestions[i];
+    const processedQuestion = processedQuestions[i];
+    
+    // If the processed question has a visual_asset_id, update the database
+    if (processedQuestion.visual_asset_id) {
+      console.log(`🔗 Linking question ${storedQuestion.id} to visual asset ${processedQuestion.visual_asset_id}`);
+      
+      const { error: updateError } = await supabaseClient
+        .from('questions')
+        .update({ 
+          visual_asset_id: processedQuestion.visual_asset_id
+        })
+        .eq('id', storedQuestion.id);
+      
+      if (updateError) {
+        console.warn(`⚠️ Failed to update question ${storedQuestion.id} with visual asset:`, updateError);
+      } else {
+        storedQuestion.visual_asset_id = processedQuestion.visual_asset_id;
+      }
+    }
+  }
+  
+  const linkedCount = storedQuestions.filter(q => q.visual_asset_id).length;
+  console.log(`✅ Updated ${linkedCount} questions with visual asset links`);
+  
+  return storedQuestions;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -416,6 +453,13 @@ serve(async (req) => {
       processedQuestions
     );
 
+    // Step 4: Update questions with visual asset links
+    const linkedQuestions = await updateQuestionsWithVisualAssets(
+      supabaseClient,
+      storedQuestions,
+      processedQuestions
+    );
+
     // Return enhanced response
     return new Response(
       JSON.stringify({
@@ -424,7 +468,7 @@ serve(async (req) => {
         video_summary: analysisResult.video_summary,
         total_duration: analysisResult.total_duration,
         visual_moments: analysisResult.visual_moments || [],
-        questions: storedQuestions.map((q: any) => ({
+        questions: linkedQuestions.map((q: any) => ({
           ...q,
           options: q.options ? JSON.parse(q.options) : null
         })),

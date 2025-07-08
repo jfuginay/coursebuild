@@ -3,14 +3,25 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, XCircle, Play } from 'lucide-react';
+import HotspotQuestion from '@/components/visual/HotspotQuestion';
+import MatchingQuestion from '@/components/visual/MatchingQuestion';
 
 interface Question {
   id: string;
   question: string;
-  options: string[] | string; // Can be array or JSON string
+  type: string;
+  options?: string[] | string; // Can be array or JSON string
   correct_answer: string | number;
   explanation: string;
   timestamp: number;
+  visual_context?: string;
+  frame_url?: string;
+  bounding_boxes?: any[];
+  detected_objects?: any[];
+  visual_asset_id?: string;
+  matching_pairs?: any[];
+  has_visual_asset?: boolean;
+  visual_question_type?: string;
 }
 
 interface QuestionOverlayProps {
@@ -32,6 +43,81 @@ export default function QuestionOverlay({
 
   if (!isVisible) return null;
 
+  // Handle visual question types
+  if (question.type === 'hotspot' && question.frame_url && question.bounding_boxes) {
+    return (
+      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-4xl mx-auto">
+          <HotspotQuestion
+            question={question.question}
+            imageUrl={question.frame_url}
+            altText={question.visual_context || 'Interactive hotspot question'}
+            boundingBoxes={question.bounding_boxes.map((box, index) => ({
+              id: box.id || `box-${index}`,
+              label: box.label || 'Element',
+              x: box.x || 0,
+              y: box.y || 0,
+              width: box.width || 0.1,
+              height: box.height || 0.1,
+              isCorrectAnswer: box.is_correct_answer || false,
+              confidenceScore: box.confidence_score || 0.5
+            }))}
+            explanation={question.explanation}
+            onAnswer={(isCorrect) => {
+              onAnswer(isCorrect);
+              setHasAnswered(true);
+              setShowExplanation(true);
+            }}
+            showAnswer={hasAnswered}
+            disabled={hasAnswered}
+          />
+          {hasAnswered && (
+            <div className="mt-4 flex justify-center">
+              <Button onClick={onContinue} className="flex items-center gap-2">
+                <Play className="h-4 w-4" />
+                Continue Video
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (question.type === 'matching' && question.matching_pairs) {
+    return (
+      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-4xl mx-auto">
+          <MatchingQuestion
+            question={question.question}
+            pairs={question.matching_pairs.map((pair, index) => ({
+              id: `pair-${index}`,
+              left: pair.left || 'Item',
+              right: pair.right || 'Match',
+              imageUrl: pair.frame_timestamp ? question.frame_url : undefined
+            }))}
+            explanation={question.explanation}
+            onAnswer={(isCorrect) => {
+              onAnswer(isCorrect);
+              setHasAnswered(true);
+              setShowExplanation(true);
+            }}
+            showAnswer={hasAnswered}
+            disabled={hasAnswered}
+          />
+          {hasAnswered && (
+            <div className="mt-4 flex justify-center">
+              <Button onClick={onContinue} className="flex items-center gap-2">
+                <Play className="h-4 w-4" />
+                Continue Video
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   // Parse options - handle both array and JSON string formats
   const parseOptions = (options: string[] | string): string[] => {
     if (Array.isArray(options)) {
@@ -51,7 +137,7 @@ export default function QuestionOverlay({
     return [];
   };
 
-  const parsedOptions = parseOptions(question.options);
+  const parsedOptions = parseOptions(question.options || []);
 
   const handleAnswerSelect = (optionIndex: number) => {
     if (hasAnswered) return;

@@ -12,6 +12,12 @@ interface CourseData {
   title: string;
   description: string;
   duration: string;
+  video_summary?: string;
+  enhanced_features?: {
+    visual_questions_enabled: boolean;
+    visual_questions_count: number;
+    frame_capture_available: boolean;
+  };
   segments: Array<{
     title: string;
     timestamp: string;
@@ -19,9 +25,18 @@ interface CourseData {
     questions: Array<{
       type: string;
       question: string;
-      options: string[];
-      correct: number;
+      options?: string[];
+      correct?: number;
       explanation: string;
+      has_visual_asset?: boolean;
+      visual_question_type?: string;
+      timestamp?: number;
+    }>;
+    visual_moments?: Array<{
+      timestamp: number;
+      description: string;
+      visual_complexity: string;
+      educational_value: string;
     }>;
   }>;
 }
@@ -127,7 +142,22 @@ export default function Create() {
                 <Users className="h-4 w-4" />
                 {totalQuestions} Questions
               </div>
+              {courseData.enhanced_features?.visual_questions_count && courseData.enhanced_features.visual_questions_count > 0 && (
+                <div className="flex items-center gap-2">
+                  <Play className="h-4 w-4 text-blue-600" />
+                  {courseData.enhanced_features.visual_questions_count} Visual Interactive
+                </div>
+              )}
             </div>
+            
+            {/* Enhanced Features Badge */}
+            {courseData.enhanced_features?.visual_questions_enabled && (
+              <div className="flex justify-center">
+                <Badge variant="outline" className="px-4 py-2 text-blue-600 border-blue-200 bg-blue-50">
+                  ✨ Enhanced with AI Visual Questions • Gemini Vision API • Interactive Elements
+                </Badge>
+              </div>
+            )}
           </div>
 
           {/* Main Content Grid */}
@@ -249,23 +279,29 @@ export default function Create() {
                                 </span>
                               </div>
                               <p className="text-sm mb-2">{question.question}</p>
-                              {question.options.length > 0 && (
+                              {question.options && question.options.length > 0 && (
                                 <div className="space-y-1">
                                   {question.options.map((option, optionIndex) => (
                                     <div 
                                       key={optionIndex} 
                                       className={`text-xs p-2 rounded ${
-                                        optionIndex === question.correct 
+                                        question.correct !== undefined && optionIndex === question.correct 
                                           ? 'bg-primary/10 border border-primary/20' 
                                           : 'bg-background'
                                       }`}
                                     >
                                       {String.fromCharCode(65 + optionIndex)}. {option}
-                                      {optionIndex === question.correct && (
+                                      {question.correct !== undefined && optionIndex === question.correct && (
                                         <CheckCircle className="inline h-3 w-3 ml-2 text-primary" />
                                       )}
                                     </div>
                                   ))}
+                                </div>
+                              )}
+                              {question.visual_question_type && (
+                                <div className="mt-2 text-xs text-muted-foreground">
+                                  <strong>Visual Type:</strong> {question.visual_question_type}
+                                  {question.has_visual_asset && ' (Interactive)'}
                                 </div>
                               )}
                               {question.explanation && (
