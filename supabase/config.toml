@@ -325,9 +325,16 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 enabled = true
 verify_jwt = true
 import_map = "./functions/gemini-quiz-service/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/gemini-quiz-service/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/gemini-quiz-service/*.html" ]
+
+[functions.visual-frame-service]
+enabled = true
+verify_jwt = true
+import_map = "./functions/visual-frame-service/deno.json"
+entrypoint = "./functions/visual-frame-service/index.ts"
+
+[functions.enhanced-quiz-service]
+enabled = true
+verify_jwt = true
+import_map = "./functions/enhanced-quiz-service/deno.json"
+entrypoint = "./functions/enhanced-quiz-service/index.ts"
