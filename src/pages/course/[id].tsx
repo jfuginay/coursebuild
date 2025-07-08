@@ -79,15 +79,20 @@ export default function CoursePage() {
   }, [id]);
 
   useEffect(() => {
-    // Load YouTube iframe API
-    const script = document.createElement('script');
-    script.src = 'https://www.youtube.com/iframe_api';
-    script.async = true;
-    document.body.appendChild(script);
-
-    window.onYouTubeIframeAPIReady = () => {
-      console.log('YouTube API loaded');
-    };
+    // Load YouTube iframe API only once
+    if (!window.YT && !document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+      const script = document.createElement('script');
+      script.src = 'https://www.youtube.com/iframe_api';
+      script.async = true;
+      document.body.appendChild(script);
+      
+      // Set up the API ready callback
+      window.onYouTubeIframeAPIReady = () => {
+        console.log('YouTube API loaded');
+        // Trigger re-render to initialize player
+        setIsVideoReady(false);
+      };
+    }
 
     return () => {
       if (intervalRef.current) {
@@ -97,7 +102,8 @@ export default function CoursePage() {
   }, []);
 
   useEffect(() => {
-    if (videoId && window.YT && !player) {
+    // Initialize player when we have video ID and YouTube API is ready
+    if (videoId && window.YT && window.YT.Player && !player) {
       initializePlayer();
     }
   }, [videoId, player]);
@@ -116,6 +122,7 @@ export default function CoursePage() {
       if (data.success) {
         setCourse(data.course);
         const extractedVideoId = extractVideoId(data.course.youtube_url);
+        console.log('Extracted video ID:', extractedVideoId, 'from URL:', data.course.youtube_url);
         setVideoId(extractedVideoId);
       } else {
         setError(data.error || 'Failed to fetch course');
@@ -168,36 +175,81 @@ export default function CoursePage() {
   };
 
   const initializePlayer = () => {
-    if (!window.YT || !videoId) return;
+    if (!window.YT || !window.YT.Player || !videoId) {
+      console.log('YouTube API not ready yet, retrying...');
+      setTimeout(initializePlayer, 100);
+      return;
+    }
 
-    const newPlayer = new window.YT.Player('youtube-player', {
-      videoId: videoId,
-      playerVars: {
-        autoplay: 0,
-        controls: 1,
-        disablekb: 0,
-        enablejsapi: 1,
-        modestbranding: 1,
-        playsinline: 1,
-        rel: 0,
-      },
-      events: {
-        onReady: (event: any) => {
-          console.log('Player ready');
-          setPlayer(event.target);
-          playerRef.current = event.target;
-          setIsVideoReady(true);
-          startTimeTracking();
+    // Check if the target element exists
+    const targetElement = document.getElementById('youtube-player');
+    if (!targetElement) {
+      console.log('YouTube player element not found, retrying...');
+      setTimeout(initializePlayer, 100);
+      return;
+    }
+
+    try {
+      console.log('Initializing YouTube player with video ID:', videoId);
+      
+      const newPlayer = new window.YT.Player('youtube-player', {
+        videoId: videoId,
+        playerVars: {
+          autoplay: 0,
+          controls: 1,
+          disablekb: 0,
+          enablejsapi: 1,
+          modestbranding: 1,
+          playsinline: 1,
+          rel: 0,
         },
-        onStateChange: (event: any) => {
-          if (event.data === window.YT.PlayerState.PLAYING) {
+        events: {
+          onReady: (event: any) => {
+            console.log('Player ready');
+            setPlayer(event.target);
+            playerRef.current = event.target;
+            setIsVideoReady(true);
             startTimeTracking();
-          } else if (event.data === window.YT.PlayerState.PAUSED) {
-            stopTimeTracking();
-          }
+          },
+          onStateChange: (event: any) => {
+            if (event.data === window.YT.PlayerState.PLAYING) {
+              startTimeTracking();
+            } else if (event.data === window.YT.PlayerState.PAUSED) {
+              stopTimeTracking();
+            }
+          },
+          onError: (event: any) => {
+            console.error('YouTube player error:', event.data);
+            // Handle different error types
+            switch (event.data) {
+              case 2:
+                console.error('Invalid video ID');
+                setError('Invalid video ID. Please check the YouTube URL.');
+                break;
+              case 5:
+                console.error('Video not supported in HTML5 player');
+                setError('Video format not supported. Please try a different video.');
+                break;
+              case 100:
+                console.error('Video not found or private');
+                setError('Video not found or is private. Please check the YouTube URL.');
+                break;
+              case 101:
+              case 150:
+                console.error('Video cannot be embedded');
+                setError('This video cannot be embedded. Please try a different video.');
+                break;
+              default:
+                console.error('Unknown YouTube player error');
+                setError('Unable to load video. Please try again later.');
+            }
+          },
         },
-      },
-    });
+      });
+    } catch (error) {
+      console.error('Error initializing YouTube player:', error);
+      setError('Failed to initialize video player. Please refresh the page.');
+    }
   };
 
   const startTimeTracking = () => {
