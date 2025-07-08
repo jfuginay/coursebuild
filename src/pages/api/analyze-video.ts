@@ -224,7 +224,7 @@ export default async function handler(
   }
 
   try {
-    const { youtubeUrl } = req.body;
+    const { youtubeUrl, useEnhanced } = req.body;
 
     if (!youtubeUrl) {
       return res.status(400).json({ error: 'YouTube URL is required' });
@@ -256,9 +256,10 @@ export default async function handler(
 
     console.log('✅ Course created:', course.id);
 
-    // Step 2: Call Enhanced Quiz Service with visual questions support
+    // Step 2: Call appropriate service based on useEnhanced flag
+    const serviceName = useEnhanced ? 'enhanced-quiz-service' : 'gemini-quiz-service';
     const edgeResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/enhanced-quiz-service`,
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/${serviceName}`,
       {
         method: 'POST',
         headers: {
@@ -287,7 +288,7 @@ export default async function handler(
     }
 
     const edgeData = await edgeResponse.json();
-    console.log('✅ Enhanced Quiz Service completed successfully!');
+    console.log(`✅ ${serviceName} completed successfully!`);
     console.log(`   - Questions generated: ${edgeData.questions?.length || 0}`);
     console.log(`   - Visual questions: ${edgeData.enhanced_features?.visual_questions_count || 0}`);
     console.log(`   - Video summary: ${edgeData.video_summary?.substring(0, 100) || 'N/A'}...`);
@@ -315,6 +316,7 @@ export default async function handler(
     console.log(`   - Course ID: ${course.id}`);
     console.log(`   - Total segments: ${transformedData.segments?.length || 0}`);
     console.log(`   - Enhanced features: ${JSON.stringify(transformedData.enhanced_features)}`);
+    console.log(`   - Service used: ${serviceName}`);
 
     return res.status(200).json({
       success: true,
@@ -326,7 +328,8 @@ export default async function handler(
         visual_questions: edgeData.enhanced_features?.visual_questions_count || 0,
         segments_created: transformedData.segments?.length || 0,
         video_duration: transformedData.duration,
-        visual_moments: edgeData.visual_moments?.length || 0
+        visual_moments: edgeData.visual_moments?.length || 0,
+        service_used: serviceName
       }
     });
 
