@@ -7,7 +7,6 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Play, BookOpen, Clock, Users, CheckCircle, Sparkles, Youtube, ArrowRight, Loader2, HelpCircle, Timer } from "lucide-react";
-import { isValidYouTubeUrl, CourseData, Question } from "@/lib/gemini";
 import { useToast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 
@@ -24,6 +23,29 @@ const staggerContainer = {
     }
   }
 };
+
+// Define interfaces locally to avoid import issues
+interface Question {
+  type: 'multiple_choice';
+  question: string;
+  options: string[];
+  correct: number;
+  explanation: string;
+}
+
+interface CourseSegment {
+  title: string;
+  timestamp: string;
+  concepts: string[];
+  questions: Question[];
+}
+
+interface CourseData {
+  title: string;
+  description: string;
+  duration: string;
+  segments: CourseSegment[];
+}
 
 interface QuestionCardProps {
   question: Question;
@@ -89,6 +111,23 @@ function QuestionCard({ question, questionIndex, segmentIndex }: QuestionCardPro
       </CardContent>
     </Card>
   );
+}
+
+// YouTube URL validation function
+function isValidYouTubeUrl(url: string): boolean {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+    /youtube\.com\/watch\?.*v=([^&\n?#]+)/
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) {
+      return true;
+    }
+  }
+  
+  return false;
 }
 
 export default function Home() {
