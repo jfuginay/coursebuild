@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Play, BookOpen, Clock, Users, CheckCircle, Sparkles, Youtube, ArrowRight, Loader2 } from "lucide-react";
 import { isValidYouTubeUrl, CourseData } from "@/lib/gemini";
 import { useToast } from "@/components/ui/use-toast";
+import { Toaster } from "@/components/ui/toaster";
 
 const fadeInUp = {
   initial: { opacity: 0, y: 60 },
@@ -336,6 +337,7 @@ export default function Home() {
           background-size: 20px 20px;
         }
       `}</style>
+      <Toaster />
     </>
   );
 }
