@@ -1,5 +1,6 @@
 import { useRouter } from 'next/router';
-import Logo from './Logo';
+import Logo from '@/components/Logo';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 const Header = () => {
   const router = useRouter();
@@ -10,6 +11,7 @@ const Header = () => {
         <div className="cursor-pointer" onClick={() => router.push("/")}>
           <Logo />
         </div>
+        <ThemeToggle />
       </div>
     </div>
   );
