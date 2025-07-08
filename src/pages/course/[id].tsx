@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, Play, BookOpen, Clock, Users, CheckCircle, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Play, BookOpen, Clock, Users, CheckCircle, ExternalLink, Pause } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Progress } from '@/components/ui/progress';
 import Header from '@/components/Header';
+import QuestionOverlay from '@/components/QuestionOverlay';
 
 interface Course {
   id: string;
@@ -18,125 +19,232 @@ interface Course {
   published: boolean;
 }
 
-interface CourseSegment {
-  title: string;
-  timestamp: string;
-  concepts: string[];
-  questions: Array<{
-    type: string;
-    question: string;
-    options: string[];
-    correct: number;
-    explanation: string;
-  }>;
+interface Question {
+  id: string;
+  question: string;
+  options: string[] | string; // Can be array or JSON string
+  correct_answer: string | number;
+  explanation: string;
+  timestamp: number;
 }
 
-interface CourseData {
-  title: string;
-  description: string;
-  duration: string;
-  segments: CourseSegment[];
+interface YTPlayer {
+  playVideo: () => void;
+  pauseVideo: () => void;
+  getCurrentTime: () => number;
+  getDuration: () => number;
+  getPlayerState: () => number;
+  seekTo: (seconds: number) => void;
+}
+
+declare global {
+  interface Window {
+    YT: {
+      Player: new (elementId: string, config: any) => YTPlayer;
+      PlayerState: {
+        PLAYING: number;
+        PAUSED: number;
+        ENDED: number;
+      };
+    };
+    onYouTubeIframeAPIReady: () => void;
+  }
 }
 
 export default function CoursePage() {
   const router = useRouter();
   const { id } = router.query;
   const [course, setCourse] = useState<Course | null>(null);
-  const [courseData, setCourseData] = useState<CourseData | null>(null);
+  const [questions, setQuestions] = useState<Question[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [videoId, setVideoId] = useState<string>('');
+  const [player, setPlayer] = useState<YTPlayer | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [showQuestion, setShowQuestion] = useState(false);
+  const [answeredQuestions, setAnsweredQuestions] = useState<Set<number>>(new Set());
+  const [correctAnswers, setCorrectAnswers] = useState(0);
+  const [isVideoReady, setIsVideoReady] = useState(false);
+
+  const playerRef = useRef<YTPlayer | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (id) {
       fetchCourse();
+      fetchQuestions();
     }
   }, [id]);
 
+  useEffect(() => {
+    // Load YouTube iframe API
+    const script = document.createElement('script');
+    script.src = 'https://www.youtube.com/iframe_api';
+    script.async = true;
+    document.body.appendChild(script);
+
+    window.onYouTubeIframeAPIReady = () => {
+      console.log('YouTube API loaded');
+    };
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (videoId && window.YT && !player) {
+      initializePlayer();
+    }
+  }, [videoId, player]);
+
+  useEffect(() => {
+    if (player && questions.length > 0) {
+      checkForQuestions();
+    }
+  }, [currentTime, questions, currentQuestionIndex, answeredQuestions]);
+
   const fetchCourse = async () => {
     try {
-      setIsLoading(true);
-      setError(null);
-      
       const response = await fetch(`/api/course/${id}`);
       const data = await response.json();
 
       if (data.success) {
         setCourse(data.course);
-        
-        // Extract video ID from YouTube URL
         const extractedVideoId = extractVideoId(data.course.youtube_url);
         setVideoId(extractedVideoId);
-        
-        // For now, we'll generate mock course data since the structure isn't stored in the database
-        // In a real implementation, this would be fetched from the database
-        const mockCourseData: CourseData = {
-          title: data.course.title,
-          description: data.course.description,
-          duration: "30 minutes",
-          segments: [
-            {
-              title: "Introduction",
-              timestamp: "00:00",
-              concepts: ["Course overview", "Learning objectives", "Prerequisites"],
-              questions: [
-                {
-                  type: "multiple_choice",
-                  question: "What is the main topic of this course?",
-                  options: ["Introduction to the topic", "Advanced concepts", "Practical applications", "Summary"],
-                  correct: 0,
-                  explanation: "This course starts with an introduction to familiarize you with the main topic."
-                }
-              ]
-            },
-            {
-              title: "Core Concepts",
-              timestamp: "05:00",
-              concepts: ["Fundamental principles", "Key terminology", "Basic techniques"],
-              questions: [
-                {
-                  type: "multiple_choice",
-                  question: "Which concept is most fundamental to understanding this topic?",
-                  options: ["Advanced theory", "Basic principles", "Complex applications", "Historical context"],
-                  correct: 1,
-                  explanation: "Basic principles form the foundation for understanding more advanced concepts."
-                },
-                {
-                  type: "multiple_choice",
-                  question: "What should you focus on first when learning this topic?",
-                  options: ["Memorizing terminology", "Understanding core concepts", "Practicing advanced techniques", "Reading additional resources"],
-                  correct: 1,
-                  explanation: "Understanding core concepts provides the foundation for all other learning."
-                }
-              ]
-            },
-            {
-              title: "Practical Applications",
-              timestamp: "15:00",
-              concepts: ["Real-world examples", "Use cases", "Best practices"],
-              questions: [
-                {
-                  type: "multiple_choice",
-                  question: "How can you apply these concepts in practice?",
-                  options: ["Only in academic settings", "In real-world scenarios", "Only in controlled environments", "Never in practice"],
-                  correct: 1,
-                  explanation: "These concepts are designed to be applied in real-world scenarios to solve practical problems."
-                }
-              ]
-            }
-          ]
-        };
-        
-        setCourseData(mockCourseData);
       } else {
         setError(data.error || 'Failed to fetch course');
       }
     } catch (err) {
       setError('Error loading course');
       console.error('Error fetching course:', err);
+    }
+  };
+
+  const fetchQuestions = async () => {
+    try {
+      const response = await fetch(`/api/course/${id}/questions`);
+      const data = await response.json();
+
+      if (data.success) {
+        // Parse options for each question to ensure they're arrays
+        const parsedQuestions = data.questions.map((q: Question) => ({
+          ...q,
+          options: parseOptions(q.options)
+        }));
+        setQuestions(parsedQuestions);
+      } else {
+        console.error('Failed to fetch questions:', data.error);
+      }
+    } catch (err) {
+      console.error('Error fetching questions:', err);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Parse options - handle both array and JSON string formats
+  const parseOptions = (options: string[] | string): string[] => {
+    if (Array.isArray(options)) {
+      return options;
+    }
+    
+    if (typeof options === 'string') {
+      try {
+        const parsed = JSON.parse(options);
+        return Array.isArray(parsed) ? parsed : [options];
+      } catch (e) {
+        // If parsing fails, treat as a single option
+        return [options];
+      }
+    }
+    
+    return [];
+  };
+
+  const initializePlayer = () => {
+    if (!window.YT || !videoId) return;
+
+    const newPlayer = new window.YT.Player('youtube-player', {
+      videoId: videoId,
+      playerVars: {
+        autoplay: 0,
+        controls: 1,
+        disablekb: 0,
+        enablejsapi: 1,
+        modestbranding: 1,
+        playsinline: 1,
+        rel: 0,
+      },
+      events: {
+        onReady: (event: any) => {
+          console.log('Player ready');
+          setPlayer(event.target);
+          playerRef.current = event.target;
+          setIsVideoReady(true);
+          startTimeTracking();
+        },
+        onStateChange: (event: any) => {
+          if (event.data === window.YT.PlayerState.PLAYING) {
+            startTimeTracking();
+          } else if (event.data === window.YT.PlayerState.PAUSED) {
+            stopTimeTracking();
+          }
+        },
+      },
+    });
+  };
+
+  const startTimeTracking = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    
+    intervalRef.current = setInterval(() => {
+      if (playerRef.current) {
+        const time = playerRef.current.getCurrentTime();
+        const totalDuration = playerRef.current.getDuration();
+        setCurrentTime(time);
+        setDuration(totalDuration);
+      }
+    }, 100); // Check every 100ms for smooth question timing
+  };
+
+  const stopTimeTracking = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  };
+
+  const checkForQuestions = () => {
+    if (showQuestion || questions.length === 0) return;
+
+    const nextQuestion = questions.find((q, index) => {
+      return !answeredQuestions.has(index) && currentTime >= q.timestamp;
+    });
+
+    if (nextQuestion) {
+      const questionIndex = questions.indexOf(nextQuestion);
+      setCurrentQuestionIndex(questionIndex);
+      setShowQuestion(true);
+      playerRef.current?.pauseVideo();
+    }
+  };
+
+  const handleAnswer = (correct: boolean) => {
+    if (correct) {
+      setCorrectAnswers(prev => prev + 1);
+    }
+  };
+
+  const handleContinueVideo = () => {
+    setAnsweredQuestions(prev => new Set(prev).add(currentQuestionIndex));
+    setShowQuestion(false);
+    playerRef.current?.playVideo();
   };
 
   const extractVideoId = (url: string): string => {
@@ -158,20 +266,20 @@ export default function CoursePage() {
     router.push('/');
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
+
+  const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
         <Header />
         <div className="container mx-auto px-4 py-8">
-          <div className="max-w-6xl mx-auto space-y-8">
+          <div className="max-w-4xl mx-auto space-y-8">
             <Button variant="ghost" className="mb-4">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Home
@@ -180,41 +288,13 @@ export default function CoursePage() {
             <div className="text-center space-y-4">
               <Skeleton className="h-12 w-3/4 mx-auto" />
               <Skeleton className="h-6 w-1/2 mx-auto" />
-              <div className="flex justify-center gap-4">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-4 w-24" />
-              </div>
             </div>
             
-            <div className="grid lg:grid-cols-2 gap-8">
-              <Card>
-                <CardHeader>
-                  <Skeleton className="h-6 w-32" />
-                  <Skeleton className="h-4 w-48" />
-                </CardHeader>
-                <CardContent>
-                  <Skeleton className="aspect-video w-full" />
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader>
-                  <Skeleton className="h-6 w-40" />
-                  <Skeleton className="h-4 w-56" />
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {[...Array(3)].map((_, i) => (
-                      <div key={i} className="space-y-2">
-                        <Skeleton className="h-4 w-full" />
-                        <Skeleton className="h-3 w-3/4" />
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <Card>
+              <CardContent className="p-6">
+                <Skeleton className="aspect-video w-full" />
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
@@ -226,16 +306,14 @@ export default function CoursePage() {
       <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
         <Header />
         <div className="container mx-auto px-4 py-8">
-          <div className="max-w-6xl mx-auto space-y-8">
+          <div className="max-w-4xl mx-auto space-y-8">
             <Button variant="ghost" onClick={handleBackToHome} className="mb-4">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Home
             </Button>
             
             <Alert variant="destructive">
-              <AlertDescription>
-                {error}
-              </AlertDescription>
+              <AlertDescription>{error}</AlertDescription>
             </Alert>
           </div>
         </div>
@@ -243,21 +321,19 @@ export default function CoursePage() {
     );
   }
 
-  if (!course || !courseData) {
+  if (!course) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
         <Header />
         <div className="container mx-auto px-4 py-8">
-          <div className="max-w-6xl mx-auto space-y-8">
+          <div className="max-w-4xl mx-auto space-y-8">
             <Button variant="ghost" onClick={handleBackToHome} className="mb-4">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Home
             </Button>
             
             <Alert>
-              <AlertDescription>
-                Course not found or not available.
-              </AlertDescription>
+              <AlertDescription>Course not found or not available.</AlertDescription>
             </Alert>
           </div>
         </div>
@@ -265,14 +341,12 @@ export default function CoursePage() {
     );
   }
 
-  const totalQuestions = courseData.segments.reduce((total, segment) => total + segment.questions.length, 0);
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
       <Header />
       
       <div className="container mx-auto px-4 py-8">
-        <div className="max-w-6xl mx-auto space-y-8">
+        <div className="max-w-4xl mx-auto space-y-8">
           {/* Back Button */}
           <Button variant="ghost" onClick={handleBackToHome} className="mb-4">
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -281,188 +355,139 @@ export default function CoursePage() {
 
           {/* Course Header */}
           <div className="text-center space-y-4">
-            <h1 className="text-4xl font-bold tracking-tight lg:text-5xl">
-              {courseData.title}
+            <h1 className="text-3xl font-bold tracking-tight lg:text-4xl">
+              {course.title}
             </h1>
-            <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-              {courseData.description}
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              {course.description}
             </p>
+            
+            {/* Course Stats */}
             <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
               <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                Duration: {courseData.duration}
-              </div>
-              <div className="flex items-center gap-2">
                 <BookOpen className="h-4 w-4" />
-                {courseData.segments.length} Segments
+                {questions.length} Questions
               </div>
               <div className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                {totalQuestions} Questions
+                <CheckCircle className="h-4 w-4" />
+                {correctAnswers}/{answeredQuestions.size} Correct
               </div>
-            </div>
-            <Badge variant="secondary" className="text-sm">
-              Created on {formatDate(course.created_at)}
-            </Badge>
-          </div>
-
-          {/* Main Content Grid */}
-          <div className="grid lg:grid-cols-2 gap-8">
-            {/* Video Section */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Play className="h-5 w-5" />
-                  Original Video
-                </CardTitle>
-                <CardDescription>
-                  Watch the source material that was used to generate this course
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {videoId ? (
-                  <div className="aspect-video">
-                    <iframe
-                      src={`https://www.youtube.com/embed/${videoId}`}
-                      title="YouTube video player"
-                      frameBorder="0"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                      allowFullScreen
-                      className="w-full h-full rounded-lg"
-                    />
-                  </div>
-                ) : (
-                  <div className="aspect-video bg-muted rounded-lg flex items-center justify-center">
-                    <p className="text-muted-foreground">Unable to load video</p>
-                  </div>
-                )}
-                <div className="mt-4">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => window.open(course.youtube_url, '_blank')}
-                  >
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    Watch on YouTube
-                  </Button>
+              {duration > 0 && (
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  {formatTime(duration)}
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Course Structure */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Course Structure</CardTitle>
-                <CardDescription>
-                  Interactive segments with questions and concepts
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {courseData.segments.map((segment, index) => (
-                  <div key={index} className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-medium text-sm">
-                        Segment {index + 1}: {segment.title}
-                      </h4>
-                      <Badge variant="secondary" className="text-xs">
-                        {segment.timestamp}
-                      </Badge>
-                    </div>
-                    
-                    <div className="space-y-2 text-sm text-muted-foreground">
-                      <div>
-                        <strong>Concepts:</strong> {segment.concepts.length > 0 ? segment.concepts.join(', ') : 'None specified'}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-primary" />
-                        {segment.questions.length} interactive question{segment.questions.length !== 1 ? 's' : ''}
-                      </div>
-                    </div>
-                    
-                    {index < courseData.segments.length - 1 && <Separator />}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+              )}
+            </div>
           </div>
 
-          {/* Course Details */}
+          {/* Video Player */}
           <Card>
             <CardHeader>
-              <CardTitle>Course Details</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Play className="h-5 w-5" />
+                Interactive Video Course
+              </CardTitle>
               <CardDescription>
-                Detailed breakdown of each segment and its interactive elements
+                Watch the video and answer questions as they appear
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {courseData.segments.map((segment, segmentIndex) => (
-                  <div key={segmentIndex} className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      <Badge variant="outline" className="text-xs">
-                        {segment.timestamp}
-                      </Badge>
-                      <h3 className="text-lg font-semibold">{segment.title}</h3>
-                    </div>
-
-                    {segment.concepts.length > 0 && (
-                      <div>
-                        <h4 className="font-medium mb-2 text-sm">Key Concepts:</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {segment.concepts.map((concept, conceptIndex) => (
-                            <Badge key={conceptIndex} variant="secondary">
-                              {concept}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {segment.questions.length > 0 && (
-                      <div>
-                        <h4 className="font-medium mb-3 text-sm">Interactive Questions:</h4>
-                        <div className="space-y-4">
-                          {segment.questions.map((question, questionIndex) => (
-                            <Card key={questionIndex} className="p-4">
-                              <div className="space-y-3">
-                                <p className="font-medium text-sm">{question.question}</p>
-                                <div className="grid grid-cols-1 gap-2">
-                                  {question.options.map((option, optionIndex) => (
-                                    <div 
-                                      key={optionIndex} 
-                                      className={`p-2 rounded text-sm border ${
-                                        optionIndex === question.correct 
-                                          ? 'bg-green-50 border-green-200 text-green-800' 
-                                          : 'bg-muted/50 border-border'
-                                      }`}
-                                    >
-                                      {optionIndex === question.correct && (
-                                        <CheckCircle className="inline h-3 w-3 mr-1" />
-                                      )}
-                                      {option}
-                                    </div>
-                                  ))}
-                                </div>
-                                <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
-                                  <strong>Explanation:</strong> {question.explanation}
-                                </div>
-                              </div>
-                            </Card>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {segmentIndex < courseData.segments.length - 1 && (
-                      <Separator className="my-6" />
-                    )}
+            <CardContent className="space-y-4">
+              <div className="aspect-video bg-muted rounded-lg overflow-hidden">
+                <div id="youtube-player" className="w-full h-full" />
+              </div>
+              
+              {/* Progress Bar */}
+              {isVideoReady && duration > 0 && (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>{formatTime(currentTime)}</span>
+                    <span>{formatTime(duration)}</span>
                   </div>
-                ))}
+                  <Progress value={progressPercentage} className="h-2" />
+                  
+                  {/* Question markers */}
+                  <div className="relative h-2">
+                    {questions.map((question, index) => {
+                      const position = (question.timestamp / duration) * 100;
+                      const isAnswered = answeredQuestions.has(index);
+                      return (
+                        <div
+                          key={index}
+                          className={`absolute top-0 w-2 h-2 rounded-full transform -translate-x-1/2 ${
+                            isAnswered ? 'bg-green-500' : 'bg-primary'
+                          }`}
+                          style={{ left: `${position}%` }}
+                          title={`Question at ${formatTime(question.timestamp)}`}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* External Link */}
+              <div className="flex justify-center">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => window.open(course.youtube_url, '_blank')}
+                >
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Watch on YouTube
+                </Button>
               </div>
             </CardContent>
           </Card>
+
+          {/* Progress Summary */}
+          {questions.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Learning Progress</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                  <div>
+                    <div className="text-2xl font-bold text-primary">
+                      {answeredQuestions.size}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Questions Answered
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-green-600">
+                      {correctAnswers}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Correct Answers
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-blue-600">
+                      {answeredQuestions.size > 0 ? Math.round((correctAnswers / answeredQuestions.size) * 100) : 0}%
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Accuracy
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
+
+      {/* Question Overlay */}
+      {showQuestion && questions[currentQuestionIndex] && (
+        <QuestionOverlay
+          question={questions[currentQuestionIndex]}
+          onAnswer={handleAnswer}
+          onContinue={handleContinueVideo}
+          isVisible={showQuestion}
+        />
+      )}
     </div>
   );
 } 
