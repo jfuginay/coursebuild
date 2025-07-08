@@ -399,29 +399,33 @@ export default function CoursePage() {
               
               {/* Progress Bar */}
               {isVideoReady && duration > 0 && (
-                <div className="space-y-2">
+                <div className="space-y-3 px-2">
                   <div className="flex justify-between text-sm text-muted-foreground">
                     <span>{formatTime(currentTime)}</span>
                     <span>{formatTime(duration)}</span>
                   </div>
-                  <Progress value={progressPercentage} className="h-2" />
                   
-                  {/* Question markers */}
-                  <div className="relative h-2">
-                    {questions.map((question, index) => {
-                      const position = (question.timestamp / duration) * 100;
-                      const isAnswered = answeredQuestions.has(index);
-                      return (
-                        <div
-                          key={index}
-                          className={`absolute top-0 w-2 h-2 rounded-full transform -translate-x-1/2 ${
-                            isAnswered ? 'bg-green-500' : 'bg-primary'
-                          }`}
-                          style={{ left: `${position}%` }}
-                          title={`Question at ${formatTime(question.timestamp)}`}
-                        />
-                      );
-                    })}
+                  {/* Progress bar with contained markers */}
+                  <div className="relative">
+                    <Progress value={progressPercentage} className="h-2" />
+                    
+                    {/* Question markers positioned relative to progress bar */}
+                    <div className="absolute top-0 left-0 right-0 h-2">
+                      {questions.map((question, index) => {
+                        const position = Math.min(Math.max((question.timestamp / duration) * 100, 0.5), 99.5);
+                        const isAnswered = answeredQuestions.has(index);
+                        return (
+                          <div
+                            key={index}
+                            className={`absolute top-0 w-3 h-3 rounded-full transform -translate-x-1/2 -translate-y-0.5 border-2 border-background shadow-sm ${
+                              isAnswered ? 'bg-green-500' : 'bg-primary'
+                            }`}
+                            style={{ left: `${position}%` }}
+                            title={`Question at ${formatTime(question.timestamp)}`}
+                          />
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               )}
