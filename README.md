@@ -91,6 +91,39 @@ CourseForge AI leverages advanced AI technologies to:
    ```
 5. Open [http://localhost:3000](http://localhost:3000) in your browser to see the result.
 
+## 🚀 Deployment
+
+### Supabase Edge Functions
+
+The backend AI processing is powered by Supabase Edge Functions, featuring advanced video analysis with Gemini 2.5 Flash. The system includes:
+
+- **`gemini-quiz-service`**: Direct YouTube video analysis and intelligent question generation
+- **Visual context extraction**: Frame-specific question placement
+- **Multiple question types**: MCQ, True/False, and Hotspot questions
+
+#### Quick Deployment Commands:
+```bash
+# Deploy edge functions
+npm run supabase:deploy:gemini
+
+# Monitor function logs  
+npm run supabase:logs
+
+# Start local Supabase (optional)
+npm run supabase:start
+```
+
+#### Comprehensive Documentation:
+For detailed deployment instructions, API specifications, troubleshooting, and development workflows, see **[`supabase/DEPLOYMENT.md`](supabase/DEPLOYMENT.md)**.
+
+### Frontend Deployment
+
+Deploy the Next.js frontend to Vercel:
+```bash
+npm run build
+# Deploy via Vercel CLI or GitHub integration
+```
+
 ## 📋 Project Roadmap & Success Metrics
 
 ### Sprint Timeline
