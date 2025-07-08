@@ -6,8 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Play, BookOpen, Clock, Users, CheckCircle, Sparkles, Youtube, ArrowRight, Loader2 } from "lucide-react";
-import { isValidYouTubeUrl, CourseData } from "@/lib/gemini";
+import { Play, BookOpen, Clock, Users, CheckCircle, Sparkles, Youtube, ArrowRight, Loader2, HelpCircle, Timer } from "lucide-react";
+import { isValidYouTubeUrl, CourseData, Question } from "@/lib/gemini";
 import { useToast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 
@@ -24,6 +24,72 @@ const staggerContainer = {
     }
   }
 };
+
+interface QuestionCardProps {
+  question: Question;
+  questionIndex: number;
+  segmentIndex: number;
+}
+
+function QuestionCard({ question, questionIndex, segmentIndex }: QuestionCardProps) {
+  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
+  const [showExplanation, setShowExplanation] = useState(false);
+
+  const handleAnswerSelect = (optionIndex: number) => {
+    setSelectedAnswer(optionIndex);
+    setShowExplanation(true);
+  };
+
+  const getOptionStyle = (optionIndex: number) => {
+    if (!showExplanation) return "hover:bg-muted/50 cursor-pointer";
+    
+    if (optionIndex === question.correct) {
+      return "bg-green-100 border-green-300 text-green-800 dark:bg-green-900/20 dark:border-green-700 dark:text-green-300";
+    } else if (optionIndex === selectedAnswer && optionIndex !== question.correct) {
+      return "bg-red-100 border-red-300 text-red-800 dark:bg-red-900/20 dark:border-red-700 dark:text-red-300";
+    }
+    return "opacity-60";
+  };
+
+  return (
+    <Card className="border border-border/50">
+      <CardHeader className="pb-4">
+        <CardTitle className="text-base flex items-center gap-2">
+          <HelpCircle className="w-4 h-4 text-primary" />
+          Question {questionIndex + 1}
+        </CardTitle>
+        <CardDescription className="text-sm leading-relaxed">
+          {question.question}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="space-y-2">
+          {question.options.map((option, optionIndex) => (
+            <div
+              key={optionIndex}
+              onClick={() => !showExplanation && handleAnswerSelect(optionIndex)}
+              className={`p-3 rounded-lg border transition-colors ${getOptionStyle(optionIndex)}`}
+            >
+              <span className="font-medium mr-2">{String.fromCharCode(65 + optionIndex)}.</span>
+              {option}
+            </div>
+          ))}
+        </div>
+        
+        {showExplanation && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800"
+          >
+            <h4 className="font-medium text-blue-900 dark:text-blue-300 mb-2">Explanation:</h4>
+            <p className="text-sm text-blue-800 dark:text-blue-200">{question.explanation}</p>
+          </motion.div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function Home() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
@@ -73,7 +139,7 @@ export default function Home() {
       setCourseData(result.data);
       toast({
         title: "Course Generated!",
-        description: "Your course structure has been created successfully.",
+        description: "Your interactive course has been created successfully.",
       });
 
     } catch (error) {
@@ -91,8 +157,8 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>CourseForge AI - Transform YouTube Videos into Structured Courses</title>
-        <meta name="description" content="Transform any YouTube video into a comprehensive, structured course with AI-powered analysis" />
+        <title>CourseForge AI - Transform YouTube Videos into Interactive Courses</title>
+        <meta name="description" content="Transform any YouTube video into an interactive, structured course with AI-powered analysis, timestamps, and quiz questions" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
@@ -128,7 +194,7 @@ export default function Home() {
                 variants={fadeInUp}
                 className="text-xl md:text-2xl text-muted-foreground mb-8 leading-relaxed"
               >
-                Transform any YouTube video into a comprehensive, structured course with AI-powered analysis
+                Transform any YouTube video into an interactive, structured course with timestamps, concepts, and quiz questions
               </motion.p>
 
               <motion.div variants={fadeInUp} className="mb-12">
@@ -174,11 +240,11 @@ export default function Home() {
               >
                 <div className="flex flex-col items-center p-6 rounded-2xl bg-card/50 backdrop-blur-sm border">
                   <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                    <Play className="w-6 h-6 text-primary" />
+                    <Timer className="w-6 h-6 text-primary" />
                   </div>
-                  <h3 className="font-semibold mb-2">Video Analysis</h3>
+                  <h3 className="font-semibold mb-2">Timestamped Segments</h3>
                   <p className="text-sm text-muted-foreground text-center">
-                    AI analyzes video content to extract key learning points
+                    AI breaks videos into logical segments with precise timestamps
                   </p>
                 </div>
 
@@ -186,19 +252,19 @@ export default function Home() {
                   <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                     <BookOpen className="w-6 h-6 text-primary" />
                   </div>
-                  <h3 className="font-semibold mb-2">Course Structure</h3>
+                  <h3 className="font-semibold mb-2">Key Concepts</h3>
                   <p className="text-sm text-muted-foreground text-center">
-                    Generates organized modules with topics and learning outcomes
+                    Extracts and organizes important concepts from each segment
                   </p>
                 </div>
 
                 <div className="flex flex-col items-center p-6 rounded-2xl bg-card/50 backdrop-blur-sm border">
                   <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                    <Users className="w-6 h-6 text-primary" />
+                    <HelpCircle className="w-6 h-6 text-primary" />
                   </div>
-                  <h3 className="font-semibold mb-2">Ready to Teach</h3>
+                  <h3 className="font-semibold mb-2">Interactive Quizzes</h3>
                   <p className="text-sm text-muted-foreground text-center">
-                    Complete course outline ready for educational use
+                    Generates quiz questions to test understanding of each segment
                   </p>
                 </div>
               </motion.div>
@@ -228,37 +294,20 @@ export default function Home() {
                       {courseData.duration}
                     </Badge>
                     <Badge variant="outline" className="px-4 py-2">
-                      {courseData.difficulty}
+                      {courseData.segments.length} Segments
                     </Badge>
                     <Badge variant="outline" className="px-4 py-2">
-                      {courseData.modules.length} Modules
+                      {courseData.segments.reduce((total, segment) => total + segment.questions.length, 0)} Questions
                     </Badge>
                   </div>
                 </CardHeader>
 
                 <CardContent className="space-y-8">
-                  {/* Prerequisites */}
-                  {courseData.prerequisites.length > 0 && (
-                    <div>
-                      <h3 className="text-xl font-semibold mb-4">Prerequisites</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {courseData.prerequisites.map((prereq, index) => (
-                          <div key={index} className="flex items-center">
-                            <CheckCircle className="w-4 h-4 text-primary mr-2 flex-shrink-0" />
-                            <span className="text-sm">{prereq}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <Separator />
-
-                  {/* Modules */}
+                  {/* Course Segments */}
                   <div>
-                    <h3 className="text-xl font-semibold mb-6">Course Modules</h3>
-                    <div className="space-y-6">
-                      {courseData.modules.map((module, index) => (
+                    <h3 className="text-xl font-semibold mb-6">Course Segments</h3>
+                    <div className="space-y-8">
+                      {courseData.segments.map((segment, index) => (
                         <motion.div
                           key={index}
                           initial={{ opacity: 0, x: -20 }}
@@ -269,49 +318,55 @@ export default function Home() {
                             <CardHeader>
                               <div className="flex items-start justify-between">
                                 <div className="flex-1">
-                                  <CardTitle className="text-lg">
-                                    Module {index + 1}: {module.title}
+                                  <CardTitle className="text-lg flex items-center gap-2">
+                                    <Play className="w-5 h-5 text-primary" />
+                                    {segment.title}
                                   </CardTitle>
-                                  <CardDescription className="mt-2">
-                                    {module.description}
-                                  </CardDescription>
+                                  <div className="flex items-center gap-2 mt-2">
+                                    <Badge variant="secondary" className="text-xs">
+                                      <Timer className="w-3 h-3 mr-1" />
+                                      {segment.timestamp}
+                                    </Badge>
+                                  </div>
                                 </div>
-                                <Badge variant="secondary" className="ml-4">
-                                  {module.duration}
-                                </Badge>
                               </div>
                             </CardHeader>
-                            <CardContent>
-                              <div className="space-y-2">
-                                <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">
-                                  Topics Covered
+                            <CardContent className="space-y-6">
+                              {/* Key Concepts */}
+                              <div>
+                                <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide mb-3">
+                                  Key Concepts
                                 </h4>
                                 <div className="flex flex-wrap gap-2">
-                                  {module.topics.map((topic, topicIndex) => (
-                                    <Badge key={topicIndex} variant="outline" className="text-xs">
-                                      {topic}
+                                  {segment.concepts.map((concept, conceptIndex) => (
+                                    <Badge key={conceptIndex} variant="outline" className="text-xs">
+                                      {concept}
                                     </Badge>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <Separator />
+
+                              {/* Questions */}
+                              <div>
+                                <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide mb-4">
+                                  Quiz Questions
+                                </h4>
+                                <div className="space-y-4">
+                                  {segment.questions.map((question, questionIndex) => (
+                                    <QuestionCard
+                                      key={questionIndex}
+                                      question={question}
+                                      questionIndex={questionIndex}
+                                      segmentIndex={index}
+                                    />
                                   ))}
                                 </div>
                               </div>
                             </CardContent>
                           </Card>
                         </motion.div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* Learning Outcomes */}
-                  <div>
-                    <h3 className="text-xl font-semibold mb-4">Learning Outcomes</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {courseData.learningOutcomes.map((outcome, index) => (
-                        <div key={index} className="flex items-start">
-                          <CheckCircle className="w-5 h-5 text-primary mr-3 flex-shrink-0 mt-0.5" />
-                          <span className="text-sm leading-relaxed">{outcome}</span>
-                        </div>
                       ))}
                     </div>
                   </div>
