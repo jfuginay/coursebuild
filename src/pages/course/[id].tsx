@@ -22,10 +22,20 @@ interface Course {
 interface Question {
   id: string;
   question: string;
-  options: string[] | string; // Can be array or JSON string
+  type: string;
+  options?: string[] | string; // Can be array or JSON string
   correct_answer: string | number;
   explanation: string;
   timestamp: number;
+  visual_context?: string;
+  frame_url?: string;
+  bounding_boxes?: any[];
+  detected_objects?: any[];
+  visual_asset_id?: string;
+  matching_pairs?: any[];
+  has_visual_asset?: boolean;
+  visual_question_type?: string;
+  bounding_box_count?: number;
 }
 
 interface YTPlayer {
@@ -142,8 +152,20 @@ export default function CoursePage() {
         // Parse options for each question to ensure they're arrays
         const parsedQuestions = data.questions.map((q: Question) => ({
           ...q,
-          options: parseOptions(q.options)
+          options: parseOptions(q.options || [])
         }));
+        
+        console.log('📊 Questions fetched for course:', data.questions.length);
+        console.log('🎯 Debug info:', data.debug);
+        console.log('📝 Sample question data:', data.questions[0]);
+        
+        // Log visual questions specifically
+        const visualQuestions = parsedQuestions.filter((q: Question) => q.type === 'hotspot' || q.type === 'matching' || q.has_visual_asset);
+        console.log('👁️ Visual questions found:', visualQuestions.length);
+        if (visualQuestions.length > 0) {
+          console.log('🖼️ First visual question:', visualQuestions[0]);
+        }
+        
         setQuestions(parsedQuestions);
       } else {
         console.error('Failed to fetch questions:', data.error);
@@ -445,7 +467,15 @@ export default function CoursePage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="aspect-video bg-muted rounded-lg overflow-hidden">
+              <div className="aspect-video bg-muted rounded-lg overflow-hidden relative">
+                {!isVideoReady && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-muted">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                      <p className="text-sm text-muted-foreground">Loading video player...</p>
+                    </div>
+                  </div>
+                )}
                 <div id="youtube-player" className="w-full h-full" />
               </div>
               
@@ -546,4 +576,4 @@ export default function CoursePage() {
       )}
     </div>
   );
-} 
+}
