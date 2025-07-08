@@ -1,0 +1,77 @@
+name: Task/TODO
+description: Create a trackable task or TODO item
+title: "[TASK] "
+labels: ["task", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Create a trackable task that can be part of our project roadmap.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Task Description
+      description: Clear description of what needs to be done
+      placeholder: Describe the task...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: Task priority level
+      options:
+        - Critical - Blocking other work
+        - High - Important for next release
+        - Medium - Should be done soon
+        - Low - Nice to have
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which part of the application does this relate to?
+      options:
+        - Course Generation
+        - Course Viewer
+        - Quiz System
+        - User Interface
+        - API/Backend
+        - Database
+        - Authentication
+        - Documentation
+        - Testing
+        - DevOps/Deployment
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: What needs to be completed for this task to be considered done?
+      placeholder: |
+        - [ ] Criterion 1
+        - [ ] Criterion 2
+        - [ ] Criterion 3
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Does this task depend on other tasks or issues?
+      placeholder: List any dependencies...
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional Notes
+      description: Any additional context or implementation notes
+      placeholder: Any additional information...
