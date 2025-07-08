@@ -9,7 +9,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "supabase:start": "npx supabase start",
+    "supabase:stop": "npx supabase stop",
+    "supabase:deploy": "npx supabase functions deploy",
+    "supabase:deploy:gemini": "npx supabase functions deploy gemini-quiz-service",
+    "supabase:logs": "npx supabase functions logs gemini-quiz-service"
   },
   "dependencies": {
     "@emotion/react": "^11.13.3",
