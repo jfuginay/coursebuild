@@ -1,27 +1,17 @@
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { CheckCircle, XCircle, Play } from 'lucide-react';
-import HotspotQuestion from '@/components/visual/HotspotQuestion';
-import MatchingQuestion from '@/components/visual/MatchingQuestion';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { CheckCircle, XCircle } from 'lucide-react';
 
 interface Question {
-  id: string;
+  id?: string;
   question: string;
-  type: string;
-  options?: string[] | string; // Can be array or JSON string
-  correct_answer: string | number;
+  options: string[];
+  correct: number;
+  correct_answer?: string | number;
   explanation: string;
   timestamp: number;
-  visual_context?: string;
-  frame_url?: string;
-  bounding_boxes?: any[];
-  detected_objects?: any[];
-  visual_asset_id?: string;
-  matching_pairs?: any[];
-  has_visual_asset?: boolean;
-  visual_question_type?: string;
 }
 
 interface QuestionOverlayProps {
@@ -38,250 +28,134 @@ export default function QuestionOverlay({
   isVisible 
 }: QuestionOverlayProps) {
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-  const [hasAnswered, setHasAnswered] = useState(false);
   const [showExplanation, setShowExplanation] = useState(false);
+  const [isCorrect, setIsCorrect] = useState(false);
 
   if (!isVisible) return null;
 
-  // Handle visual question types
-  if (question.type === 'hotspot' && question.frame_url && question.bounding_boxes) {
-    return (
-      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-4xl mx-auto">
-          <HotspotQuestion
-            question={question.question}
-            imageUrl={question.frame_url}
-            altText={question.visual_context || 'Interactive hotspot question'}
-            boundingBoxes={question.bounding_boxes.map((box, index) => ({
-              id: box.id || `box-${index}`,
-              label: box.label || 'Element',
-              x: box.x || 0,
-              y: box.y || 0,
-              width: box.width || 0.1,
-              height: box.height || 0.1,
-              isCorrectAnswer: box.is_correct_answer || false,
-              confidenceScore: box.confidence_score || 0.5
-            }))}
-            explanation={question.explanation}
-            onAnswer={(isCorrect) => {
-              onAnswer(isCorrect);
-              setHasAnswered(true);
-              setShowExplanation(true);
-            }}
-            showAnswer={hasAnswered}
-            disabled={hasAnswered}
-          />
-          {hasAnswered && (
-            <div className="mt-4 flex justify-center">
-              <Button onClick={onContinue} className="flex items-center gap-2">
-                <Play className="h-4 w-4" />
-                Continue Video
-              </Button>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  if (question.type === 'matching' && question.matching_pairs) {
-    return (
-      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-4xl mx-auto">
-          <MatchingQuestion
-            question={question.question}
-            pairs={question.matching_pairs.map((pair, index) => ({
-              id: `pair-${index}`,
-              left: pair.left || 'Item',
-              right: pair.right || 'Match',
-              imageUrl: pair.frame_timestamp ? question.frame_url : undefined
-            }))}
-            explanation={question.explanation}
-            onAnswer={(isCorrect) => {
-              onAnswer(isCorrect);
-              setHasAnswered(true);
-              setShowExplanation(true);
-            }}
-            showAnswer={hasAnswered}
-            disabled={hasAnswered}
-          />
-          {hasAnswered && (
-            <div className="mt-4 flex justify-center">
-              <Button onClick={onContinue} className="flex items-center gap-2">
-                <Play className="h-4 w-4" />
-                Continue Video
-              </Button>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Parse options - handle both array and JSON string formats
-  const parseOptions = (options: string[] | string): string[] => {
-    if (Array.isArray(options)) {
-      return options;
-    }
-    
-    if (typeof options === 'string') {
-      try {
-        const parsed = JSON.parse(options);
-        return Array.isArray(parsed) ? parsed : [options];
-      } catch (e) {
-        // If parsing fails, treat as a single option
-        return [options];
-      }
-    }
-    
-    return [];
+  const handleAnswerSelect = (index: number) => {
+    if (showExplanation) return;
+    setSelectedAnswer(index);
   };
 
-  const parsedOptions = parseOptions(question.options || []);
+  const handleSubmit = () => {
+    if (selectedAnswer === null) return;
 
-  const handleAnswerSelect = (optionIndex: number) => {
-    if (hasAnswered) return;
-    
-    setSelectedAnswer(optionIndex);
-    setHasAnswered(true);
+    // Handle both formats: correct as index or correct_answer as value
+    const correctIndex = question.correct !== undefined ? question.correct : 
+                        question.correct_answer !== undefined ? 
+                        (typeof question.correct_answer === 'number' ? 
+                          question.correct_answer : 
+                          parseInt(question.correct_answer as string)) : 0;
+
+    const correct = selectedAnswer === correctIndex;
+    setIsCorrect(correct);
     setShowExplanation(true);
-    
-    // Determine correct answer index
-    const correctIndex = typeof question.correct_answer === 'string' 
-      ? parseInt(question.correct_answer) 
-      : question.correct_answer;
-    
-    const isCorrect = optionIndex === correctIndex;
-    onAnswer(isCorrect);
+    onAnswer(correct);
   };
 
   const handleContinue = () => {
     setSelectedAnswer(null);
-    setHasAnswered(false);
     setShowExplanation(false);
+    setIsCorrect(false);
     onContinue();
   };
 
-  const correctIndex = typeof question.correct_answer === 'string' 
-    ? parseInt(question.correct_answer) 
-    : question.correct_answer;
-
-  const formatTimestamp = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-  };
-
-  // Handle case where no options are available
-  if (parsedOptions.length === 0) {
-    return (
-      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-2xl mx-auto">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">Question Error</CardTitle>
-              <Badge variant="secondary" className="text-xs">
-                {formatTimestamp(question.timestamp)}
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div>
-              <p className="text-lg font-medium mb-4">{question.question}</p>
-              <p className="text-sm text-muted-foreground">
-                No answer options available for this question.
-              </p>
-            </div>
-            <div className="flex justify-end">
-              <Button onClick={handleContinue} className="flex items-center gap-2">
-                <Play className="h-4 w-4" />
-                Continue Video
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-2xl mx-auto">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <Card className="w-full max-w-2xl">
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Interactive Question</CardTitle>
-            <Badge variant="secondary" className="text-xs">
-              {formatTimestamp(question.timestamp)}
-            </Badge>
-          </div>
+          <CardTitle>Time to Test Your Knowledge!</CardTitle>
+          <CardDescription>
+            Answer this question to continue watching the video
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div>
-            <p className="text-lg font-medium mb-4">{question.question}</p>
-            
-            <div className="space-y-3">
-              {parsedOptions.map((option, index) => {
-                let buttonClass = "w-full text-left p-4 rounded-lg border transition-all duration-200 ";
-                
-                if (hasAnswered) {
-                  if (index === correctIndex) {
-                    buttonClass += "bg-green-50 border-green-200 text-green-800";
-                  } else if (index === selectedAnswer && index !== correctIndex) {
-                    buttonClass += "bg-red-50 border-red-200 text-red-800";
-                  } else {
-                    buttonClass += "bg-muted/50 border-border opacity-60";
-                  }
-                } else {
-                  buttonClass += "bg-background border-border hover:bg-muted/50 cursor-pointer";
-                }
+        <CardContent className="space-y-4">
+          <h3 className="text-lg font-medium">
+            {question.question}
+          </h3>
+
+          <div className="space-y-3">
+            {question.options && question.options.length > 0 ? (
+              question.options.map((option, index) => {
+                const correctIndex = question.correct !== undefined ? question.correct : 
+                                    question.correct_answer !== undefined ? 
+                                    (typeof question.correct_answer === 'number' ? 
+                                      question.correct_answer : 
+                                      parseInt(question.correct_answer as string)) : 0;
+
+                const isThisCorrect = index === correctIndex;
+                const isSelected = selectedAnswer === index;
 
                 return (
                   <button
                     key={index}
                     onClick={() => handleAnswerSelect(index)}
-                    disabled={hasAnswered}
-                    className={buttonClass}
+                    disabled={showExplanation}
+                    className={`w-full text-left p-4 rounded-lg border transition-all ${
+                      showExplanation && isThisCorrect
+                        ? 'border-green-500 bg-green-50 dark:bg-green-950/20'
+                        : showExplanation && isSelected && !isThisCorrect
+                        ? 'border-red-500 bg-red-50 dark:bg-red-950/20'
+                        : isSelected
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border hover:border-primary/50 hover:bg-muted/50'
+                    }`}
                   >
-                    <div className="flex items-center">
-                      {hasAnswered && index === correctIndex && (
-                        <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
-                      )}
-                      {hasAnswered && index === selectedAnswer && index !== correctIndex && (
-                        <XCircle className="h-4 w-4 mr-2 text-red-600" />
-                      )}
-                      <span className="font-medium mr-2">{String.fromCharCode(65 + index)}.</span>
+                    <div className="flex items-center justify-between">
                       <span>{option}</span>
+                      {showExplanation && isThisCorrect && (
+                        <CheckCircle className="h-5 w-5 text-green-500" />
+                      )}
+                      {showExplanation && isSelected && !isThisCorrect && (
+                        <XCircle className="h-5 w-5 text-red-500" />
+                      )}
                     </div>
                   </button>
                 );
-              })}
-            </div>
+              })
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>This question type is not yet supported in preview mode.</p>
+                <p className="text-sm mt-2">Please continue to the next question.</p>
+              </div>
+            )}
           </div>
 
           {showExplanation && (
-            <div className="bg-muted/50 p-4 rounded-lg">
-              <div className="flex items-center mb-2">
-                {selectedAnswer === correctIndex ? (
-                  <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
-                ) : (
-                  <XCircle className="h-4 w-4 mr-2 text-red-600" />
-                )}
-                <span className="font-medium">
-                  {selectedAnswer === correctIndex ? 'Correct!' : 'Incorrect'}
-                </span>
-              </div>
-              <p className="text-sm text-muted-foreground">{question.explanation}</p>
-            </div>
+            <Alert className={isCorrect ? 'border-blue-500' : 'border-red-500'}>
+              <AlertDescription>
+                <strong className={isCorrect ? 'text-green-600' : 'text-red-600'}>
+                  {isCorrect ? 'Correct!' : 'Not quite right.'}
+                </strong>
+                <p className="mt-2">{question.explanation}</p>
+              </AlertDescription>
+            </Alert>
           )}
 
-          {hasAnswered && (
-            <div className="flex justify-end">
-              <Button onClick={handleContinue} className="flex items-center gap-2">
-                <Play className="h-4 w-4" />
-                Continue Video
+          <div className="flex justify-end gap-3 pt-4">
+            {!showExplanation ? (
+              question.options && question.options.length > 0 ? (
+                <Button
+                  onClick={handleSubmit}
+                  disabled={selectedAnswer === null}
+                >
+                  Submit Answer
+                </Button>
+              ) : (
+                <Button onClick={() => {
+                  setShowExplanation(true);
+                  onAnswer(false); // Count as incorrect for unsupported question types
+                }}>
+                  Continue
+                </Button>
+              )
+            ) : (
+              <Button onClick={handleContinue}>
+                Continue Watching
               </Button>
-            </div>
-          )}
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>
