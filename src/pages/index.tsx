@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useRouter } from 'next/router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -52,8 +53,8 @@ interface ApiResponse {
 }
 
 export default function Home() {
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [generatedCourse, setGeneratedCourse] = useState<CourseData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const {
@@ -68,7 +69,6 @@ export default function Home() {
   const handleGenerateCourse = async (data: CourseGenerationFormData) => {
     setIsLoading(true);
     setError(null);
-    setGeneratedCourse(null);
 
     try {
       const response = await fetch('/api/analyze-video', {
@@ -89,9 +89,17 @@ export default function Home() {
       const result: ApiResponse = await response.json();
       
       if (result.success) {
-        setGeneratedCourse(result.data);
         toast.success('Course generated successfully!');
         reset();
+        
+        // Navigate to create page with course data
+        router.push({
+          pathname: '/create',
+          query: {
+            data: JSON.stringify(result.data),
+            youtubeUrl: data.youtubeUrl
+          }
+        });
       } else {
         throw new Error('Failed to generate course');
       }
@@ -182,51 +190,7 @@ export default function Home() {
             </Alert>
           )}
 
-          {/* Generated Course Preview */}
-          {generatedCourse && (
-            <Card className="w-full max-w-4xl mx-auto">
-              <CardHeader>
-                <CardTitle>{generatedCourse.title}</CardTitle>
-                <CardDescription>
-                  {generatedCourse.description} • Duration: {generatedCourse.duration}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="text-lg font-semibold mb-3">Course Overview</h3>
-                    <div className="grid gap-4">
-                      {generatedCourse.segments.map((segment, index) => (
-                        <div 
-                          key={index} 
-                          className="p-4 border rounded-lg bg-muted/30"
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <h4 className="font-medium">{segment.title}</h4>
-                            <span className="text-sm text-muted-foreground">
-                              {segment.timestamp}
-                            </span>
-                          </div>
-                          <div className="text-sm text-muted-foreground mb-2">
-                            <strong>Concepts:</strong> {segment.concepts.join(', ') || 'None specified'}
-                          </div>
-                          <div className="text-sm">
-                            <strong>Questions:</strong> {segment.questions.length} interactive questions
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <div className="pt-4 border-t">
-                    <p className="text-center text-muted-foreground">
-                      Course generated successfully! You can now start learning with interactive questions.
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+
         </div>
       </div>
     </div>
