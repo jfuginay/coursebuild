@@ -9,8 +9,8 @@ export default function App({ Component, pageProps }: AppProps) {
     <AuthProvider>
       <ThemeProvider
         attribute="class"
-        defaultTheme="system"
-        enableSystem
+        defaultTheme="dark"
+        enableSystem={false}
         disableTransitionOnChange
       >
         <div className="min-h-screen">
