@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import Head from 'next/head';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -94,6 +95,15 @@ export default function Home() {
     resolver: zodResolver(courseGenerationSchema)
   });
 
+  // Check for URL parameter on load
+  useEffect(() => {
+    if (router.query.url) {
+      const urlParam = router.query.url as string;
+      // Auto-fill the form with the URL parameter
+      reset({ youtubeUrl: urlParam });
+    }
+  }, [router.query.url, reset]);
+
   const generateCourse = async (data: CourseGenerationFormData, useEnhanced: boolean = false) => {
     setIsLoading(true);
     setError(null);
@@ -104,6 +114,31 @@ export default function Home() {
     timeoutRefs.current = [];
 
     try {
+      // Fetch dynamic facts immediately
+      console.log('Fetching facts for URL:', data.youtubeUrl);
+      try {
+        const factsResponse = await fetch('/api/quick-facts', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ youtubeUrl: data.youtubeUrl }),
+        });
+        
+        console.log('Facts API response status:', factsResponse.status);
+        const factsData = await factsResponse.json();
+        console.log('Facts API response data:', factsData);
+        
+        if (factsData.facts && factsData.facts.length > 0) {
+          console.log('Setting new tips:', factsData.facts);
+          setTips(factsData.facts);
+          setCurrentTipIndex(0); // Reset index when updating tips
+        }
+      } catch (err) {
+        console.error('Error fetching facts:', err);
+        // Keep default facts if fetch fails
+      }
+
       // Simulate status updates
       const statusUpdates = [
         { delay: 2000, message: 'Extracting video transcript...' },
@@ -142,12 +177,25 @@ export default function Home() {
         toast.success('Course generated successfully!');
         reset();
         
-        // Store the data in sessionStorage instead of URL
-        sessionStorage.setItem('courseData', JSON.stringify(result.data));
-        sessionStorage.setItem('youtubeUrl', data.youtubeUrl);
-        
-        // Navigate with clean URL
-        router.push('/create');
+        // Try main branch approach first (with courseId)
+        if (result.course_id) {
+          // Navigate to create page with course data and courseId
+          router.push({
+            pathname: '/create',
+            query: {
+              data: JSON.stringify(result.data),
+              youtubeUrl: data.youtubeUrl,
+              courseId: result.course_id
+            }
+          });
+        } else {
+          // Fallback to sessionStorage approach (feature branch compatibility)
+          sessionStorage.setItem('courseData', JSON.stringify(result.data));
+          sessionStorage.setItem('youtubeUrl', data.youtubeUrl);
+          
+          // Navigate with clean URL
+          router.push('/create');
+        }
       } else {
         throw new Error('Failed to generate course');
       }
@@ -164,100 +212,12 @@ export default function Home() {
   };
 
   const handleGenerateCourse = async (data: CourseGenerationFormData) => {
-    setIsLoading(true);
-    setError(null);
-    setGeneratingStatus('Analyzing video content...');
-    
-    // Clear any existing timeouts
-    timeoutRefs.current.forEach(timeout => clearTimeout(timeout));
-    timeoutRefs.current = [];
-
-    try {
-      // Fetch dynamic facts immediately
-      console.log('Fetching facts for URL:', data.youtubeUrl);
-      try {
-        const factsResponse = await fetch('/api/quick-facts', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ youtubeUrl: data.youtubeUrl }),
-        });
-        
-        console.log('Facts API response status:', factsResponse.status);
-        const factsData = await factsResponse.json();
-        console.log('Facts API response data:', factsData);
-        
-        if (factsData.facts && factsData.facts.length > 0) {
-          console.log('Setting new tips:', factsData.facts);
-          setTips(factsData.facts);
-          setCurrentTipIndex(0); // Reset index when updating tips
-        }
-      } catch (err) {
-        console.error('Error fetching facts:', err);
-        // Keep default facts if fetch fails
-      }
-
-      // Status updates for the course generation process
-      const statusUpdates = [
-        { delay: 2000, message: 'Extracting video transcript...' },
-        { delay: 4000, message: 'Identifying key concepts...' },
-        { delay: 6000, message: 'Generating interactive questions...' },
-        { delay: 8000, message: 'Creating visual elements...' },
-        { delay: 10000, message: 'Finalizing course structure...' }
-      ];
-      
-      statusUpdates.forEach(({ delay, message }) => {
-        const timeout = setTimeout(() => {
-          setGeneratingStatus(message);
-        }, delay);
-        timeoutRefs.current.push(timeout);
-      });
-
-      // Don't create the interval here - it's handled by the useEffect
-
-      const response = await fetch('/api/analyze-video', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ youtubeUrl: data.youtubeUrl }),
-      });
-
-      // Tip rotation is handled by useEffect
-
-      if (!response.ok) {
-        throw new Error('Failed to analyze video');
-      }
-
-      const result = await response.json();
-
-      if (result.success) {
-        toast.success('Course generated successfully!');
-        reset();
-        
-        // Store the data in sessionStorage instead of URL
-        sessionStorage.setItem('courseData', JSON.stringify(result.data));
-        sessionStorage.setItem('youtubeUrl', data.youtubeUrl);
-        
-        // Navigate with clean URL
-        router.push('/create');
-      } else {
-        throw new Error(result.error || 'Failed to generate course');
-      }
-    } catch (err) {
-      console.error('Error generating course:', err);
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
-      toast.error('Failed to generate course. Please try again.');
-    } finally {
-      setIsLoading(false);
-      setGeneratingStatus('');
-      // Clear any remaining timeouts
-      timeoutRefs.current.forEach(timeout => clearTimeout(timeout));
-      timeoutRefs.current = [];
-    }
+    await generateCourse(data, false);
   };
-  const handleGenerateCoursePro = (data: CourseGenerationFormData) => generateCourse(data, true);
+
+  const handleGenerateCoursePro = async (data: CourseGenerationFormData) => {
+    await generateCourse(data, true);
+  };
 
   // Cleanup on unmount
   useEffect(() => {
@@ -279,6 +239,10 @@ export default function Home() {
 
   return (
     <>
+      <Head>
+        <title>CourseBuilder - Transform YouTube Videos into Interactive Courses</title>
+      </Head>
+
       {/* Show loading screen when generating */}
       {isLoading ? (
         <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
@@ -477,10 +441,8 @@ export default function Home() {
                         disabled={isLoading}
                         size="lg"
                       >
-                        <>
-                          <BookOpen className="mr-2 h-4 w-4" />
-                          Generate Course
-                        </>
+                        <BookOpen className="mr-2 h-4 w-4" />
+                        Generate Course
                       </Button>
 
                       <Button 
@@ -491,10 +453,8 @@ export default function Home() {
                         size="lg"
                         variant="outline"
                       >
-                        <>
-                          <BookOpen className="mr-2 h-4 w-4" />
-                          Generate Course (PRO)
-                        </>
+                        <BookOpen className="mr-2 h-4 w-4" />
+                        Generate Course (PRO)
                       </Button>
                     </div>
                   </form>

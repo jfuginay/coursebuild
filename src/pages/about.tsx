@@ -1,3 +1,4 @@
+import Head from 'next/head';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -88,21 +89,25 @@ export default function About() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
-      <Header />
+    <>
+      <Head>
+        <title>About - CourseBuilder</title>
+      </Head>
+      <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+        <Header />
       
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto space-y-12">
           {/* Hero Section */}
           <div className="text-center space-y-4">
             <Badge variant="secondary" className="mb-4">
-              About CourseForge AI
+              About CourseBuilder
             </Badge>
             <h1 className="text-4xl font-bold tracking-tight lg:text-5xl">
               How It Works
             </h1>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              CourseForge AI transforms YouTube videos into interactive, structured courses 
+              CourseBuilder transforms YouTube videos into interactive, structured courses 
               using advanced artificial intelligence and machine learning.
             </p>
           </div>
@@ -112,17 +117,17 @@ export default function About() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Play className="h-5 w-5" />
-                What CourseForge AI Does
+                What CourseBuilder Does
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-muted-foreground">
-                CourseForge AI revolutionizes online learning by automatically converting YouTube videos 
+                CourseBuilder revolutionizes online learning by automatically converting YouTube videos 
                 into comprehensive, interactive courses. Our AI analyzes video content, extracts key concepts, 
                 and generates engaging questions to create a structured learning experience.
               </p>
               <p className="text-muted-foreground">
-                Whether you're an educator, student, or lifelong learner, CourseForge AI makes it easy 
+                Whether you're an educator, student, or lifelong learner, CourseBuilder makes it easy 
                 to transform any educational video into a professional-grade course with minimal effort.
               </p>
             </CardContent>
@@ -199,7 +204,7 @@ export default function About() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5" />
-                Why Choose CourseForge AI?
+                Why Choose CourseBuilder?
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -224,7 +229,7 @@ export default function About() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-muted-foreground">
-                CourseForge AI leverages cutting-edge artificial intelligence technologies including:
+                CourseBuilder leverages cutting-edge artificial intelligence technologies including:
               </p>
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -275,5 +280,6 @@ export default function About() {
         </div>
       </div>
     </div>
+    </>
   );
 } 

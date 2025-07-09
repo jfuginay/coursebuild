@@ -13,11 +13,23 @@ import QuestionOverlay from '@/components/QuestionOverlay';
 
 // TypeScript interfaces
 interface Question {
+  id: string;
   question: string;
+  type: string;
   options: string[];
   correct: number;
+  correct_answer: number; // Index for multiple choice, 1/0 for true/false
   explanation: string;
   timestamp: number; // in seconds
+  visual_context?: string;
+  frame_timestamp?: number;
+  bounding_boxes?: any[];
+  detected_objects?: any[];
+  matching_pairs?: any[];
+  sequence_items?: string[];
+  requires_video_overlay?: boolean;
+  video_overlay?: boolean;
+  bounding_box_count?: number;
 }
 
 interface Segment {
@@ -93,10 +105,12 @@ export default function CoursePreviewPage() {
   const [answeredQuestions, setAnsweredQuestions] = useState<Set<string>>(new Set());
   const [correctAnswers, setCorrectAnswers] = useState<number>(0);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [questionResults, setQuestionResults] = useState<Record<string, boolean>>({}); // Track right/wrong
+  const [expandedExplanations, setExpandedExplanations] = useState<Set<string>>(new Set()); // Track which explanations are shown
   
   // Free segments limit (first 2 segments with questions)
   const FREE_SEGMENTS_LIMIT = 2;
-  const FREE_QUESTIONS_LIMIT = 5; // Total questions across free segments
+  const FREE_QUESTIONS_LIMIT = 3; // Total questions across free segments
 
   // Convert timestamp string to seconds
   const timestampToSeconds = (timestamp: string): number => {
@@ -191,6 +205,15 @@ export default function CoursePreviewPage() {
         // Check if we're within 0.5 seconds of this question's timestamp
         // and haven't answered it yet
         if (Math.abs(currentTime - question.timestamp) < 0.5 && !answeredQuestions.has(questionId)) {
+          console.log('🎯 Triggering question:', {
+            questionId,
+            type: question.type,
+            timestamp: question.timestamp,
+            currentTime,
+            hasVisualData: !!(question.bounding_boxes?.length || question.matching_pairs?.length),
+            requiresVideoOverlay: question.requires_video_overlay
+          });
+          
           // Pause the video and show this specific question
           playerRef.current?.pauseVideo();
           setCurrentSegmentIndex(segmentIndex);
@@ -227,10 +250,25 @@ export default function CoursePreviewPage() {
       console.log('Questions data:', questionsData);
 
       if (questionsData.success && questionsData.questions.length > 0) {
-        // Filter out questions with null options and very early questions
+        // Filter out questions with null options (except visual questions) and very early questions
         const validQuestions = questionsData.questions.filter((q: any) => 
-          q.options !== null && q.timestamp >= 10
+          (q.options !== null || q.type === 'hotspot' || q.type === 'matching' || q.type === 'sequencing') && q.timestamp >= 10
         );
+        
+        // Enhanced function to handle true/false questions
+        const processQuestionOptions = (question: any): any => {
+          let options = question.options || [];
+          
+          // For true/false questions, ensure we have the correct options
+          if ((!options || options.length === 0) && (question.type === 'true-false' || question.type === 'true_false')) {
+            options = ['True', 'False'];
+          }
+          
+          return {
+            ...question,
+            options: options
+          };
+        };
         
         // Group questions into segments based on timestamp ranges
         const segments: any[] = [];
@@ -259,20 +297,31 @@ export default function CoursePreviewPage() {
             };
           }
           
-          // Add question to current segment
+          // Process question and add to current segment
+          const processedQuestion = processQuestionOptions(q);
           currentSegment.questions.push({
-            question: q.question,
-            options: q.options,
-            correct: parseInt(q.correct_answer) || 0,
-            correct_answer: q.correct_answer,
-            explanation: q.explanation,
-            timestamp: q.timestamp,
-            visual_context: q.visual_context
+            id: processedQuestion.id || `question-${index}`,
+            question: processedQuestion.question,
+            type: processedQuestion.type || 'multiple-choice',
+            options: processedQuestion.options, // Now properly handled for true/false
+            correct: parseInt(processedQuestion.correct_answer) || 0,
+            correct_answer: parseInt(processedQuestion.correct_answer) || 0,
+            explanation: processedQuestion.explanation,
+            timestamp: processedQuestion.timestamp,
+            visual_context: processedQuestion.visual_context,
+            frame_timestamp: processedQuestion.frame_timestamp,
+            bounding_boxes: processedQuestion.bounding_boxes || [],
+            detected_objects: processedQuestion.detected_objects || [],
+            matching_pairs: processedQuestion.matching_pairs || [],
+            sequence_items: processedQuestion.sequence_items || [],
+            requires_video_overlay: processedQuestion.requires_video_overlay || false,
+            video_overlay: processedQuestion.video_overlay || false,
+            bounding_box_count: processedQuestion.bounding_box_count || 0
           });
           
           // Extract concepts from visual context if available
-          if (q.visual_context && currentSegment.concepts.length < 3) {
-            const concept = q.visual_context.substring(0, 50).replace(/[^a-zA-Z0-9\s]/g, '').trim();
+          if (processedQuestion.visual_context && currentSegment.concepts.length < 3) {
+            const concept = processedQuestion.visual_context.substring(0, 50).replace(/[^a-zA-Z0-9\s]/g, '').trim();
             if (concept && !currentSegment.concepts.includes(concept)) {
               currentSegment.concepts.push(concept);
             }
@@ -296,6 +345,16 @@ export default function CoursePreviewPage() {
             segment.title = "Tensors and Applications";
           }
         });
+        
+        // Debug visual questions
+        const allProcessedQuestions = segments.flatMap(s => s.questions);
+        const visualQuestions = allProcessedQuestions.filter(q => 
+          q.type === 'hotspot' || q.type === 'matching' || q.type === 'sequencing' || q.requires_video_overlay
+        );
+        console.log('🎬 Preview page - processed visual questions:', visualQuestions.length);
+        if (visualQuestions.length > 0) {
+          console.log('🖼️ Sample visual question:', visualQuestions[0]);
+        }
         
         setCourseData({
           title: courseData.course.title,
@@ -345,8 +404,6 @@ export default function CoursePreviewPage() {
     return '';
   };
 
-
-
   const handleContinue = () => {
     if (currentSegmentIndex === null || currentQuestionIndex === null) return;
 
@@ -389,8 +446,6 @@ export default function CoursePreviewPage() {
     
     router.push(`/signup?returnUrl=/course/${id}`);
   };
-
-
 
   const handleBackToHome = () => {
     router.push('/');
@@ -646,6 +701,178 @@ export default function CoursePreviewPage() {
               </CardContent>
             </Card>
           )}
+
+          {/* Course Curriculum Card */}
+          {courseData.segments.length > 0 && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">Course Curriculum</CardTitle>
+                  <Badge variant="secondary" className="text-xs">
+                    {Math.min(answeredQuestions.size, FREE_QUESTIONS_LIMIT)} of {FREE_QUESTIONS_LIMIT} free questions
+                  </Badge>
+                </div>
+                <CardDescription>
+                  Complete questions to reveal the curriculum
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {courseData.segments.flatMap((segment, segmentIndex) => 
+                    segment.questions.map((question, questionIndex) => {
+                      const questionId = `${segmentIndex}-${questionIndex}`;
+                      const isAnswered = answeredQuestions.has(questionId);
+                      const isCorrect = questionResults[questionId];
+                      const isExpanded = expandedExplanations.has(questionId);
+                      const globalQuestionIndex = courseData.segments
+                        .slice(0, segmentIndex)
+                        .reduce((acc, seg) => acc + seg.questions.length, 0) + questionIndex;
+                      const isFreeQuestion = globalQuestionIndex < FREE_QUESTIONS_LIMIT;
+                      const isLocked = !isFreeQuestion;
+
+                      return (
+                        <div
+                          key={questionId}
+                          className={`relative p-4 rounded-lg border transition-all ${
+                            isAnswered 
+                              ? isCorrect 
+                                ? 'bg-green-50/50 border-green-200' 
+                                : 'bg-red-50/50 border-red-200'
+                              : isLocked
+                              ? 'bg-muted/30 border-muted'
+                              : 'bg-background border-border'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="flex-shrink-0 mt-0.5">
+                              {isAnswered ? (
+                                isCorrect ? (
+                                  <CheckCircle className="h-5 w-5 text-green-600" />
+                                ) : (
+                                  <XCircle className="h-5 w-5 text-red-600" />
+                                )
+                              ) : isLocked ? (
+                                <Lock className="h-5 w-5 text-muted-foreground" />
+                              ) : (
+                                <div className="h-5 w-5 rounded-full border-2 border-muted-foreground" />
+                              )}
+                            </div>
+                            
+                            <div className="flex-1 space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground">
+                                  {formatTimestamp(question.timestamp)}
+                                </span>
+                                {question.type && question.type !== 'multiple-choice' && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {question.type === 'true-false' ? 'True/False' : 
+                                     question.type === 'hotspot' ? 'Hotspot' :
+                                     question.type === 'matching' ? 'Matching' :
+                                     question.type === 'sequencing' ? 'Sequence' :
+                                     question.type}
+                                  </Badge>
+                                )}
+                                {isAnswered && (
+                                  <Badge 
+                                    variant="outline" 
+                                    className={`text-xs ${
+                                      isCorrect 
+                                        ? 'bg-green-100 text-green-700 border-green-300' 
+                                        : 'bg-red-100 text-red-700 border-red-300'
+                                    }`}
+                                  >
+                                    {isCorrect ? 'Correct' : 'Incorrect'}
+                                  </Badge>
+                                )}
+                                {isLocked && (
+                                  <Badge variant="outline" className="text-xs">
+                                    Premium
+                                  </Badge>
+                                )}
+                              </div>
+                              
+                              <div className={`text-sm ${isLocked && !isAnswered ? 'relative' : ''}`}>
+                                {isAnswered ? (
+                                  <>
+                                    <p className="font-medium">{question.question}</p>
+                                    {isAnswered && (
+                                      <button
+                                        onClick={() => {
+                                          if (isExpanded) {
+                                            setExpandedExplanations(prev => {
+                                              const next = new Set(prev);
+                                              next.delete(questionId);
+                                              return next;
+                                            });
+                                          } else {
+                                            setExpandedExplanations(prev => new Set(prev).add(questionId));
+                                          }
+                                        }}
+                                        className="text-xs text-primary hover:underline mt-1"
+                                      >
+                                        {isExpanded ? 'Hide' : 'Show'} explanation
+                                      </button>
+                                    )}
+                                    {isExpanded && (
+                                      <div className="mt-2 p-3 bg-background rounded-md border">
+                                        <p className="text-sm text-muted-foreground">
+                                          {question.explanation}
+                                        </p>
+                                      </div>
+                                    )}
+                                  </>
+                                ) : isLocked ? (
+                                  <>
+                                    <p className="font-medium blur-sm select-none">
+                                      {question.question}
+                                    </p>
+                                    <button
+                                      onClick={() => setShowLoginModal(true)}
+                                      className="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-[2px] rounded hover:bg-background/60 transition-colors"
+                                    >
+                                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                        <Lock className="h-3 w-3" />
+                                        <span className="underline">Sign up to unlock</span>
+                                      </div>
+                                    </button>
+                                  </>
+                                ) : (
+                                  <p className="text-muted-foreground italic">
+                                    Complete the video to reveal this question
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+                
+                {allQuestions.length > FREE_QUESTIONS_LIMIT && (
+                  <div className="mt-6 p-4 bg-primary/5 rounded-lg border border-primary/20">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">
+                          🎓 Unlock {allQuestions.length - FREE_QUESTIONS_LIMIT} more questions
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Get full access to all course content
+                        </p>
+                      </div>
+                      <Button 
+                        size="sm" 
+                        onClick={() => setShowLoginModal(true)}
+                      >
+                        Sign Up
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 
@@ -654,12 +881,15 @@ export default function CoursePreviewPage() {
         <QuestionOverlay
           question={courseData.segments[currentSegmentIndex].questions[currentQuestionIndex]}
           onAnswer={(correct) => {
+            const questionId = `${currentSegmentIndex}-${currentQuestionIndex}`;
+            setQuestionResults(prev => ({ ...prev, [questionId]: correct }));
             if (correct) {
               setCorrectAnswers(correctAnswers + 1);
             }
           }}
           onContinue={handleContinue}
           isVisible={showQuestion}
+          player={player}
         />
       )}
 
@@ -710,4 +940,4 @@ export default function CoursePreviewPage() {
       </Dialog>
     </div>
   );
-} 
+}

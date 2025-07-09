@@ -8,104 +8,29 @@ const corsHeaders = {
 };
 
 const ENHANCED_QUIZ_GENERATION_PROMPT = `
-You are an expert educational content creator. Analyze this YouTube video and generate engaging quiz questions with enhanced visual capabilities.
+You are an educational content creator analyzing this video to generate diverse quiz questions.
+
+Task: Create 6-8 engaging questions that test video comprehension, spaced throughout the content.
+
+Question Types Available:
+- MULTIPLE-CHOICE: Standard questions with 4 options
+- TRUE-FALSE: Simple true/false questions  
+- HOTSPOT: Visual questions requiring object detection on video frames
+- MATCHING: Connect related concepts or items
+- SEQUENCING: Order steps or events chronologically
 
 Guidelines:
-1. Watch the entire video and understand the key concepts presented
-2. Create questions that leverage visual elements when appropriate
-3. Include accurate timestamps where each question should appear (in seconds from video start)
-4. Mix question types: multiple choice, true/false, visual hotspot, matching, and sequencing
-5. For visual questions, identify specific timestamps with rich visual content
-6. Make questions educational and engaging, not trivial
-7. Provide clear explanations for answers
-8. Pay attention to visual elements like diagrams, charts, demonstrations, or on-screen text
+- Include accurate timestamps (seconds from video start)
+- Generate at least 2 visual hotspot questions with clear target objects
+- Provide detailed explanations for learning reinforcement
+- Ensure answers are determinable from video content
+- Space questions throughout video duration (avoid clustering)
 
-Enhanced Visual Question Types:
-- HOTSPOT: Questions about specific visual elements (requires bounding box annotations)
-- MATCHING: Match visual elements with concepts or terms
-- SEQUENCING: Order visual steps or processes shown in the video
-- ANNOTATION: Identify and label parts of diagrams or visual content
+For HOTSPOT questions: Specify 2-3 target objects and precise frame timing for detection.
+For MATCHING questions: Provide pairs of related items to connect.
+For SEQUENCING questions: List items in correct chronological order.
 
-Requirements:
-- Generate {maxQuestions} questions maximum
-- Difficulty level: {difficulty}
-- Questions should be spaced throughout the video duration
-- Each question should have an accurate timestamp within the video
-- For visual questions, describe specific visual elements and their educational value
-- Include a variety of question types with emphasis on visual learning
-
-{focusTopics}
-
-Return your response in the following JSON format:
-{
-  "video_summary": "Brief summary of the video content and main topics covered",
-  "total_duration": "Duration in seconds",
-  "visual_moments": [
-    {
-      "timestamp": 120,
-      "description": "Circuit diagram showing component relationships",
-      "visual_complexity": "high",
-      "educational_value": "excellent for hotspot questions"
-    }
-  ],
-  "questions": [
-    {
-      "timestamp": 120,
-      "question": "What is the main concept being explained at this point in the video?",
-      "type": "mcq",
-      "options": ["Option A", "Option B", "Option C", "Option D"],
-      "correct_answer": 0,
-      "explanation": "The correct answer is A because at 2:00 the speaker explains...",
-      "visual_context": "Description of what's shown on screen at this timestamp",
-      "visual_question_type": null,
-      "requires_frame_capture": false
-    },
-    {
-      "timestamp": 240,
-      "question": "Identify the resistor component in the circuit diagram.",
-      "type": "hotspot",
-      "visual_context": "Circuit diagram with multiple electronic components labeled",
-      "visual_question_type": "hotspot",
-      "requires_frame_capture": true,
-      "correct_answer": "resistor",
-      "explanation": "The resistor is the zigzag component shown in the diagram...",
-      "hotspot_elements": [
-        {
-          "label": "resistor",
-          "description": "The main component to identify",
-          "is_correct": true
-        },
-        {
-          "label": "capacitor", 
-          "description": "Distractor component",
-          "is_correct": false
-        }
-      ]
-    },
-    {
-      "timestamp": 360,
-      "question": "Match the following terms with their visual representations shown in the video.",
-      "type": "matching",
-      "visual_context": "Multiple diagrams showing different electrical components",
-      "visual_question_type": "matching",
-      "requires_frame_capture": true,
-      "matching_pairs": [
-        {
-          "left": "Resistor Symbol",
-          "right": "Zigzag line component",
-          "frame_timestamp": 360
-        },
-        {
-          "left": "Capacitor Symbol", 
-          "right": "Parallel lines component",
-          "frame_timestamp": 370
-        }
-      ],
-      "explanation": "Each electrical component has a standard symbol used in circuit diagrams..."
-    }
-  ]
-}
-`;
+Focus on educational value and visual recognition skills.`;
 
 interface EnhancedQuizRequest {
   course_id: string;
@@ -116,148 +41,467 @@ interface EnhancedQuizRequest {
   enable_visual_questions?: boolean;
 }
 
-// Enhanced question generation with visual integration
+// Generate enhanced questions with Gemini (Stage 1: Questions only, no bounding boxes)
 async function generateEnhancedQuestions(
-  supabaseClient: any,
-  genAI: GoogleGenerativeAI,
-  courseId: string,
   youtubeUrl: string,
   maxQuestions: number = 10,
-  difficultyLevel: string = 'medium',
-  focusTopics: string[] = [],
+  difficulty: string = 'medium',
   enableVisualQuestions: boolean = true
-): Promise<any> {
-  console.log('🎬 Starting enhanced question generation...');
+) {
+  console.log('🎓 Generating enhanced questions...');
   
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-  
-  // Build focus topics section
-  const focusTopicsSection = focusTopics.length > 0 
-    ? `Focus on these specific topics: ${focusTopics.join(', ')}`
-    : 'Cover the main topics presented in the video';
+  const focusTopics = enableVisualQuestions ? 
+    'Include visual hotspot questions with clear target objects for detection.' : 
+    'Focus on comprehension and analysis questions.';
 
   const prompt = ENHANCED_QUIZ_GENERATION_PROMPT
     .replace('{maxQuestions}', maxQuestions.toString())
-    .replace('{difficulty}', difficultyLevel)
-    .replace('{focusTopics}', focusTopicsSection);
+    .replace('{difficulty}', difficulty)
+    .replace('{focusTopics}', focusTopics);
 
-  const finalPrompt = `${prompt}\n\nWatch the entire video and generate enhanced quiz questions with visual capabilities.\n\nIMPORTANT: Return ONLY valid JSON. Do not include any text before or after the JSON. Ensure all strings are properly escaped and quoted.`;
-
-  // Generate content using Gemini
-  const content = [
-    { text: finalPrompt },
+  try {
+    const geminiRequest = {
+      contents: [
+        {
+          parts: [
     {
       fileData: {
-        fileUri: youtubeUrl,
-        mimeType: "video/*"
+                fileUri: youtubeUrl
+              }
+            },
+            {
+              text: prompt
+            }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.7,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 8192, // Further reduced to prevent truncation
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "object",
+          properties: {
+            video_summary: {
+              type: "string",
+              description: "Brief 2-3 sentence summary of the video content and main topics"
+            },
+            total_duration: {
+              type: "number",
+              description: "Video length in seconds"
+            },
+            questions: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  timestamp: { 
+                    type: "number", 
+                    description: "When question should appear (seconds)" 
+                  },
+                  question: { 
+                    type: "string", 
+                    description: "The question text" 
+                  },
+                  type: { 
+                    type: "string", 
+                    enum: ["multiple-choice", "true-false", "hotspot", "matching", "sequencing"] 
+                  },
+                  options: { 
+                    type: "array", 
+                    items: { type: "string" },
+                    description: "Answer options for multiple-choice questions and true/false questions"
+                  },
+                  correct_answer: { 
+                    type: "number", 
+                    description: "Answer index for multiple-choice (0-based), 0 for true/1 for false" 
+                  },
+                  explanation: { 
+                    type: "string", 
+                    description: "One sentence explanation" 
+                  },
+                  frame_timestamp: { 
+                    type: "number", 
+                    description: "Precise timing for visual analysis (seconds)" 
+                  },
+                  target_objects: { 
+                    type: "array", 
+                    items: { type: "string" },
+                    description: "Objects to detect for hotspot questions"
+                  },
+                  question_context: { 
+                    type: "string", 
+                    description: "Additional one sentence context for object detection" 
+                  },
+                  matching_pairs: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        left: { type: "string", description: "Left item" },
+                        right: { type: "string", description: "Right item" }
+                      },
+                      required: ["left", "right"]
+                    },
+                    description: "Pairs for matching questions"
+                  },
+                  sequence_items: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "Items in correct chronological order for sequencing questions"
+                  }
+                },
+                required: ["timestamp", "question", "type", "correct_answer", "explanation"]
+              }
+            }
+          },
+          required: ["video_summary", "total_duration", "questions"]
+        }
       }
+    };
+
+    const response = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY2')}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(geminiRequest)
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
     }
-  ];
 
-  console.log('🤖 Calling Gemini API for enhanced analysis...');
-  const result = await model.generateContent(content);
-  const response = await result.response;
-  const text = response.text();
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
-  // Extract and parse JSON
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    throw new Error('No valid JSON found in Gemini response');
+    if (!text) {
+      throw new Error('No response from Gemini API');
   }
 
-  let parsedResponse;
+    // Parse the structured JSON response
+    let analysisResult;
   try {
-    let cleanJson = jsonMatch[0].trim();
-    cleanJson = cleanJson
-      .replace(/,\s*}/g, '}')
-      .replace(/,\s*]/g, ']')
-      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '');
-    
-    parsedResponse = JSON.parse(cleanJson);
+      // With structured output, the response should be direct JSON
+      analysisResult = JSON.parse(text);
+      
+      // Validate the required structure
+      if (!analysisResult.questions || !Array.isArray(analysisResult.questions)) {
+        throw new Error('Invalid response structure: missing questions array');
+      }
+      
+      if (!analysisResult.video_summary || !analysisResult.total_duration) {
+        throw new Error('Invalid response structure: missing video_summary or total_duration');
+      }
   } catch (parseError) {
-    console.error('❌ JSON parsing error:', parseError);
-    throw new Error(`Failed to parse Gemini response: ${parseError}`);
+      console.error('Failed to parse structured Gemini response:', parseError);
+      console.log('Response length:', text.length);
+      console.log('Response start:', text.substring(0, 500));
+      console.log('Response end:', text.substring(Math.max(0, text.length - 500)));
+      
+      // Try to extract JSON from the response as fallback
+      try {
+        console.log('🔧 Attempting fallback JSON extraction...');
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          analysisResult = JSON.parse(jsonMatch[0]);
+          console.log('✅ Fallback JSON extraction successful');
+        } else {
+          throw new Error('No JSON found in response');
+        }
+      } catch (fallbackError) {
+        console.error('Fallback JSON extraction also failed:', fallbackError);
+        throw new Error(`Failed to parse structured Gemini response: ${parseError}`);
   }
+    }
 
-  return parsedResponse;
+    console.log(`✅ Generated ${analysisResult.questions?.length || 0} questions using structured output`);
+    console.log(`🎬 Visual questions: ${analysisResult.questions?.filter((q: any) => ['hotspot', 'matching', 'sequencing'].includes(q.type))?.length || 0}`);
+
+    return {
+      success: true,
+      ...analysisResult
+    };
+
+  } catch (error) {
+    console.error('Error generating enhanced questions:', error);
+    return {
+      success: false,
+      error: `Failed to generate questions: ${error}`
+    };
+  }
 }
 
-// Process visual questions and create frame captures
-async function processVisualQuestions(
-  supabaseClient: any,
-  courseId: string,
-  youtubeUrl: string,
-  questions: any[]
-): Promise<any[]> {
-  const visualQuestions = questions.filter(q => q.requires_frame_capture);
+// Ensure visual questions have diverse frame capture timestamps
+function ensureDiverseFrameTimestamps(questions: any[]): any[] {
+  console.log('🎯 Ensuring diverse frame capture timestamps for visual questions...');
   
-  if (visualQuestions.length === 0) {
-    console.log('📝 No visual questions found, skipping frame processing');
+  const visualQuestions = questions.filter(q => ['hotspot', 'matching', 'sequencing'].includes(q.type));
+  
+  if (visualQuestions.length <= 1) {
+    console.log('⏭️ Only one or no visual questions, no timestamp adjustment needed');
     return questions;
   }
-
-  console.log(`🎥 Processing ${visualQuestions.length} visual questions with targeted analysis...`);
-
-  // Call visual frame service with the generated questions
-  try {
-    const frameServiceUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/visual-frame-service`;
+  
+  // Sort visual questions by timestamp to spread them out
+  visualQuestions.sort((a, b) => a.timestamp - b.timestamp);
+  
+  // Ensure minimum 15-second spacing between frame captures
+  const MIN_FRAME_SPACING = 15;
+  
+  let lastFrameTimestamp = 0;
+  
+  const updatedQuestions = questions.map(question => {
+    if (!['hotspot', 'matching', 'sequencing'].includes(question.type)) return question;
     
-    const frameResponse = await fetch(frameServiceUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-        'apikey': Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-      },
-      body: JSON.stringify({
-        course_id: courseId,
-        youtube_url: youtubeUrl,
-        action: 'process-visual-questions',
-        questions: visualQuestions // Pass questions with timestamps and visual_context
-      })
-    });
+    // Calculate optimal frame capture timestamp
+    const preferredFrameTime = question.frame_timestamp || Math.max(0, question.timestamp - 5);
+    
+    // Ensure minimum spacing from previous frame capture
+    const adjustedFrameTime = Math.max(preferredFrameTime, lastFrameTimestamp + MIN_FRAME_SPACING);
+    
+    // Don't capture frames after the question timestamp
+    const finalFrameTime = Math.min(adjustedFrameTime, question.timestamp - 2);
+    
+    lastFrameTimestamp = finalFrameTime;
+    
+    console.log(`📸 Question at ${question.timestamp}s: frame capture adjusted to ${finalFrameTime}s (original: ${preferredFrameTime}s)`);
+    
+    return {
+      ...question,
+      frame_timestamp: finalFrameTime
+    };
+  });
+  
+  console.log(`✅ Adjusted ${visualQuestions.length} visual questions for diverse frame capture`);
+  return updatedQuestions;
+}
 
-    if (frameResponse.ok) {
-      const frameData = await frameResponse.json();
-      console.log(`✅ Visual frame processing completed:`);
-      console.log(`   - ${frameData.processed_questions} questions processed`);
-      console.log(`   - ${frameData.successful_captures} frames captured successfully`);
-      console.log(`   - ${frameData.summary?.total_bounding_boxes || 0} bounding boxes detected`);
-      console.log(`   - ${frameData.enhanced_questions?.length || 0} enhanced questions generated`);
+// Generate precise bounding boxes for hotspot questions using cropped video segments
+async function generatePreciseBoundingBoxes(
+  youtubeUrl: string,
+  allQuestions: any[]
+): Promise<any[]> {
+  const hotspotQuestions = allQuestions.filter(q => q.type === 'hotspot');
+  console.log(`🎯 Generating precise bounding boxes for ${hotspotQuestions.length} hotspot questions...`);
+  
+  const updatedQuestions = [];
+  
+  for (const question of allQuestions) {
+    // Only process hotspot questions for bounding box generation
+    if (question.type !== 'hotspot' || !question.target_objects || !question.frame_timestamp) {
+      // For non-hotspot questions, add metadata for matching/sequencing
+      if (question.type === 'matching' && question.matching_pairs) {
+        const updatedQuestion = {
+          ...question,
+          metadata: JSON.stringify({
+            matching_pairs: question.matching_pairs,
+            video_overlay: true
+          })
+        };
+        updatedQuestions.push(updatedQuestion);
+      } else if (question.type === 'sequencing' && question.sequence_items) {
+        const updatedQuestion = {
+          ...question,
+          metadata: JSON.stringify({
+            sequence_items: question.sequence_items,
+            video_overlay: true
+          })
+        };
+        updatedQuestions.push(updatedQuestion);
+      } else {
+        updatedQuestions.push(question);
+      }
+      continue;
+    }
+
+    try {
+      // Create 1-second window around the frame timestamp for precise analysis
+      const startOffset = Math.max(0, question.frame_timestamp - 0.5);
+      const endOffset = question.frame_timestamp + 0.5;
       
-      // Update questions with visual asset information
-      const updatedQuestions = questions.map(question => {
-        if (!question.requires_frame_capture) return question;
+      const objectDetectionPrompt = `
+Return bounding boxes as an array with labels for the target objects.
+Never return masks. Limit to 10 objects maximum.
+If an object is present multiple times, give each object a unique label according to its distinct characteristics (colors, size, position, etc.).
+
+QUESTION CONTEXT: ${question.question_context}
+TARGET OBJECTS TO FIND: ${question.target_objects.join(', ')}
+
+For the question "${question.question}", identify and return bounding boxes for each target object that is clearly visible in this video segment.
+
+Mark objects as correct answers based on what the question is specifically asking for.
+`;
+
+      console.log(`🔍 Detecting objects for question: "${question.question.substring(0, 50)}..."`);
+      console.log(`📹 Analyzing video segment: ${startOffset}s to ${endOffset}s`);
+
+      const geminiRequest = {
+        contents: [
+          {
+            parts: [
+              {
+                fileData: {
+                  fileUri: youtubeUrl
+                },
+                videoMetadata: {
+                  startOffset: `${startOffset}s`,
+                  endOffset: `${endOffset}s`
+                }
+              },
+              {
+                text: objectDetectionPrompt
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.1, // Low temperature for consistent object detection
+          topK: 1,
+          topP: 0.8,
+          maxOutputTokens: 2048,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                box_2d: {
+                  type: "array",
+                  items: { type: "integer" },
+                  description: "Bounding box coordinates in [y_min, x_min, y_max, x_max] format, normalized to 0-1000"
+                },
+                label: {
+                  type: "string",
+                  description: "Descriptive label for the detected object"
+                },
+                is_correct_answer: {
+                  type: "boolean",
+                  description: "Whether this object is what the question is asking for"
+                },
+                confidence_score: {
+                  type: "number",
+                  description: "Confidence score between 0.0 and 1.0"
+                }
+              },
+              required: ["box_2d", "label", "is_correct_answer"]
+            }
+          }
+        }
+      };
+    
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY2')}`,
+        {
+      method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(geminiRequest)
+        }
+      );
+
+      if (!response.ok) {
+        console.error(`❌ Gemini API error for question ${question.timestamp}:`, response.status);
+        updatedQuestions.push(question);
+        continue;
+      }
+
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      
+      if (!text) {
+        console.error(`❌ No response from Gemini for question ${question.timestamp}`);
+        updatedQuestions.push(question);
+        continue;
+      }
+
+      // Parse structured bounding box results
+      let detectionResults;
+      try {
+        // With structured output, the response should be direct JSON
+        detectionResults = JSON.parse(text);
         
-        const visualResult = frameData.results?.find((r: any) => 
-          r.timestamp === question.timestamp && r.success
-        );
+        // Validate it's an array
+        if (!Array.isArray(detectionResults)) {
+          throw new Error('Expected array of bounding boxes');
+        }
+      } catch (parseError) {
+        console.error(`❌ Failed to parse bounding box results:`, parseError);
+        console.log('Response length:', text.length);
+        console.log('Response start:', text.substring(0, 500));
+        console.log('Response end:', text.substring(Math.max(0, text.length - 500)));
         
-        if (visualResult) {
-          return {
-            ...question,
-            visual_asset_id: visualResult.visual_asset_id,
-            frame_url: visualResult.frame_url,
-            bounding_boxes: visualResult.bounding_boxes,
-            detected_objects: visualResult.detected_objects
-          };
+        // Try fallback JSON extraction
+        try {
+          console.log('🔧 Attempting fallback JSON extraction for bounding boxes...');
+          const jsonMatch = text.match(/\[[\s\S]*\]/);
+          if (jsonMatch) {
+            detectionResults = JSON.parse(jsonMatch[0]);
+            console.log('✅ Fallback bounding box extraction successful');
+          } else {
+            console.log('❌ No array found in bounding box response, skipping...');
+            updatedQuestions.push(question);
+            continue;
+          }
+        } catch (fallbackError) {
+          console.error('Fallback bounding box extraction failed:', fallbackError);
+          updatedQuestions.push(question);
+          continue;
+        }
+      }
+
+      // Convert Gemini's bounding box format to our normalized format
+      const normalizedElements = detectionResults.map((bbox: any) => {
+        if (!bbox.box_2d || bbox.box_2d.length !== 4) {
+          console.warn('Invalid bounding box format:', bbox);
+          return null;
         }
         
-        return question;
-      });
-      
-      return updatedQuestions;
-      
-    } else {
-      const errorText = await frameResponse.text();
-      console.warn('⚠️ Visual frame processing failed:', errorText);
-      console.warn('   Continuing with text-only questions');
-      return questions;
-    }
+        // Gemini returns [y_min, x_min, y_max, x_max] normalized to 0-1000
+        const [y_min, x_min, y_max, x_max] = bbox.box_2d;
+        
+        // Convert to our format: normalize to 0-1 and convert to top-left + width/height
+        const x = x_min / 1000; // Left edge (0-1)
+        const y = y_min / 1000; // Top edge (0-1)
+        const width = (x_max - x_min) / 1000; // Width (0-1)
+        const height = (y_max - y_min) / 1000; // Height (0-1)
+        
+        return {
+          label: bbox.label || 'Unknown Object',
+          x: Math.max(0, Math.min(1, x)),
+          y: Math.max(0, Math.min(1, y)),
+          width: Math.max(0, Math.min(1, width)),
+          height: Math.max(0, Math.min(1, height)),
+          confidence_score: bbox.confidence_score || 0.8,
+          is_correct_answer: bbox.is_correct_answer || false,
+          description: `Detected via Gemini bounding box: ${bbox.label}`
+        };
+      }).filter(Boolean); // Remove any null entries
+
+      // Update question with detected bounding boxes
+      const updatedQuestion = {
+        ...question,
+        metadata: JSON.stringify({
+          detected_elements: normalizedElements,
+          video_overlay: true,
+          gemini_bounding_boxes: true, // Flag to indicate we used Gemini's built-in detection
+          video_dimensions: { width: 1000, height: 1000 } // Gemini's coordinate space
+        })
+      };
+
+      console.log(`✅ Detected ${normalizedElements.length} objects for question at ${question.timestamp}s using Gemini bounding boxes`);
+      updatedQuestions.push(updatedQuestion);
+
   } catch (error) {
-    console.warn('⚠️ Visual frame service unavailable, continuing without frame capture:', error);
-    return questions;
+      console.error(`❌ Error generating bounding boxes for question ${question.timestamp}:`, error);
+      updatedQuestions.push(question);
+    }
   }
+
+  return updatedQuestions;
 }
 
 // Map Gemini question types to database types
@@ -284,7 +528,7 @@ async function storeEnhancedQuestions(
   courseId: string,
   questions: any[]
 ): Promise<any[]> {
-  console.log('💾 Storing enhanced questions...');
+  console.log('💾 Storing enhanced questions with precise bounding boxes...');
 
   const questionsToInsert = questions.map((q: any) => ({
     course_id: courseId,
@@ -292,13 +536,12 @@ async function storeEnhancedQuestions(
     question: q.question,
     type: mapGeminiTypeToDbType(q.type),
     options: q.options ? JSON.stringify(q.options) : null,
-    correct_answer: String(q.correct_answer),
+    correct_answer: typeof q.correct_answer === 'string' ? parseInt(q.correct_answer) || 0 : q.correct_answer,
     explanation: q.explanation,
-    visual_context: q.visual_context,
-    has_visual_asset: q.requires_frame_capture || false,
-    visual_question_type: q.visual_question_type || null,
-    fallback_prompt: q.type === 'hotspot' ? `Generate simple diagram for: ${q.question}` : null,
-    accepted: false
+    has_visual_asset: ['hotspot', 'matching', 'sequencing'].includes(q.type),
+    fallback_prompt: q.type === 'hotspot' ? `Generate simple diagram showing objects` : null,
+    frame_timestamp: q.frame_timestamp || null,
+    metadata: q.metadata || null
   }));
 
   const { data: createdQuestions, error: questionsError } = await supabaseClient
@@ -310,74 +553,52 @@ async function storeEnhancedQuestions(
     throw new Error(`Failed to create questions: ${questionsError.message}`);
   }
 
-  // Process visual questions for bounding boxes and matching pairs
-  for (let i = 0; i < questions.length; i++) {
-    const question = questions[i];
-    const dbQuestion = createdQuestions[i];
+  console.log(`✅ Created ${createdQuestions.length} questions`);
 
-    // Store hotspot elements as bounding boxes (placeholder data)
-    if (question.type === 'hotspot' && question.hotspot_elements) {
-      const boundingBoxes = question.hotspot_elements.map((element: any, index: number) => ({
-        question_id: dbQuestion.id,
-        visual_asset_id: null, // Will be populated when frame is captured
-        label: element.label,
-        x: 0.3 + (index * 0.1), // Mock coordinates
-        y: 0.3 + (index * 0.1),
-        width: 0.15,
-        height: 0.1,
-        confidence_score: 0.9,
-        is_correct_answer: element.is_correct
+  // Now create bounding boxes for questions with detection results
+  let totalBoundingBoxes = 0;
+  
+  for (const question of createdQuestions) {
+    if (question.metadata) {
+      try {
+        const metadata = JSON.parse(question.metadata);
+        const detectedElements = metadata.detected_elements || [];
+
+        if (detectedElements.length > 0) {
+          console.log(`🎯 Creating ${detectedElements.length} bounding boxes for question ${question.id}`);
+          
+          const boundingBoxesToInsert = detectedElements.map((element: any) => ({
+            question_id: question.id,
+            visual_asset_id: null, // No visual assets needed for video overlay
+            label: element.label || 'Unknown Object',
+            x: parseFloat(element.x.toFixed(4)),
+            y: parseFloat(element.y.toFixed(4)),
+            width: parseFloat(element.width.toFixed(4)),
+            height: parseFloat(element.height.toFixed(4)),
+            confidence_score: element.confidence_score || 0.8,
+            is_correct_answer: element.is_correct_answer || false
       }));
 
-      const { error: bboxError } = await supabaseClient
+          const { data: createdBoxes, error: boxError } = await supabaseClient
         .from('bounding_boxes')
-        .insert(boundingBoxes);
+            .insert(boundingBoxesToInsert)
+            .select();
 
-      if (bboxError) {
-        console.warn(`Failed to store bounding boxes for question ${dbQuestion.id}:`, bboxError);
+          if (boxError) {
+            console.error(`❌ Error creating bounding boxes for question ${question.id}:`, boxError);
+          } else {
+            totalBoundingBoxes += createdBoxes.length;
+            console.log(`✅ Created ${createdBoxes.length} bounding boxes for question ${question.id}`);
+          }
+        }
+      } catch (parseError) {
+        console.error(`❌ Error parsing metadata for question ${question.id}:`, parseError);
       }
     }
   }
 
-  console.log(`✅ Stored ${createdQuestions.length} enhanced questions`);
+  console.log(`🎯 Total bounding boxes created: ${totalBoundingBoxes}`);
   return createdQuestions;
-}
-
-// Update stored questions with visual asset IDs after frame processing
-async function updateQuestionsWithVisualAssets(
-  supabaseClient: any,
-  storedQuestions: any[],
-  processedQuestions: any[]
-): Promise<any[]> {
-  console.log('🔗 Updating questions with visual asset links...');
-  
-  for (let i = 0; i < storedQuestions.length; i++) {
-    const storedQuestion = storedQuestions[i];
-    const processedQuestion = processedQuestions[i];
-    
-    // If the processed question has a visual_asset_id, update the database
-    if (processedQuestion.visual_asset_id) {
-      console.log(`🔗 Linking question ${storedQuestion.id} to visual asset ${processedQuestion.visual_asset_id}`);
-      
-      const { error: updateError } = await supabaseClient
-        .from('questions')
-        .update({ 
-          visual_asset_id: processedQuestion.visual_asset_id
-        })
-        .eq('id', storedQuestion.id);
-      
-      if (updateError) {
-        console.warn(`⚠️ Failed to update question ${storedQuestion.id} with visual asset:`, updateError);
-      } else {
-        storedQuestion.visual_asset_id = processedQuestion.visual_asset_id;
-      }
-    }
-  }
-  
-  const linkedCount = storedQuestions.filter(q => q.visual_asset_id).length;
-  console.log(`✅ Updated ${linkedCount} questions with visual asset links`);
-  
-  return storedQuestions;
 }
 
 serve(async (req) => {
@@ -391,9 +612,9 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
+      const geminiApiKey = Deno.env.get('GEMINI_API_KEY2');
     if (!geminiApiKey) {
-      throw new Error('GEMINI_API_KEY environment variable is not set');
+    throw new Error('GEMINI_API_KEY2 environment variable is not set');
     }
 
     const {
@@ -424,41 +645,35 @@ serve(async (req) => {
 
     console.log('✅ Course found:', course.title);
 
-    const genAI = new GoogleGenerativeAI(geminiApiKey);
-
-    // Step 1: Generate enhanced questions with visual capabilities
+    // Step 1: Generate enhanced questions with rich analysis
     const analysisResult = await generateEnhancedQuestions(
-      supabaseClient,
-      genAI,
-      course_id,
       youtube_url,
-      max_questions,
-      difficulty_level,
-      focus_topics,
-      enable_visual_questions
+      Math.min(max_questions || 7, 8), // Cap at 8 questions to prevent token overflow
+      difficulty_level || 'medium',
+      enable_visual_questions !== false
     );
 
-    // Step 2: Process visual questions for frame capture
-    const processedQuestions = await processVisualQuestions(
-      supabaseClient,
-      course_id,
-      youtube_url,
-      analysisResult.questions
-    );
+    if (!analysisResult.success) {
+      throw new Error(analysisResult.error || 'Failed to generate enhanced questions');
+    }
 
-    // Step 3: Store enhanced questions in database
+    // Step 2: For hotspot questions only, generate precise bounding boxes using cropped video segments
+    const hotspotQuestions = analysisResult.questions.filter((q: any) => q.type === 'hotspot');
+    let processedQuestions = analysisResult.questions;
+    
+    if (hotspotQuestions.length > 0) {
+      console.log(`🎯 Found ${hotspotQuestions.length} hotspot questions - generating precise bounding boxes...`);
+      processedQuestions = await generatePreciseBoundingBoxes(youtube_url, analysisResult.questions);
+    }
+
+    // Step 3: Store enhanced questions in database with integrated bounding box creation
     const storedQuestions = await storeEnhancedQuestions(
       supabaseClient,
       course_id,
       processedQuestions
     );
 
-    // Step 4: Update questions with visual asset links
-    const linkedQuestions = await updateQuestionsWithVisualAssets(
-      supabaseClient,
-      storedQuestions,
-      processedQuestions
-    );
+    console.log(`✅ Complete enhanced quiz generation finished for course ${course_id}`);
 
     // Return enhanced response
     return new Response(
@@ -467,15 +682,15 @@ serve(async (req) => {
         course_id: course_id,
         video_summary: analysisResult.video_summary,
         total_duration: analysisResult.total_duration,
-        visual_moments: analysisResult.visual_moments || [],
-        questions: linkedQuestions.map((q: any) => ({
+        questions: storedQuestions.map((q: any) => ({
           ...q,
           options: q.options ? JSON.parse(q.options) : null
         })),
         enhanced_features: {
           visual_questions_enabled: enable_visual_questions,
-          visual_questions_count: processedQuestions.filter(q => q.requires_frame_capture).length,
-          frame_capture_available: true
+          visual_questions_count: analysisResult.questions.filter(q => ['hotspot', 'matching', 'sequencing'].includes(q.type)).length,
+          frame_capture_available: true,
+          direct_bounding_box_detection: true
         }
       }),
       {
