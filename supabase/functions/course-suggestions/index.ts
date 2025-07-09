@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { videoUrl } = await req.json()
+    const { videoUrl, courseId, wrongQuestions } = await req.json()
 
     if (!videoUrl) {
       return new Response(
@@ -25,7 +25,7 @@ serve(async (req) => {
       )
     }
 
-      const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY2')
+    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY2')
     if (!GEMINI_API_KEY) {
       return new Response(
         JSON.stringify({ error: 'Gemini API key not configured' }),
@@ -36,7 +36,15 @@ serve(async (req) => {
       )
     }
 
-    const prompt = `Given this video ${videoUrl}, give me 2 youtube video links each for 2 potential next step topics that could be covered. Return as structured output in json format exactly matching the following:
+    // Build context about wrong answers
+    let wrongAnswersContext = '';
+    if (wrongQuestions && wrongQuestions.length > 0) {
+      wrongAnswersContext = `\n\nThe user struggled with these concepts in the previous course:\n${wrongQuestions.map(q => `- ${q.question}`).join('\n')}`;
+    }
+
+    const prompt = `Given this video ${videoUrl} and considering the user's learning progress${wrongAnswersContext}, suggest 2 relevant next step topics that would help them improve their understanding. Each topic should have 2 YouTube video recommendations.
+
+Return as structured JSON format exactly matching this structure:
 {
   "topics": [
     {
@@ -50,7 +58,9 @@ serve(async (req) => {
       "video2": "https://www.youtube.com/watch?v=WT7oxiiFYt8"
     }
   ]
-}`
+}
+
+Make sure the suggested topics are relevant to the original video content and address any knowledge gaps indicated by the user's wrong answers.`
 
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
