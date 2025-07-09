@@ -1,4 +1,4 @@
-# CourseForge AI - Master Todo List
+# CourseBuilder - Master Todo List
 
 ## 🚀 Completed Features
 

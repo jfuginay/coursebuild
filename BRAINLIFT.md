@@ -1,4 +1,4 @@
-# CourseForge AI: Product Development Brainlift
+# CourseBuilder: Product Development Brainlift
 *Transforming YouTube Videos into Interactive Learning Experiences*
 
 ---
@@ -7,7 +7,7 @@
 
 **Problem Statement**: Traditional online learning suffers from passive consumption. Students watch videos but lack structured engagement, assessment, and progress tracking.
 
-**Our Solution**: CourseForge AI automatically transforms any YouTube educational video into an interactive course with strategically-placed quizzes, progress tracking, and personalized learning paths.
+**Our Solution**: CourseBuilder automatically transforms any YouTube educational video into an interactive course with strategically-placed quizzes, progress tracking, and personalized learning paths.
 
 ---
 
@@ -179,4 +179,4 @@ Deployment: Vercel
 
 **Last Updated**: January 8, 2025  
 **Next Review**: February 1, 2025  
-**Document Owner**: CourseForge AI Development Team
+**Document Owner**: CourseBuilder Development Team

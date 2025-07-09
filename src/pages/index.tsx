@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
+import Head from 'next/head';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -120,8 +121,12 @@ export default function Home() {
   const handleGenerateCoursePro = (data: CourseGenerationFormData) => generateCourse(data, true);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
-      <Header />
+    <>
+      <Head>
+        <title>CourseBuilder - Transform YouTube Videos into Interactive Courses</title>
+      </Head>
+      <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+        <Header />
       
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto space-y-8">
@@ -228,5 +233,6 @@ export default function Home() {
         </div>
       </div>
     </div>
+    </>
   );
 }
