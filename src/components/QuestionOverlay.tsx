@@ -30,7 +30,7 @@ interface Question {
 
 interface QuestionOverlayProps {
   question: Question;
-  onAnswer: (correct: boolean) => void;
+  onAnswer: (correct: boolean, selectedAnswer?: string) => void;
   onContinue: () => void;
   isVisible: boolean;
   player?: any; // YouTube player instance
@@ -52,6 +52,36 @@ export default function QuestionOverlay({
   const [showExplanation, setShowExplanation] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [hasAnswered, setHasAnswered] = useState(false);
+
+  // Define trackProgress function before it's used
+  const trackProgress = async (questionAnswered: boolean, isCorrect: boolean) => {
+    if (!user || !supabase || !courseId || segmentIndex === undefined) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      await fetch('/api/user/progress', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          courseId,
+          segmentIndex,
+          segmentTitle: `Segment ${segmentIndex + 1}`,
+          questionId: question.id,
+          selectedAnswer: selectedAnswer,
+          isCorrect,
+          timeSpent: Math.floor((Date.now() - Date.now()) / 1000), // Could track start time
+          explanationViewed: showExplanation
+        })
+      });
+    } catch (error) {
+      console.error('Failed to track progress:', error);
+    }
+  };
 
   if (!isVisible) return null;
 
@@ -119,8 +149,9 @@ export default function QuestionOverlay({
               }))}
               explanation={question.explanation}
               player={player}
-              onAnswer={async (isCorrect) => {
-                onAnswer(isCorrect);
+              onAnswer={async (isCorrect, selectedBox) => {
+                const selectedAnswer = selectedBox ? `${selectedBox.label || 'Element'} (${selectedBox.x}, ${selectedBox.y})` : 'hotspot-interaction';
+                onAnswer(isCorrect, selectedAnswer);
                 setHasAnswered(true);
                 setShowExplanation(true);
                 await trackProgress(true, isCorrect);
@@ -169,9 +200,10 @@ export default function QuestionOverlay({
               }
             }))}
             explanation={question.explanation}
-            onAnswer={async (isCorrect) => {
+            onAnswer={async (isCorrect, userMatches) => {
               console.log('🎯 Matching question answered:', { isCorrect, questionId: question.id });
-              onAnswer(isCorrect);
+              const selectedAnswer = userMatches ? JSON.stringify(userMatches) : 'matching-answer';
+              onAnswer(isCorrect, selectedAnswer);
               setHasAnswered(true);
               setShowExplanation(true);
               await trackProgress(true, isCorrect);
@@ -207,9 +239,10 @@ export default function QuestionOverlay({
             question={question.question}
             items={question.sequence_items}
             explanation={question.explanation}
-            onAnswer={async (isCorrect) => {
+            onAnswer={async (isCorrect, userOrder) => {
               console.log('🎯 Sequencing question answered:', { isCorrect, questionId: question.id });
-              onAnswer(isCorrect);
+              const selectedAnswer = userOrder ? userOrder.join(' → ') : 'sequencing-answer';
+              onAnswer(isCorrect, selectedAnswer);
               setHasAnswered(true);
               setShowExplanation(true);
               await trackProgress(true, isCorrect);
@@ -261,35 +294,6 @@ export default function QuestionOverlay({
     setSelectedAnswer(index);
   };
 
-  const trackProgress = async (questionAnswered: boolean, isCorrect: boolean) => {
-    if (!user || !supabase || !courseId || segmentIndex === undefined) return;
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      await fetch('/api/user/progress', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({
-          courseId,
-          segmentIndex,
-          segmentTitle: `Segment ${segmentIndex + 1}`,
-          questionId: question.id,
-          selectedAnswer: selectedAnswer,
-          isCorrect,
-          timeSpent: Math.floor((Date.now() - Date.now()) / 1000), // Could track start time
-          explanationViewed: showExplanation
-        })
-      });
-    } catch (error) {
-      console.error('Failed to track progress:', error);
-    }
-  };
-
   const handleSubmit = async () => {
     if (selectedAnswer === null) return;
 
@@ -305,10 +309,10 @@ export default function QuestionOverlay({
     setIsCorrect(correct);
     setShowExplanation(true);
     setHasAnswered(true);
-    onAnswer(correct);
-
-    // Track progress for authenticated users
     await trackProgress(true, correct);
+    // Pass the selected answer text
+    const selectedAnswerText = finalOptions[selectedAnswer] || `Option ${selectedAnswer + 1}`;
+    onAnswer(correct, selectedAnswerText);
   };
 
   const handleContinue = () => {

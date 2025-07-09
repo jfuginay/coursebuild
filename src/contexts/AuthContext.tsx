@@ -60,18 +60,81 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
+    
+    if (error) {
+      return { error };
+    }
+
+    // If signin was successful and we have a user, ensure their profile exists
+    if (data.user) {
+      try {
+        const response = await fetch('/api/create-profile', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: data.user.id,
+            email: data.user.email,
+            displayName: data.user.user_metadata?.full_name || null,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Error ensuring profile exists:', errorData);
+          // We don't return this error as the user signin was successful
+        }
+      } catch (profileError) {
+        console.error('Failed to ensure profile exists:', profileError);
+        // We don't return this error as the user signin was successful
+      }
+    }
+    
     return { error };
   };
 
   const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
     });
+    
+    if (error) {
+      return { error };
+    }
+
+    // If signup was successful and we have a user, create their profile
+    if (data.user) {
+      try {
+        const response = await fetch('/api/create-profile', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: data.user.id,
+            email: data.user.email,
+            displayName: data.user.user_metadata?.full_name || null,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Error creating profile:', errorData);
+          // We don't return this error as the user account was created successfully
+          // The profile creation failure can be handled separately
+        }
+      } catch (profileError) {
+        console.error('Failed to create profile:', profileError);
+        // We don't return this error as the user account was created successfully
+      }
+    }
+    
     return { error };
   };
 

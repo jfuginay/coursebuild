@@ -1,4 +1,4 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
+import { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -15,13 +15,12 @@ export default async function handler(
   }
 
   try {
-    // Extract user from authorization header
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Authorization required' });
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Missing or invalid authorization header' });
     }
 
-    const token = authHeader.split(' ')[1];
+    const token = authHeader.substring(7);
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
@@ -30,165 +29,259 @@ export default async function handler(
 
     console.log('📊 Fetching dashboard data for user:', user.id);
 
-    // 1. Get user profile and basic stats
-    const { data: dashboardStats, error: statsError } = await supabase
-      .from('user_dashboard_stats')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
+    // 1. Get user profile and basic stats - with fallback for missing tables
+    let dashboardStats = null;
+    try {
+      const { data: statsData, error: statsError } = await supabase
+        .from('user_dashboard_stats')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
 
-    if (statsError) {
-      console.error('Error fetching dashboard stats:', statsError);
-      return res.status(500).json({ error: 'Failed to fetch dashboard stats' });
+      if (statsError) {
+        console.log('📊 Dashboard stats view not available, calculating stats manually');
+        // Create basic stats structure and calculate manually
+        console.log('📊 Calculating stats manually from individual tables');
+        
+        // Get actual counts from individual tables
+        const { data: enrollmentCount } = await supabase
+          .from('user_course_enrollments')
+          .select('id, completion_percentage')
+          .eq('user_id', user.id);
+
+        const { data: questionsCount } = await supabase
+          .from('user_question_attempts')
+          .select('id, is_correct')
+          .eq('user_id', user.id);
+
+        const totalEnrollments = enrollmentCount?.length || 0;
+        const completedCourses = enrollmentCount?.filter(e => e.completion_percentage >= 100).length || 0;
+        const totalQuestions = questionsCount?.length || 0;
+        const correctAnswers = questionsCount?.filter(q => q.is_correct).length || 0;
+        
+        // Get basic profile
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        dashboardStats = {
+          user_id: user.id,
+          email: profile?.email || user.email,
+          display_name: profile?.display_name || user.email?.split('@')[0],
+          subscription_tier: profile?.subscription_tier || 'free',
+          courses_enrolled: totalEnrollments,
+          courses_completed: completedCourses,
+          total_correct_answers: correctAnswers,
+          total_questions_attempted: totalQuestions,
+          total_points: correctAnswers * 10, // Simple points calculation
+          total_achievements: 0
+        };
+      } else {
+        dashboardStats = statsData;
+      }
+    } catch (error) {
+      console.error('Error in dashboard stats fallback:', error);
+      return res.status(500).json({ error: 'Failed to fetch dashboard data' });
     }
 
-    // 2. Get enrolled courses with progress
-    const { data: enrollments, error: enrollmentsError } = await supabase
-      .from('user_course_enrollments')
-      .select(`
-        *,
-        courses (
-          id,
-          title,
-          description,
-          youtube_url,
-          created_at,
-          published
-        )
-      `)
-      .eq('user_id', user.id)
-      .order('enrolled_at', { ascending: false });
+    // 2. Get enrolled courses with progress - with fallback
+    let enrollments = [];
+    try {
+      const { data: enrollmentData, error: enrollmentsError } = await supabase
+        .from('user_course_enrollments')
+        .select(`
+          *,
+          courses (
+            id,
+            title,
+            description,
+            youtube_url,
+            created_at,
+            published
+          )
+        `)
+        .eq('user_id', user.id)
+        .order('enrolled_at', { ascending: false });
 
-    if (enrollmentsError) {
-      console.error('Error fetching enrollments:', enrollmentsError);
-      return res.status(500).json({ error: 'Failed to fetch enrollments' });
+      if (enrollmentsError) {
+        console.log('Enrollments table not available:', enrollmentsError.message);
+        enrollments = [];
+      } else {
+        enrollments = enrollmentData || [];
+      }
+    } catch (error) {
+      console.log('Enrollments query failed, using empty array');
+      enrollments = [];
     }
 
-    // 3. Get recent question attempts (last 10)
-    const { data: recentAttempts, error: attemptsError } = await supabase
-      .from('user_question_attempts')
-      .select(`
-        *,
-        questions (
-          id,
-          question,
-          type,
-          timestamp
-        ),
-        courses (
-          id,
-          title
-        )
-      `)
-      .eq('user_id', user.id)
-      .order('attempted_at', { ascending: false })
-      .limit(10);
+    // 3. Get recent question attempts (last 10) - with fallback
+    let recentAttempts = [];
+    try {
+      const { data: attemptData, error: attemptsError } = await supabase
+        .from('user_question_attempts')
+        .select(`
+          *,
+          questions (
+            id,
+            question,
+            type,
+            timestamp
+          ),
+          courses (
+            id,
+            title
+          )
+        `)
+        .eq('user_id', user.id)
+        .order('attempted_at', { ascending: false })
+        .limit(10);
 
-    if (attemptsError) {
-      console.error('Error fetching recent attempts:', attemptsError);
+      if (attemptsError) {
+        console.log('Question attempts table not available:', attemptsError.message);
+        recentAttempts = [];
+      } else {
+        recentAttempts = attemptData || [];
+      }
+    } catch (error) {
+      console.log('Question attempts query failed, using empty array');
+      recentAttempts = [];
     }
 
-    // 4. Get recent achievements (last 5)
-    const { data: recentAchievements, error: achievementsError } = await supabase
-      .from('user_achievements')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('earned_at', { ascending: false })
-      .limit(5);
+    // 4. Get recent achievements (last 5) - with fallback
+    let recentAchievements = [];
+    try {
+      const { data: achievementData, error: achievementsError } = await supabase
+        .from('user_achievements')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('earned_at', { ascending: false })
+        .limit(5);
 
-    if (achievementsError) {
-      console.error('Error fetching achievements:', achievementsError);
+      if (achievementsError) {
+        console.log('Achievements table not available:', achievementsError.message);
+        recentAchievements = [];
+      } else {
+        recentAchievements = achievementData || [];
+      }
+    } catch (error) {
+      console.log('Achievements query failed, using empty array');
+      recentAchievements = [];
     }
 
-    // 5. Get learning streak data
-    const { data: streakData, error: streakError } = await supabase
-      .from('user_question_attempts')
-      .select('attempted_at, is_correct')
-      .eq('user_id', user.id)
-      .order('attempted_at', { ascending: false })
-      .limit(30); // Last 30 attempts for streak calculation
-
+    // 5. Get learning streak data - with fallback
     let currentStreak = 0;
     let longestStreak = 0;
-    let tempStreak = 0;
+    let weeklyQuestions = 0;
+    
+    try {
+      const { data: streakData, error: streakError } = await supabase
+        .from('user_question_attempts')
+        .select('attempted_at, is_correct')
+        .eq('user_id', user.id)
+        .order('attempted_at', { ascending: false })
+        .limit(30); // Last 30 attempts for streak calculation
 
-    if (streakData && streakData.length > 0) {
-      // Calculate current streak (consecutive correct answers from most recent)
-      for (let i = 0; i < streakData.length; i++) {
-        if (streakData[i].is_correct) {
-          if (i === currentStreak) currentStreak++;
-          tempStreak++;
-        } else {
-          if (tempStreak > longestStreak) longestStreak = tempStreak;
-          tempStreak = 0;
+      if (!streakError && streakData && streakData.length > 0) {
+        let tempStreak = 0;
+        // Calculate current streak (consecutive correct answers from most recent)
+        for (let i = 0; i < streakData.length; i++) {
+          if (streakData[i].is_correct) {
+            if (i === currentStreak) currentStreak++;
+            tempStreak++;
+          } else {
+            if (tempStreak > longestStreak) longestStreak = tempStreak;
+            tempStreak = 0;
+          }
+        }
+        if (tempStreak > longestStreak) longestStreak = tempStreak;
+
+        // Calculate weekly activity
+        const oneWeekAgo = new Date();
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        
+        const weeklyData = streakData.filter(attempt => 
+          new Date(attempt.attempted_at) >= oneWeekAgo
+        );
+        weeklyQuestions = weeklyData.length;
+      }
+    } catch (error) {
+      console.log('Streak calculation failed, using defaults');
+    }
+
+    // 7. Get course progress details for enrolled courses - with fallback
+    const courseProgressDetails = [];
+    if (enrollments && enrollments.length > 0) {
+      for (const enrollment of enrollments) {
+        try {
+          const { data: courseProgress } = await supabase
+            .from('user_course_progress')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('course_id', enrollment.course_id);
+
+          courseProgressDetails.push({
+            ...enrollment,
+            segmentProgress: courseProgress || []
+          });
+        } catch (error) {
+          console.log('Course progress query failed for enrollment:', enrollment.id);
+          courseProgressDetails.push({
+            ...enrollment,
+            segmentProgress: []
+          });
         }
       }
-      if (tempStreak > longestStreak) longestStreak = tempStreak;
     }
 
-    // 6. Calculate weekly activity
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-
-    const { data: weeklyActivity, error: weeklyError } = await supabase
-      .from('user_question_attempts')
-      .select('attempted_at')
-      .eq('user_id', user.id)
-      .gte('attempted_at', oneWeekAgo.toISOString());
-
-    const weeklyQuestions = weeklyActivity?.length || 0;
-
-    // 7. Get course progress details for enrolled courses
-    const courseProgressDetails = [];
-    if (enrollments) {
-      for (const enrollment of enrollments) {
-        const { data: courseProgress } = await supabase
-          .from('user_course_progress')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('course_id', enrollment.course_id);
-
-        courseProgressDetails.push({
-          ...enrollment,
-          segmentProgress: courseProgress || []
-        });
-      }
-    }
-
-    console.log('✅ Dashboard data fetched successfully');
-
-    return res.status(200).json({
+    // Build response with tab structure
+    const response = {
       success: true,
-      user: {
-        id: user.id,
-        email: user.email,
-        ...dashboardStats
-      },
-      stats: {
-        coursesEnrolled: dashboardStats?.courses_enrolled || 0,
-        coursesCompleted: dashboardStats?.courses_completed || 0,
-        totalCorrectAnswers: dashboardStats?.total_correct_answers || 0,
-        totalQuestionsAttempted: dashboardStats?.total_questions_attempted || 0,
-        totalPoints: dashboardStats?.total_points || 0,
-        totalAchievements: dashboardStats?.total_achievements || 0,
-        currentStreak,
-        longestStreak,
-        weeklyQuestions,
-        accuracyRate: dashboardStats?.total_questions_attempted > 0 
-          ? Math.round((dashboardStats.total_correct_answers / dashboardStats.total_questions_attempted) * 100)
-          : 0
-      },
-      enrollments: courseProgressDetails,
-      recentActivity: {
-        attempts: recentAttempts || [],
-        achievements: recentAchievements || []
+      dashboardStats,
+      tabs: {
+        overview: {
+          stats: dashboardStats,
+          streaks: {
+            current: currentStreak,
+            longest: longestStreak,
+            weeklyQuestions
+          },
+          recentActivity: recentAttempts.slice(0, 5),
+          topCourses: courseProgressDetails.slice(0, 3)
+        },
+        courses: {
+          enrolled: courseProgressDetails,
+          totalEnrolled: enrollments.length,
+          completed: courseProgressDetails.filter(c => c.completion_percentage >= 100).length
+        },
+        progress: {
+          recentAttempts: recentAttempts,
+          streakData: {
+            current: currentStreak,
+            longest: longestStreak,
+            weeklyQuestions
+          },
+          achievements: recentAchievements
+        },
+        achievements: {
+          recent: recentAchievements,
+          total: dashboardStats.total_achievements,
+          categories: {
+            learning: recentAchievements.filter(a => a.category === 'learning').length,
+            streak: recentAchievements.filter(a => a.category === 'streak').length,
+            completion: recentAchievements.filter(a => a.category === 'completion').length
+          }
+        }
       }
-    });
+    };
+
+    return res.status(200).json(response);
 
   } catch (error) {
-    console.error('API Error:', error);
-    return res.status(500).json({
-      error: 'Failed to fetch dashboard data',
+    console.error('Dashboard API error:', error);
+    return res.status(500).json({ 
+      error: 'Internal server error',
       message: error instanceof Error ? error.message : 'Unknown error'
     });
   }

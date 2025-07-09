@@ -10,7 +10,9 @@ import { Progress } from '@/components/ui/progress';
 import Header from '@/components/Header';
 import QuestionOverlay from '@/components/QuestionOverlay';
 import CourseCurriculumCard from '@/components/CourseCurriculumCard';
+import VideoProgressBar from '@/components/VideoProgressBar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Course {
   id: string;
@@ -86,6 +88,7 @@ declare global {
 export default function CoursePage() {
   const router = useRouter();
   const { id } = router.query;
+  const { user, session } = useAuth();
   const [course, setCourse] = useState<Course | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -97,6 +100,7 @@ export default function CoursePage() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [showQuestion, setShowQuestion] = useState(false);
   const [answeredQuestions, setAnsweredQuestions] = useState<Set<number>>(new Set());
+  const [skippedQuestions, setSkippedQuestions] = useState<Set<number>>(new Set());
   const [correctAnswers, setCorrectAnswers] = useState(0);
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [isYTApiLoaded, setIsYTApiLoaded] = useState(false);
@@ -107,12 +111,14 @@ export default function CoursePage() {
   const [showNextCourseModal, setShowNextCourseModal] = useState(false);
   const [isLoadingNextCourse, setIsLoadingNextCourse] = useState(false);
   const [nextCourseApiCalled, setNextCourseApiCalled] = useState(false); // Track if API was called
+  const [isEnrolled, setIsEnrolled] = useState(false); // Track enrollment status
 
   // Free questions limit
   const FREE_QUESTIONS_LIMIT = 2;
 
   const playerRef = useRef<YTPlayer | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const questionStartTime = useRef<number | null>(null); // Track when question was shown
 
   useEffect(() => {
     if (id) {
@@ -303,6 +309,78 @@ export default function CoursePage() {
       console.error('Error fetching questions:', err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Helper function to track course enrollment for logged-in users
+  const trackCourseEnrollment = async (courseId: string): Promise<boolean> => {
+    if (!user || isEnrolled) return isEnrolled; // Only track for logged-in users and if not already enrolled
+    
+    try {
+      const response = await fetch('/api/user-course-enrollments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: user.id,
+          course_id: courseId,
+        }),
+      });
+
+      if (!response.ok) {
+        console.error('Failed to track course enrollment:', await response.text());
+        return false;
+      } else {
+        const result = await response.json();
+        console.log('Course enrollment tracked successfully:', result);
+        setIsEnrolled(true);
+        return true;
+      }
+    } catch (error) {
+      console.error('Error tracking course enrollment:', error);
+      return false;
+    }
+  };
+
+  // Helper function to track question responses for logged-in users
+  const trackQuestionResponse = async (questionId: string, selectedAnswer: string, isCorrect: boolean, questionType: string, responseTimeMs?: number) => {
+    if (!user || !session || !id) return; // Only track for logged-in users with valid session
+    
+    try {
+      // Ensure enrollment exists before tracking response
+      const enrollmentSuccess = await trackCourseEnrollment(id as string);
+      if (!enrollmentSuccess) {
+        console.error('Failed to create/verify enrollment, skipping question response tracking');
+        return;
+      }
+
+      const response = await fetch('/api/user-question-responses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          question_id: questionId,
+          course_id: id,
+          selected_answer: selectedAnswer,
+          is_correct: isCorrect,
+          response_time_ms: responseTimeMs,
+          question_type: questionType,
+          timestamp: currentTime,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Failed to track question response:', errorText);
+      } else {
+        const result = await response.json();
+        console.log('Question response tracked successfully:', result);
+      }
+    } catch (error) {
+      console.error('Error tracking question response:', error);
     }
   };
 
@@ -594,23 +672,107 @@ export default function CoursePage() {
       const questionIndex = questions.indexOf(nextQuestion);
       setCurrentQuestionIndex(questionIndex);
       setShowQuestion(true);
+      questionStartTime.current = Date.now(); // Track when question was shown
       playerRef.current?.pauseVideo();
+      
+      // Track enrollment when user first interacts with a question (fire and forget)
+      if (id && typeof id === 'string') {
+        trackCourseEnrollment(id).catch(error => {
+          console.error('Error tracking enrollment in checkForQuestions:', error);
+        });
+      }
     }
   };
 
-  const handleAnswer = (correct: boolean) => {
+  const handleAnswer = (correct: boolean, selectedAnswer?: string) => {
     if (correct) {
       setCorrectAnswers(prev => prev + 1);
     }
+    
     // Track question results for curriculum card
     const questionId = `0-${currentQuestionIndex}`; // Using segment 0 since we're flattening
     setQuestionResults(prev => ({ ...prev, [questionId]: correct }));
+    
+    // Track question response for logged-in users
+    if (questions[currentQuestionIndex] && id && typeof id === 'string') {
+      const question = questions[currentQuestionIndex];
+      const responseTimeMs = questionStartTime.current ? Date.now() - questionStartTime.current : undefined;
+      const answer = selectedAnswer || (correct ? 'correct' : 'incorrect'); // Fallback if selectedAnswer not provided
+      
+      trackQuestionResponse(
+        question.id,
+        answer,
+        correct,
+        question.type,
+        responseTimeMs
+      );
+    }
   };
 
   const handleContinueVideo = () => {
     setAnsweredQuestions(prev => new Set(prev).add(currentQuestionIndex));
     setShowQuestion(false);
     playerRef.current?.playVideo();
+  };
+
+  const handleVideoSeek = async (seekTime: number) => {
+    if (!playerRef.current || !questions) return;
+
+    // Find all questions between current time and seek time
+    const questionsInRange = questions
+      .map((question, index) => ({ ...question, index }))
+      .filter(q => {
+        if (seekTime > currentTime) {
+          // Seeking forward - find unanswered questions we're skipping
+          return q.timestamp > currentTime && q.timestamp <= seekTime && !answeredQuestions.has(q.index);
+        } else {
+          // Seeking backward - no need to mark questions
+          return false;
+        }
+      });
+
+    // Mark skipped questions
+    if (questionsInRange.length > 0) {
+      console.log(`⏩ Skipping ${questionsInRange.length} questions`);
+      
+      const newSkippedQuestions = new Set(skippedQuestions);
+      for (const question of questionsInRange) {
+        newSkippedQuestions.add(question.index);
+        
+        // Track as incorrect for progress if user is authenticated
+        if (user && supabase) {
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+              await fetch('/api/user/progress', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${session.access_token}`
+                },
+                body: JSON.stringify({
+                  courseId: id,
+                  segmentIndex: 0, // In this simpler structure, we don't have segments
+                  segmentTitle: 'Main',
+                  questionId: question.id,
+                  selectedAnswer: -1, // Indicate skipped
+                  isCorrect: false,
+                  timeSpent: 0,
+                  explanationViewed: false
+                })
+              });
+            }
+          } catch (error) {
+            console.error('Failed to track skipped question:', error);
+          }
+        }
+      }
+      setSkippedQuestions(newSkippedQuestions);
+    }
+
+    // Seek the video
+    playerRef.current.seekTo(seekTime);
+    setCurrentTime(seekTime);
   };
 
   const extractVideoId = (url: string): string => {
@@ -873,28 +1035,21 @@ export default function CoursePage() {
                     <span>{formatTime(duration)}</span>
                   </div>
                   
-                  {/* Progress bar with contained markers */}
-                  <div className="relative">
-                    <Progress value={progressPercentage} className="h-2" />
-                    
-                    {/* Question markers positioned relative to progress bar */}
-                    <div className="absolute top-0 left-0 right-0 h-2">
-                      {questions.map((question, index) => {
-                        const position = Math.min(Math.max((question.timestamp / duration) * 100, 0.5), 99.5);
-                        const isAnswered = answeredQuestions.has(index);
-                        return (
-                          <div
-                            key={index}
-                            className={`absolute top-0 w-3 h-3 rounded-full transform -translate-x-1/2 -translate-y-0.5 border-2 border-background shadow-sm ${
-                              isAnswered ? 'bg-green-500' : 'bg-primary'
-                            }`}
-                            style={{ left: `${position}%` }}
-                            title={`Question at ${formatTime(question.timestamp)}`}
-                          />
-                        );
-                      })}
-                    </div>
-                  </div>
+                  {/* Interactive Progress Bar */}
+                  <VideoProgressBar
+                    currentTime={currentTime}
+                    duration={duration}
+                    onSeek={handleVideoSeek}
+                    questions={questions.map((question, index) => ({
+                      ...question,
+                      id: `0-${index}` // Simple ID for single segment structure
+                    }))}
+                    answeredQuestions={new Set(
+                      Array.from(answeredQuestions).map(index => `0-${index}`)
+                    )}
+                    formatTimestamp={formatTime}
+                    className=""
+                  />
                 </div>
               )}
 
