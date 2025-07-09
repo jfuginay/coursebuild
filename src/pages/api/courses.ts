@@ -16,22 +16,26 @@ export default async function handler(
 
   const { ids } = req.query;
 
-  if (!ids || typeof ids !== 'string') {
-    return res.status(400).json({ error: 'Course IDs parameter is required' });
-  }
-
   try {
-    const courseIds = ids.split(',').map(id => id.trim()).filter(id => id);
-    
-    if (courseIds.length === 0) {
-      return res.status(200).json({ courses: [] });
+    let query = supabase
+      .from('courses')
+      .select('id, title, description, youtube_url, created_at, published')
+      .eq('published', true) // Only fetch published courses
+      .order('created_at', { ascending: false });
+
+    // If IDs are provided, filter by those IDs
+    if (ids && typeof ids === 'string') {
+      const courseIds = ids.split(',').map(id => id.trim()).filter(id => id);
+      
+      if (courseIds.length === 0) {
+        return res.status(200).json({ courses: [] });
+      }
+
+      query = query.in('id', courseIds);
     }
 
-    // Fetch courses by IDs
-    const { data: courses, error } = await supabase
-      .from('courses')
-      .select('id, title, description, created_at')
-      .in('id', courseIds);
+    // Execute the query
+    const { data: courses, error } = await query;
 
     if (error) {
       console.error('Error fetching courses:', error);

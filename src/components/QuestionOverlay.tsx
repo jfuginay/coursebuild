@@ -53,6 +53,36 @@ export default function QuestionOverlay({
   const [isCorrect, setIsCorrect] = useState(false);
   const [hasAnswered, setHasAnswered] = useState(false);
 
+  // Define trackProgress function before it's used
+  const trackProgress = async (questionAnswered: boolean, isCorrect: boolean) => {
+    if (!user || !supabase || !courseId || segmentIndex === undefined) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      await fetch('/api/user/progress', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          courseId,
+          segmentIndex,
+          segmentTitle: `Segment ${segmentIndex + 1}`,
+          questionId: question.id,
+          selectedAnswer: selectedAnswer,
+          isCorrect,
+          timeSpent: Math.floor((Date.now() - Date.now()) / 1000), // Could track start time
+          explanationViewed: showExplanation
+        })
+      });
+    } catch (error) {
+      console.error('Failed to track progress:', error);
+    }
+  };
+
   if (!isVisible) return null;
 
   // Debug logging for all questions
@@ -262,35 +292,6 @@ export default function QuestionOverlay({
   const handleAnswerSelect = (index: number) => {
     if (showExplanation) return;
     setSelectedAnswer(index);
-  };
-
-  const trackProgress = async (questionAnswered: boolean, isCorrect: boolean) => {
-    if (!user || !supabase || !courseId || segmentIndex === undefined) return;
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      await fetch('/api/user/progress', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({
-          courseId,
-          segmentIndex,
-          segmentTitle: `Segment ${segmentIndex + 1}`,
-          questionId: question.id,
-          selectedAnswer: selectedAnswer,
-          isCorrect,
-          timeSpent: Math.floor((Date.now() - Date.now()) / 1000), // Could track start time
-          explanationViewed: showExplanation
-        })
-      });
-    } catch (error) {
-      console.error('Failed to track progress:', error);
-    }
   };
 
   const handleSubmit = async () => {
