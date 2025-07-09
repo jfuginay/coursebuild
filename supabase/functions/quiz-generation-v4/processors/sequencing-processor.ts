@@ -6,6 +6,12 @@
  * logical progression through meaningful step-by-step interactions.
  */
 
+declare const Deno: {
+  env: {
+    get(key: string): string | undefined;
+  };
+};
+
 import { QuestionPlan, SequencingQuestion, QuestionGenerationError } from '../types/interfaces.ts';
 import LLMService from './llm-providers.ts';
 
@@ -37,7 +43,7 @@ You are an expert educational designer specializing in sequencing questions that
 - **Clear Boundaries**: Each item should represent a distinct, identifiable stage or action
 - **Logical Necessity**: Order should be logically required, not conventional or arbitrary
 - **Educational Value**: Understanding the sequence should advance learning objectives
-- **Optimal Count**: 4-6 items for meaningful sequencing without cognitive overload
+- **Optimal Count**: 3-6 items for meaningful sequencing without cognitive overload
 
 ### Explanation Excellence
 - **Process Logic**: Explain WHY the sequence matters and what drives the order
@@ -96,11 +102,24 @@ export const generateSequencingQuestion = async (plan: QuestionPlan): Promise<Se
     console.log(`   🧠 Bloom Level: ${plan.bloom_level}`);
     console.log(`   💡 Key Concepts: ${plan.key_concepts.join(', ')}`);
     
+    // Enhanced error handling: validate plan data
+    if (!plan.key_concepts || plan.key_concepts.length === 0) {
+      console.warn(`⚠️ Sequencing plan missing key_concepts for ${plan.question_id}`);
+    }
+    
     const contextualPrompt = buildSequencingContextualPrompt(plan);
+    console.log(`📝 Generated prompt length: ${contextualPrompt.length} characters`);
     
     // Use LLM service interface with OpenAI as preferred provider
+    console.log(`🤖 Initializing LLM service for sequencing generation...`);
     const llmService = new LLMService();
-    const response = await llmService.generateQuestion(
+    
+    console.log(`🔄 Calling LLM service with sequencing configuration...`);
+    let response;
+    let questionData;
+    
+    try {
+      response = await llmService.generateQuestion(
       'sequencing',
       contextualPrompt,
       {
@@ -111,14 +130,106 @@ export const generateSequencingQuestion = async (plan: QuestionPlan): Promise<Se
       }
     );
 
+      console.log(`📨 LLM service response received:`, {
+        hasContent: !!response.content,
+        provider: response.provider || 'unknown',
+        contentType: typeof response.content,
+        contentLength: response.content ? JSON.stringify(response.content).length : 0
+      });
+
     if (!response.content) {
+        console.error(`❌ Empty response content from LLM service for ${plan.question_id}`);
       throw new Error('No content in LLM response');
     }
 
-    const questionData = response.content;
+      questionData = response.content;
+      
+    } catch (llmServiceError: unknown) {
+      console.warn(`⚠️ LLM service failed for ${plan.question_id}, trying direct Gemini API fallback...`);
+      console.warn(`   LLM service error: ${llmServiceError instanceof Error ? llmServiceError.message : String(llmServiceError)}`);
+      
+      // Fallback: Direct Gemini API call (similar to text-generation.ts)
+      try {
+        console.log(`🔄 Attempting direct Gemini API call as fallback...`);
+        
+        const geminiResponse = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: contextualPrompt }] }],
+              generationConfig: {
+                temperature: 0.5,
+                maxOutputTokens: 2048,
+                responseMimeType: "application/json",
+                responseSchema: {
+                  type: "object",
+                  properties: {
+                    question: { type: "string" },
+                    sequence_items: {
+                      type: "array",
+                      items: { type: "string" },
+                      minItems: 4,
+                      maxItems: 6
+                    },
+                    explanation: { type: "string" },
+                    sequence_analysis: {
+                      type: "object",
+                      properties: {
+                        sequence_type: { type: "string" },
+                        dependency_pattern: { type: "string" },
+                        why_order_matters: { type: "string" }
+                      }
+                    },
+                    educational_rationale: { type: "string" }
+                  },
+                  required: ["question", "sequence_items", "explanation"]
+                }
+              }
+            })
+          }
+        );
+
+        if (!geminiResponse.ok) {
+          const errorText = await geminiResponse.text();
+          throw new Error(`Gemini API error: ${geminiResponse.status} - ${errorText}`);
+        }
+
+        const geminiData = await geminiResponse.json();
+        const text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+        
+        if (!text) {
+          throw new Error('No response text from Gemini API');
+        }
+        
+        questionData = JSON.parse(text);
+        console.log(`✅ Direct Gemini API fallback successful for ${plan.question_id}`);
+        
+      } catch (fallbackError: unknown) {
+        console.error(`❌ Both LLM service and direct Gemini API failed for ${plan.question_id}`);
+        console.error(`   Fallback error: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`);
+        throw new Error(`All generation methods failed. LLM service: ${llmServiceError instanceof Error ? llmServiceError.message : String(llmServiceError)}. Direct API: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`);
+      }
+    }
+    console.log(`📊 Question data structure:`, {
+      hasQuestion: !!questionData.question,
+      hasSequenceItems: !!questionData.sequence_items,
+      sequenceItemsLength: questionData.sequence_items?.length || 0,
+      hasExplanation: !!questionData.explanation,
+      hasSequenceAnalysis: !!questionData.sequence_analysis
+    });
     
-    // Validate Sequencing structure
+    // Validate Sequencing structure with enhanced error reporting
+    console.log(`🔍 Validating sequencing structure...`);
+    try {
     validateSequencingStructure(questionData);
+      console.log(`✅ Sequencing structure validation passed`);
+    } catch (validationError: unknown) {
+      console.error(`❌ Sequencing validation failed for ${plan.question_id}:`, validationError);
+      console.error(`📄 Question data that failed validation:`, JSON.stringify(questionData, null, 2));
+      throw new Error(`Validation failed: ${validationError instanceof Error ? validationError.message : String(validationError)}`);
+    }
     
     // Convert to our SequencingQuestion interface
     const sequencingQuestion: SequencingQuestion = {
@@ -140,16 +251,33 @@ export const generateSequencingQuestion = async (plan: QuestionPlan): Promise<Se
     console.log(`   🔄 Sequence Type: ${questionData.sequence_analysis?.sequence_type || 'Not specified'}`);
     console.log(`   📝 First Step: "${questionData.sequence_items[0]}"`);
     console.log(`   📝 Last Step: "${questionData.sequence_items[questionData.sequence_items.length - 1]}"`);
-    console.log(`   🤖 Provider Used: ${response.provider || 'unknown'}`);
+    console.log(`   🤖 Provider Used: ${response?.provider || 'direct-gemini-api'}`);
     
     return sequencingQuestion;
     
   } catch (error: unknown) {
-    console.error(`❌ Sequencing generation failed for ${plan.question_id}:`, error);
+    console.error(`❌ Sequencing generation failed for ${plan.question_id}:`);
+    console.error(`   Error type: ${error?.constructor?.name || 'Unknown'}`);
+    console.error(`   Error message: ${error instanceof Error ? error.message : String(error)}`);
+    
+    if (error instanceof Error && error.stack) {
+      console.error(`   Stack trace: ${error.stack}`);
+    }
+    
+    // Log plan data for debugging
+    console.error(`   📋 Plan data:`, {
+      question_id: plan.question_id,
+      question_type: plan.question_type,
+      learning_objective: plan.learning_objective,
+      bloom_level: plan.bloom_level,
+      key_concepts: plan.key_concepts,
+      timestamp: plan.timestamp
+    });
+    
     throw new QuestionGenerationError(
       `Sequencing generation failed: ${error instanceof Error ? error.message : String(error)}`,
       plan.question_id,
-      { plan, stage: 'sequencing_generation' }
+      { plan, stage: 'sequencing_generation', error_type: error?.constructor?.name || 'Unknown' }
     );
   }
 };
@@ -195,14 +323,34 @@ const validateSequencingStructure = (data: any): void => {
     throw new Error('Sequencing question must be a meaningful string of at least 15 characters');
   }
   
-  if (!Array.isArray(data.sequence_items) || data.sequence_items.length < 4 || data.sequence_items.length > 6) {
-    throw new Error('Sequencing must have 4-6 items for optimal cognitive engagement');
+  // Validate sequence_items array
+  if (!data.sequence_items || !Array.isArray(data.sequence_items)) {
+    throw new Error('sequence_items must be an array');
   }
   
-  // Validate all items are non-empty strings
+  // Transform and validate each item
   for (let i = 0; i < data.sequence_items.length; i++) {
-    if (!data.sequence_items[i] || typeof data.sequence_items[i] !== 'string' || data.sequence_items[i].trim().length < 3) {
-      throw new Error(`Sequence item ${i} must be a meaningful string of at least 3 characters`);
+    const item = data.sequence_items[i];
+    
+    // Handle object format (AI sometimes returns objects instead of strings)
+    if (typeof item === 'object' && item !== null) {
+      if (item.content && typeof item.content === 'string') {
+        console.log(`🔄 Converting sequence_items[${i}] from object to string`);
+        data.sequence_items[i] = item.content;
+      } else if (item.text && typeof item.text === 'string') {
+        console.log(`🔄 Converting sequence_items[${i}] from object to string (text field)`);
+        data.sequence_items[i] = item.text;
+      } else {
+        throw new Error(`sequence_items[${i}] object must have 'content' or 'text' property, got: ${JSON.stringify(item)}`);
+      }
+    } else if (typeof item !== 'string') {
+      throw new Error(`sequence_items[${i}] must be a string, got ${typeof item}: ${JSON.stringify(item)}`);
+    }
+    
+    // Validate the final string content
+    const finalItem = data.sequence_items[i];
+    if (typeof finalItem !== 'string' || finalItem.trim().length < 5) {
+      throw new Error(`sequence_items[${i}] must be at least 5 characters long`);
     }
   }
   
@@ -210,25 +358,12 @@ const validateSequencingStructure = (data: any): void => {
     throw new Error('Explanation must be a comprehensive string of at least 30 characters');
   }
   
-  // Check for duplicate items
+  // Check for duplicate items (now safe to call toLowerCase)
   const items = data.sequence_items.map((item: string) => item.toLowerCase().trim());
   const uniqueItems = new Set(items);
   
   if (uniqueItems.size !== items.length) {
     throw new Error('All sequence items must be unique');
-  }
-  
-  // Check for educational quality indicators
-  const explanation = data.explanation.toLowerCase();
-  const hasSequenceLogic = explanation.includes('order') || 
-                          explanation.includes('sequence') || 
-                          explanation.includes('first') ||
-                          explanation.includes('then') ||
-                          explanation.includes('because') ||
-                          explanation.includes('depend');
-  
-  if (!hasSequenceLogic) {
-    console.warn('⚠️ Explanation may lack sequence logic - consider explaining WHY order matters');
   }
   
   // Validate sequence type
@@ -239,20 +374,6 @@ const validateSequencingStructure = (data: any): void => {
     console.warn('⚠️ Consider specifying the sequence type for educational clarity');
   }
   
-  // Check for procedural language
-  const hasProceduralLanguage = data.sequence_items.some((item: string) => {
-    const lowerItem = item.toLowerCase();
-    return lowerItem.includes('first') || 
-           lowerItem.includes('then') || 
-           lowerItem.includes('next') ||
-           lowerItem.includes('finally') ||
-           lowerItem.includes('before') ||
-           lowerItem.includes('after');
-  });
-  
-  if (hasProceduralLanguage) {
-    console.warn('⚠️ Sequence items contain procedural language - consider using content-focused descriptions instead');
-  }
 };
 
 // =============================================================================
@@ -321,19 +442,7 @@ export const assessSequencingQuality = (question: SequencingQuestion): {
     score -= 5;
   }
   
-  // Educational value assessment
-  const explanation = question.explanation.toLowerCase();
-  const hasSequenceLogic = explanation.includes('order') || 
-                          explanation.includes('depend') || 
-                          explanation.includes('because') ||
-                          explanation.includes('sequence');
-  
-  if (hasSequenceLogic) {
-    strengths.push('Explanation focuses on sequence logic');
-  } else {
-    improvements.push('Could better explain why order matters');
-    score -= 10;
-  }
+
   
   // Dependency analysis
   if (question.sequence_analysis && question.sequence_analysis.dependency_pattern) {
@@ -343,18 +452,6 @@ export const assessSequencingQuality = (question: SequencingQuestion): {
     score -= 5;
   }
   
-  // Check for procedural language in items
-  const hasProceduralLanguage = question.sequence_items.some(item => {
-    const lowerItem = item.toLowerCase();
-    return lowerItem.includes('first') || lowerItem.includes('then') || lowerItem.includes('next');
-  });
-  
-  if (!hasProceduralLanguage) {
-    strengths.push('Items focus on content rather than procedural language');
-  } else {
-    improvements.push('Consider focusing on content rather than procedural language');
-    score -= 5;
-  }
   
   // Cognitive level appropriateness
   if (question.bloom_level === 'understand' || question.bloom_level === 'apply') {

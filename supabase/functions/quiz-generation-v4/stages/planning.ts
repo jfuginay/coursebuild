@@ -85,9 +85,10 @@ Return a JSON array of exactly ${maxQuestions} question plans following this str
 
 For hotspot questions, include these additional fields:
 - **visual_learning_objective**: What visual recognition skill this develops
-- **frame_timestamp**: Optimal frame timing for object visibility (can be different from timestamp)  
-- **target_objects**: Array of specific objects to identify (1-2 objects max)
+- **target_objects**: A specific object to identify (1 object max)
 - **question_context**: Educational context for the visual identification
+
+Select target timestamps where the target object is clearly visible, and away from any other objects.
 
 Example hotspot question plan:
 {
@@ -103,7 +104,6 @@ Example hotspot question plan:
   "difficulty_level": "intermediate", 
   "estimated_time_seconds": 30,
   "visual_learning_objective": "Develop ability to visually parse code syntax and identify specific values",
-  "frame_timestamp": 141.5,
   "target_objects": ["1234"],
   "question_context": "Identifying the port number parameter in socket programming"
 }
