@@ -30,7 +30,7 @@ interface Question {
 
 interface QuestionOverlayProps {
   question: Question;
-  onAnswer: (correct: boolean) => void;
+  onAnswer: (correct: boolean, selectedAnswer?: string) => void;
   onContinue: () => void;
   isVisible: boolean;
   player?: any; // YouTube player instance
@@ -119,8 +119,9 @@ export default function QuestionOverlay({
               }))}
               explanation={question.explanation}
               player={player}
-              onAnswer={async (isCorrect) => {
-                onAnswer(isCorrect);
+              onAnswer={(isCorrect, selectedBox) => {
+                const selectedAnswer = selectedBox ? `${selectedBox.label || 'Element'} (${selectedBox.x}, ${selectedBox.y})` : 'hotspot-interaction';
+                onAnswer(isCorrect, selectedAnswer);
                 setHasAnswered(true);
                 setShowExplanation(true);
                 await trackProgress(true, isCorrect);
@@ -169,9 +170,10 @@ export default function QuestionOverlay({
               }
             }))}
             explanation={question.explanation}
-            onAnswer={async (isCorrect) => {
+            onAnswer={(isCorrect, userMatches) => {
               console.log('🎯 Matching question answered:', { isCorrect, questionId: question.id });
-              onAnswer(isCorrect);
+              const selectedAnswer = userMatches ? JSON.stringify(userMatches) : 'matching-answer';
+              onAnswer(isCorrect, selectedAnswer);
               setHasAnswered(true);
               setShowExplanation(true);
               await trackProgress(true, isCorrect);
@@ -207,9 +209,10 @@ export default function QuestionOverlay({
             question={question.question}
             items={question.sequence_items}
             explanation={question.explanation}
-            onAnswer={async (isCorrect) => {
+            onAnswer={(isCorrect, userOrder) => {
               console.log('🎯 Sequencing question answered:', { isCorrect, questionId: question.id });
-              onAnswer(isCorrect);
+              const selectedAnswer = userOrder ? userOrder.join(' → ') : 'sequencing-answer';
+              onAnswer(isCorrect, selectedAnswer);
               setHasAnswered(true);
               setShowExplanation(true);
               await trackProgress(true, isCorrect);
@@ -304,11 +307,10 @@ export default function QuestionOverlay({
     const correct = selectedAnswer === correctIndex;
     setIsCorrect(correct);
     setShowExplanation(true);
-    setHasAnswered(true);
-    onAnswer(correct);
-
-    // Track progress for authenticated users
-    await trackProgress(true, correct);
+    setHasAnswered(true);    
+    // Pass the selected answer text
+    const selectedAnswerText = finalOptions[selectedAnswer] || `Option ${selectedAnswer + 1}`;
+    onAnswer(correct, selectedAnswerText);
   };
 
   const handleContinue = () => {
