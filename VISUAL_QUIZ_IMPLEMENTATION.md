@@ -2,7 +2,7 @@
 
 ## 📋 **Overview**
 
-This document outlines the complete implementation of the visual quiz feature for CourseForge AI, following the 5-stage practical recipe for adding visuals without tripping over current image-generation limits.
+This document outlines the complete implementation of the visual quiz feature for CourseBuilder, following the 5-stage practical recipe for adding visuals without tripping over current image-generation limits.
 
 ## 🎯 **Implementation Status**
 
@@ -362,7 +362,7 @@ npx supabase functions logs enhanced-quiz-service
 
 ## 🎉 **Conclusion**
 
-This implementation provides a robust foundation for visual quiz functionality in CourseForge AI. The 5-stage approach ensures compatibility with current AI limitations while delivering a rich, interactive learning experience.
+This implementation provides a robust foundation for visual quiz functionality in CourseBuilder. The 5-stage approach ensures compatibility with current AI limitations while delivering a rich, interactive learning experience.
 
 The modular design allows for incremental deployment and future enhancements, making it a scalable solution for the platform's growth.
 

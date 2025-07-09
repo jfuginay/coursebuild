@@ -1,6 +1,6 @@
-# CourseForge AI - Supabase Edge Functions
+# CourseBuilder - Supabase Edge Functions
 
-This directory contains the Supabase edge functions for the CourseForge AI project, including the sophisticated video analysis and quiz generation system.
+This directory contains the Supabase edge functions for the CourseBuilder project, including the sophisticated video analysis and quiz generation system.
 
 ## 🎯 **Overview**
 
@@ -234,4 +234,4 @@ This edge function represents a production-ready implementation of advanced AI v
 - **Robust error handling** and logging
 - **Scalable architecture** for production use
 
-The implementation showcases cutting-edge AI capabilities for educational content generation and serves as a foundation for the CourseForge AI platform. 
+The implementation showcases cutting-edge AI capabilities for educational content generation and serves as a foundation for the CourseBuilder platform. 
