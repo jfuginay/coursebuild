@@ -99,13 +99,28 @@ export default async function handler(
       return res.status(500).json({ error: 'Failed to check existing response' });
     }
 
+    // Handle different data types properly
+    let processedSelectedAnswer = null;
+    let processedResponseText = response_text || null;
+
+    // If selected_answer is a string (like LaTeX), it should go in response_text
+    // If it's a number, it should go in selected_answer
+    if (selected_answer !== null && selected_answer !== undefined) {
+      if (typeof selected_answer === 'string') {
+        processedResponseText = selected_answer;
+        processedSelectedAnswer = null;
+      } else if (typeof selected_answer === 'number' || !isNaN(Number(selected_answer))) {
+        processedSelectedAnswer = Number(selected_answer);
+      }
+    }
+
     const responseData = {
       user_id,
       question_id,
       enrollment_id: finalEnrollmentId,
-      selected_answer: selected_answer || null,
+      selected_answer: processedSelectedAnswer,
       selected_answers: selected_answers || null,
-      response_text: response_text || null,
+      response_text: processedResponseText,
       response_data: response_data || null,
       is_correct,
       points_earned: points_earned || 0,
