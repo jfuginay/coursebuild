@@ -20,6 +20,15 @@ interface CourseData {
     visual_questions_count: number;
     frame_capture_available: boolean;
   };
+  processing_summary?: {
+    total_questions: number;
+    visual_questions: number;
+    segments_created: number;
+    video_duration: string;
+    cached?: boolean;
+    original_course_id?: string;
+    service_used: string;
+  };
   segments: Array<{
     title: string;
     timestamp: string;
@@ -505,6 +514,35 @@ export default function Create() {
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Home
           </Button>
+
+          {/* Cache Status Alert */}
+          {courseData.processing_summary?.cached && (
+            <Alert className="mb-6">
+              <AlertDescription className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse" />
+                  This course was generated using cached data from a previous analysis.
+                  <span className="text-sm text-muted-foreground">
+                    (Original: {courseData.processing_summary.original_course_id})
+                  </span>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => {
+                    // Navigate back to home with cache disabled
+                    const currentUrl = new URL(window.location.href);
+                    currentUrl.searchParams.set('url', youtubeUrl);
+                    currentUrl.searchParams.set('cache', 'false');
+                    currentUrl.pathname = '/';
+                    router.push(currentUrl.toString().replace(currentUrl.origin, ''));
+                  }}
+                >
+                  Generate Fresh
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Course Header */}
           <div className="text-center space-y-4">
