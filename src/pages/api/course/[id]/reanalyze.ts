@@ -35,9 +35,9 @@ export default async function handler(
     console.log('🔄 Re-analyzing course:', course.id);
     console.log('📹 YouTube URL:', course.youtube_url);
 
-    // Call the Gemini edge function to analyze the video
+    // Call the Quiz Generation v4.0 edge function to analyze the video
     const edgeResponse = await fetch(
-      'https://nkqehqwbxkxrgecmgzuq.supabase.co/functions/v1/gemini-quiz-service',
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/quiz-generation-v4`,
       {
         method: 'POST',
         headers: {
@@ -48,15 +48,15 @@ export default async function handler(
           course_id: course.id,
           youtube_url: course.youtube_url,
           max_questions: 10,
-          difficulty_level: 'medium',
-          focus_topics: []
+          difficulty_level: 'intermediate',
+          enable_visual_questions: true
         })
       }
     );
 
     if (!edgeResponse.ok) {
       const errorText = await edgeResponse.text();
-      console.error('❌ Edge function error:', errorText);
+      console.error('❌ Quiz Generation v4.0 error:', errorText);
       return res.status(500).json({ 
         error: 'Failed to generate questions',
         details: errorText 
@@ -64,7 +64,8 @@ export default async function handler(
     }
 
     const edgeData = await edgeResponse.json();
-    console.log('✅ Questions generated:', edgeData.questions?.length || 0);
+    console.log('✅ Questions generated:', edgeData.final_questions?.length || 0);
+    console.log('✅ Average quality score:', edgeData.pipeline_results?.verification?.verification_metadata?.average_score || 0);
 
     // Update course to mark as analyzed
     const { error: updateError } = await supabase
@@ -80,8 +81,11 @@ export default async function handler(
 
     return res.status(200).json({
       success: true,
-      message: 'Course re-analyzed successfully',
-      questionsGenerated: edgeData.questions?.length || 0
+      message: 'Course re-analyzed successfully with Quiz Generation v4.0',
+      questionsGenerated: edgeData.final_questions?.length || 0,
+      averageQualityScore: edgeData.pipeline_results?.verification?.verification_metadata?.average_score || 0,
+      visualQuestions: edgeData.final_questions?.filter((q: any) => q.has_visual_asset).length || 0,
+      pipelineMetadata: edgeData.pipeline_metadata || {}
     });
 
   } catch (error) {

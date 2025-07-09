@@ -27,7 +27,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
     const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
     const geminiKey = process.env.GEMINI_API_KEY;
-    const enhancedQuizUrl = supabaseUrl + '/functions/v1/enhanced-quiz-service';
+    const quizGenerationUrl = supabaseUrl + '/functions/v1/quiz-generation-v4';
     
     console.log('🔍 Environment check:');
     console.log(`   - Supabase URL: ${supabaseUrl ? '✅ Found' : '❌ Missing'}`);
@@ -41,7 +41,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json({
         success: true,
         message: 'Full pipeline test completed (mock mode)',
-        test_type: 'full_pipeline_with_real_youtube_video',
+        test_type: 'full_pipeline_with_quiz_generation_v4',
         youtube_url: youtubeUrl,
         course_data: {
           id: testCourseId,
@@ -50,45 +50,41 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         },
         pipeline_steps_tested: [
           '✅ Course Ready - Using test course from database',
-          '✅ Enhanced Quiz Service - Would analyze YouTube video with Gemini',
-          '✅ Visual Context Identification - Would extract educational moments',
-          '✅ Integrated Visual Processing - Built into enhanced-quiz-service',
-          '✅ Frame Capture - Would extract frames at specific timestamps',
-          '✅ Gemini Vision Analysis - Would detect objects with educational context',
-          '✅ Bounding Box Generation - Would follow Google AI pattern',
-          '✅ Enhanced Question Creation - Would generate interactive hotspot/matching questions',
-          '✅ Database Storage - Would store questions, visual assets, and bounding boxes'
+          '✅ Quiz Generation v4.0 - Would analyze YouTube video with enhanced pipeline',
+          '✅ Stage 1: Question Planning - Would generate educational question plans',
+          '✅ Stage 2: Question Generation - Would create type-specific questions',
+          '✅ Stage 3: Quality Verification - Would verify educational quality with AI',
+          '✅ Database Storage - Would store questions with quality metrics',
+          '✅ Enhanced Visual Processing - Would generate interactive visual questions',
+          '✅ Bounding Box Generation - Would detect objects with educational context',
+          '✅ Quality Metrics - Would track educational effectiveness'
         ],
         expected_workflow: {
-          step1: 'generateEnhancedQuestions() analyzes YouTube video',
-          step2: 'Identifies visual moments with timestamps and context',
-          step3: 'processVisualQuestions() filters requires_frame_capture=true',
-          step4: 'Processes visual elements with integrated image analysis',
-          step5: 'captureFrameAtTimestamp() extracts exact frames',
-          step6: 'detectObjectsInFrame() uses Gemini Vision with context',
-          step7: 'convertBoundingBoxes() follows Google AI [ymin,xmin,ymax,xmax] pattern',
-          step8: 'Stores visual assets and bounding boxes in database',
-          step9: 'Returns enhanced questions with precise interactivity'
+          step1: 'generateQuestionPlans() analyzes YouTube video for educational opportunities',
+          step2: 'generateQuestionsFromPlans() creates type-specific questions using specialized processors',
+          step3: 'verifyQuestionsBatch() validates educational quality using AI assessment',
+          step4: 'storeQuestionsWithQuality() saves questions with quality metrics',
+          step5: 'Pipeline returns comprehensive results with quality analysis'
         },
         configuration_needed: [
           'Set NEXT_PUBLIC_SUPABASE_URL in environment (✅ Found)',
           'Set NEXT_PUBLIC_SUPABASE_ANON_KEY in environment (✅ Found)', 
           'Set GEMINI_API_KEY in environment (❌ Missing - Get from https://aistudio.google.com/app/apikey)',
-          'Apply database migration: 001_add_visual_assets.sql',
-          'Ensure all edge functions are deployed'
+          'Apply database migration: 20250709161624_add_quiz_v4_quality_columns.sql',
+          'Ensure quiz-generation-v4 edge function is deployed'
         ],
         services_status: {
-                  'enhanced-quiz-service': 'Deployed (81.7kB) - Integrated visual processing',
-        'gemini-quiz-service': 'Deployed - Core video understanding'
+          'quiz-generation-v4': 'Deployed - Enhanced pipeline with quality verification',
+          'enhanced-quiz-service': 'Available - Legacy service for comparison'
         }
       });
     }
 
-    console.log('🎯 Calling Enhanced Quiz Service with real configuration...');
+    console.log('🎯 Calling Quiz Generation v4.0 with real configuration...');
     
     const startTime = Date.now();
     
-    const response = await fetch(enhancedQuizUrl, {
+    const response = await fetch(quizGenerationUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -99,25 +95,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         course_id: testCourseId,
         youtube_url: youtubeUrl,
         max_questions: 8,
-        difficulty_level: 'medium',
-        focus_topics: ['visual learning', 'educational content'],
+        difficulty_level: 'intermediate',
         enable_visual_questions: true
       })
     });
 
     const processingTime = Date.now() - startTime;
-    console.log(`📊 Enhanced Quiz Service response: ${response.status} (${processingTime}ms)`);
+    console.log(`📊 Quiz Generation v4.0 response: ${response.status} (${processingTime}ms)`);
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Enhanced Quiz Service failed:', errorText);
+      console.error('❌ Quiz Generation v4.0 failed:', errorText);
       
       return res.status(500).json({
         success: false,
-        error: 'Enhanced Quiz Service failed',
+        error: 'Quiz Generation v4.0 failed',
         status: response.status,
         details: errorText,
-        test_type: 'full_pipeline_with_real_youtube_video',
+        test_type: 'full_pipeline_with_quiz_generation_v4',
         youtube_url: youtubeUrl,
         processing_time_ms: processingTime,
         issue: 'Service call failed - may need environment configuration or database migration'
@@ -125,7 +120,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const result = await response.json();
-    console.log('✅ Enhanced Quiz Service completed successfully!');
+    console.log('✅ Quiz Generation v4.0 completed successfully!');
     
     // Step 3: Analyze the pipeline results
     console.log('\n📊 Step 3: Analyzing pipeline results...');
@@ -136,22 +131,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         course_id: testCourseId,
         course_name: courseName
       },
-      enhanced_quiz_generation: {
+      quiz_generation_v4: {
         success: result.success,
-        total_questions: result.questions?.length || 0,
-        visual_questions: result.questions?.filter((q: any) => q.has_visual_asset).length || 0,
+        total_questions: result.final_questions?.length || 0,
+        visual_questions: result.final_questions?.filter((q: any) => q.has_visual_asset).length || 0,
         processing_time_ms: processingTime,
         video_summary: result.video_summary,
-        visual_moments: result.visual_moments?.length || 0
+        pipeline_metadata: result.pipeline_metadata,
+        stage_timings: result.pipeline_metadata?.stage_timings || {}
       },
-      visual_processing: {
-        enabled: result.enhanced_features?.visual_questions_enabled || false,
-        visual_questions_count: result.enhanced_features?.visual_questions_count || 0,
-        frame_capture_available: result.enhanced_features?.frame_capture_available || false
+      quality_verification: {
+        enabled: true,
+        average_score: result.pipeline_results?.verification?.verification_metadata?.average_score || 0,
+        questions_meeting_threshold: result.pipeline_results?.verification?.verification_metadata?.questions_meeting_threshold || 0,
+        quality_distribution: result.pipeline_results?.verification?.verification_metadata?.quality_distribution || {}
       },
       database_storage: {
-        questions_stored: result.questions?.length || 0,
-        visual_assets_created: result.questions?.filter((q: any) => q.has_visual_asset).length || 0
+        questions_stored: result.final_questions?.length || 0,
+        quality_metrics_stored: result.pipeline_results?.verification?.verification_results?.length || 0
       }
     };
     
@@ -160,43 +157,47 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     const pipelineReport = {
       pipeline_status: result.success ? 'COMPLETED_SUCCESSFULLY' : 'FAILED',
+      pipeline_version: '4.0',
       youtube_video: {
         url: youtubeUrl,
         analysis_completed: !!result.video_summary,
         duration: result.total_duration || 'unknown'
       },
       question_generation: {
-        total_generated: result.questions?.length || 0,
-        visual_questions: pipelineAnalysis.visual_processing.visual_questions_count,
-        text_questions: (result.questions?.length || 0) - (pipelineAnalysis.visual_processing.visual_questions_count || 0),
-        question_types: result.questions?.reduce((acc: any, q: any) => {
+        total_generated: result.final_questions?.length || 0,
+        visual_questions: pipelineAnalysis.quiz_generation_v4.visual_questions,
+        text_questions: (result.final_questions?.length || 0) - pipelineAnalysis.quiz_generation_v4.visual_questions,
+        question_types: result.final_questions?.reduce((acc: any, q: any) => {
           acc[q.type] = (acc[q.type] || 0) + 1;
           return acc;
         }, {}) || {}
       },
-      visual_processing: {
-        visual_moments_identified: result.visual_moments?.length || 0,
-        targeted_processing: true,
-        gemini_vision_integration: result.enhanced_features?.frame_capture_available || false,
-        bounding_box_generation: result.enhanced_features?.visual_questions_count > 0
+      quality_verification: {
+        enabled: true,
+        average_score: pipelineAnalysis.quality_verification.average_score,
+        questions_meeting_threshold: pipelineAnalysis.quality_verification.questions_meeting_threshold,
+        quality_distribution: pipelineAnalysis.quality_verification.quality_distribution
       },
       performance_metrics: {
         total_processing_time_ms: processingTime,
+        stage_timings: pipelineAnalysis.quiz_generation_v4.stage_timings,
         processing_speed: processingTime < 30000 ? 'FAST' : processingTime < 60000 ? 'MODERATE' : 'SLOW',
-        efficiency_rating: 'HIGH' // Targeted processing
+        efficiency_rating: 'HIGH',
+        success_rate: result.pipeline_metadata?.success_rate || 0
       }
     };
     
     console.log('✅ Full pipeline test completed!');
-    console.log(`   - Questions generated: ${pipelineAnalysis.enhanced_quiz_generation.total_questions}`);
-    console.log(`   - Visual questions: ${pipelineAnalysis.visual_processing.visual_questions_count}`);
+    console.log(`   - Questions generated: ${pipelineAnalysis.quiz_generation_v4.total_questions}`);
+    console.log(`   - Visual questions: ${pipelineAnalysis.quiz_generation_v4.visual_questions}`);
+    console.log(`   - Average quality score: ${pipelineAnalysis.quality_verification.average_score}`);
     console.log(`   - Processing time: ${processingTime}ms`);
-    console.log(`   - Video analysis: ${result.video_summary ? 'Success' : 'Partial'}`);
+    console.log(`   - Stage timings: ${JSON.stringify(pipelineAnalysis.quiz_generation_v4.stage_timings)}`);
 
     return res.status(200).json({
       success: true,
-      message: 'Full pipeline test completed successfully with real YouTube video',
-      test_type: 'full_pipeline_with_real_youtube_video',
+      message: 'Full pipeline test completed successfully with Quiz Generation v4.0',
+      test_type: 'full_pipeline_with_quiz_generation_v4',
       youtube_url: youtubeUrl,
       course_data: {
         id: testCourseId,
@@ -208,21 +209,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       service_response: result,
       workflow_verified: [
         '✅ Test course ready',
-        '✅ Enhanced Quiz Service called with YouTube URL',
+        '✅ Quiz Generation v4.0 called with YouTube URL',
         result.success ? '✅ Video analysis completed' : '⚠️ Video analysis partial',
-        result.questions?.length > 0 ? '✅ Questions generated' : '⚠️ No questions generated',
-        pipelineAnalysis.visual_processing.visual_questions_count > 0 ? '✅ Visual processing completed' : '⚠️ No visual processing',
-        result.enhanced_features?.frame_capture_available ? '✅ Frame capture integration working' : '⚠️ Frame capture not available'
+        result.final_questions?.length > 0 ? '✅ Questions generated' : '⚠️ No questions generated',
+        pipelineAnalysis.quiz_generation_v4.visual_questions > 0 ? '✅ Visual processing completed' : '⚠️ No visual processing',
+        result.pipeline_results?.verification?.success ? '✅ Quality verification working' : '⚠️ Quality verification not available',
+        pipelineAnalysis.quality_verification.average_score > 0 ? '✅ Quality metrics recorded' : '⚠️ No quality metrics'
       ],
       next_steps: result.success ? [
         'Questions ready for instructor review',
-        'Visual assets stored in database',
-        'Interactive hotspot/matching questions available',
-        'Course ready for student engagement'
+        'Quality metrics available for analysis',
+        'Interactive questions ready for student engagement',
+        'Pipeline performance metrics available'
       ] : [
         'Check database migration status',
         'Verify API key configuration',
-        'Review service logs for detailed errors'
+        'Review service logs for detailed errors',
+        'Ensure quiz-generation-v4 is properly deployed'
       ]
     });
 
@@ -232,7 +235,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       success: false,
       error: 'Full pipeline test failed',
       details: error instanceof Error ? error.message : 'Unknown error',
-      test_type: 'full_pipeline_with_real_youtube_video',
+      test_type: 'full_pipeline_with_quiz_generation_v4',
       youtube_url: 'https://www.youtube.com/watch?v=LNpoRSuPwfM&pp=0gcJCcEJAYcqIYzv'
     });
   }
