@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import Header from '@/components/Header';
 import CoursesShowcase from '@/components/CoursesShowcase';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuth } from '@/contexts/AuthContext';
 
 // YouTube URL validation schema
 const courseGenerationSchema = z.object({
@@ -57,6 +58,7 @@ interface ApiResponse {
 
 export default function Home() {
   const router = useRouter();
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatingStatus, setGeneratingStatus] = useState<string>('');
@@ -103,6 +105,36 @@ export default function Home() {
       reset({ youtubeUrl: urlParam });
     }
   }, [router.query.url, reset]);
+
+  // Helper function to track course creation for logged-in users
+  const trackCourseCreation = async (courseId: string, courseData: CourseData, youtubeUrl: string) => {
+    if (!user) return; // Only track for logged-in users
+    
+    try {
+      const response = await fetch('/api/user-course-creations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: user.id,
+          course_id: courseId,
+          youtube_url: youtubeUrl,
+          course_title: courseData.title,
+          course_description: courseData.description,
+        }),
+      });
+
+      if (!response.ok) {
+        console.error('Failed to track course creation:', await response.text());
+      } else {
+        const result = await response.json();
+        console.log('Course creation tracked successfully:', result);
+      }
+    } catch (error) {
+      console.error('Error tracking course creation:', error);
+    }
+  };
 
   const generateCourse = async (data: CourseGenerationFormData, useEnhanced: boolean = false) => {
     setIsLoading(true);
@@ -176,6 +208,11 @@ export default function Home() {
       if (result.success) {
         toast.success('Course generated successfully!');
         reset();
+        
+        // Track course creation for logged-in users
+        if (result.course_id && result.data) {
+          await trackCourseCreation(result.course_id, result.data, data.youtubeUrl);
+        }
         
         // Try main branch approach first (with courseId)
         if (result.course_id) {
