@@ -1,9 +1,9 @@
-import { NextApiRequest, NextApiResponse } from 'next';
+import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export default async function handler(
@@ -14,93 +14,47 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  const { id } = req.query;
+
+  if (!id || typeof id !== 'string') {
+    return res.status(400).json({ error: 'Course ID is required' });
+  }
+
   try {
-    const { id } = req.query;
-
-    if (!id || typeof id !== 'string') {
-      return res.status(400).json({ error: 'Course ID is required' });
-    }
-
-    // Fetch questions with their single visual asset and bounding boxes
-    const { data: questions, error } = await supabase
+    // Fetch questions directly by course_id
+    const { data: questions, error: questionsError } = await supabase
       .from('questions')
-      .select(`
-        *,
-        visual_assets!questions_visual_asset_id_fkey (
-          id,
-          image_url,
-          thumbnail_url,
-          width,
-          height,
-          alt_text
-        ),
-        bounding_boxes!bounding_boxes_question_id_fkey (
-          id,
-          label,
-          x,
-          y,
-          width,
-          height,
-          confidence_score,
-          is_correct_answer
-        )
-      `)
+      .select('*')
       .eq('course_id', id)
       .order('timestamp', { ascending: true });
 
-    if (error) {
-      console.error('Error fetching questions:', error);
-      return res.status(500).json({ 
-        error: 'Failed to fetch questions',
-        message: error.message 
-      });
+    if (questionsError) {
+      console.error('Error fetching questions:', questionsError);
+      return res.status(500).json({ error: 'Failed to fetch questions' });
     }
 
-    // Transform questions to include visual data in the expected format
-    const transformedQuestions = (questions || []).map(question => {
-      const visualAsset = question.visual_assets; // Single visual asset object (not array)
-      const boundingBoxes = question.bounding_boxes || [];
-
-      return {
-        ...question,
-        // Add visual question fields
-        frame_url: visualAsset?.image_url,
-        thumbnail_url: visualAsset?.thumbnail_url,
-        visual_asset_id: visualAsset?.id,
-        bounding_boxes: boundingBoxes.map((box: any) => ({
-          id: box.id,
-          label: box.label,
-          x: box.x,
-          y: box.y,
-          width: box.width,
-          height: box.height,
-          isCorrectAnswer: box.is_correct_answer,
-          confidenceScore: box.confidence_score
-        })),
-        // For debugging
-        has_visual_data: !!visualAsset,
-        bounding_box_count: boundingBoxes.length
-      };
-    });
-
-    console.log(`✅ Fetched ${transformedQuestions.length} questions for course ${id}`);
-    console.log(`📊 Visual questions: ${transformedQuestions.filter(q => q.has_visual_data).length}`);
-    console.log(`🎯 Questions with bounding boxes: ${transformedQuestions.filter(q => q.bounding_box_count > 0).length}`);
+    // Format questions with proper structure
+    const formattedQuestions = questions?.map(q => ({
+      id: q.id,
+      question: q.question,
+      options: typeof q.options === 'string' ? JSON.parse(q.options) : q.options,
+      correct_answer: q.correct_answer,
+      explanation: q.explanation,
+      timestamp: q.timestamp,
+      type: q.type,
+      visual_context: q.visual_context
+    })) || [];
 
     return res.status(200).json({
       success: true,
-      questions: transformedQuestions,
-      debug: {
-        total_questions: transformedQuestions.length,
-        visual_questions: transformedQuestions.filter(q => q.has_visual_data).length,
-        questions_with_bboxes: transformedQuestions.filter(q => q.bounding_box_count > 0).length
-      }
+      questions: formattedQuestions
     });
 
   } catch (error) {
-    console.error('API Error:', error);
+    console.error('API error:', error);
     return res.status(500).json({ 
-      error: 'Internal server error' 
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 } 
