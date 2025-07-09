@@ -79,6 +79,67 @@ export default function Create() {
         console.error('Error parsing course data:', error);
       }
     }
+    // Try to get data from sessionStorage first
+    const storedData = sessionStorage.getItem('courseData');
+    const storedUrl = sessionStorage.getItem('youtubeUrl');
+    
+    if (storedData && storedUrl) {
+      try {
+        const parsedData = JSON.parse(storedData);
+        setCourseData(parsedData);
+        setYoutubeUrl(storedUrl);
+        
+        // Extract video ID from YouTube URL
+        const extractVideoId = (url: string): string => {
+          const patterns = [
+            /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+            /youtube\.com\/watch\?.*v=([^&\n?#]+)/
+          ];
+          
+          for (const pattern of patterns) {
+            const match = url.match(pattern);
+            if (match) {
+              return match[1];
+            }
+          }
+          return '';
+        };
+        
+        setVideoId(extractVideoId(storedUrl));
+        
+        // Clear sessionStorage after reading
+        sessionStorage.removeItem('courseData');
+        sessionStorage.removeItem('youtubeUrl');
+      } catch (error) {
+        console.error('Error parsing course data:', error);
+      }
+    } else if (router.query.data && router.query.youtubeUrl) {
+      // Fallback to URL params if sessionStorage is empty
+      try {
+        const parsedData = JSON.parse(router.query.data as string);
+        setCourseData(parsedData);
+        setYoutubeUrl(router.query.youtubeUrl as string);
+        
+        const extractVideoId = (url: string): string => {
+          const patterns = [
+            /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+            /youtube\.com\/watch\?.*v=([^&\n?#]+)/
+          ];
+          
+          for (const pattern of patterns) {
+            const match = url.match(pattern);
+            if (match) {
+              return match[1];
+            }
+          }
+          return '';
+        };
+        
+        setVideoId(extractVideoId(router.query.youtubeUrl as string));
+      } catch (error) {
+        console.error('Error parsing course data:', error);
+      }
+    }
   }, [router.query]);
 
   const handleBackToHome = () => {

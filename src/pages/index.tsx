@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -12,6 +12,7 @@ import { Loader2, Play, BookOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import Header from '@/components/Header';
 import CoursesShowcase from '@/components/CoursesShowcase';
+import { Skeleton } from '@/components/ui/skeleton';
 
 // YouTube URL validation schema
 const courseGenerationSchema = z.object({
@@ -57,6 +58,8 @@ export default function Home() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [generatingStatus, setGeneratingStatus] = useState<string>('');
+  const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
 
   const {
     register,
@@ -71,8 +74,29 @@ export default function Home() {
   const generateCourse = async (data: CourseGenerationFormData, useEnhanced: boolean = false) => {
     setIsLoading(true);
     setError(null);
+    setGeneratingStatus('Analyzing video content...');
+    
+    // Clear any existing timeouts
+    timeoutRefs.current.forEach(timeout => clearTimeout(timeout));
+    timeoutRefs.current = [];
 
     try {
+      // Simulate status updates
+      const statusUpdates = [
+        { delay: 2000, message: 'Extracting video transcript...' },
+        { delay: 4000, message: 'Identifying key concepts...' },
+        { delay: 6000, message: 'Generating interactive questions...' },
+        { delay: 8000, message: 'Creating visual elements...' },
+        { delay: 10000, message: 'Finalizing course structure...' }
+      ];
+      
+      statusUpdates.forEach(({ delay, message }) => {
+        const timeout = setTimeout(() => {
+          setGeneratingStatus(message);
+        }, delay);
+        timeoutRefs.current.push(timeout);
+      });
+
       const response = await fetch('/api/analyze-video', {
         method: 'POST',
         headers: {
@@ -92,17 +116,15 @@ export default function Home() {
       const result: ApiResponse = await response.json();
       
       if (result.success) {
-        toast.success(`Course generated successfully${useEnhanced ? ' (PRO)' : ''}!`);
+        toast.success('Course generated successfully!');
         reset();
         
-        // Navigate to create page with course data
-        router.push({
-          pathname: '/create',
-          query: {
-            data: JSON.stringify(result.data),
-            youtubeUrl: data.youtubeUrl
-          }
-        });
+        // Store the data in sessionStorage instead of URL
+        sessionStorage.setItem('courseData', JSON.stringify(result.data));
+        sessionStorage.setItem('youtubeUrl', data.youtubeUrl);
+        
+        // Navigate with clean URL
+        router.push('/create');
       } else {
         throw new Error('Failed to generate course');
       }
@@ -112,11 +134,21 @@ export default function Home() {
       toast.error(errorMessage);
     } finally {
       setIsLoading(false);
+      // Clear all timeouts when done
+      timeoutRefs.current.forEach(timeout => clearTimeout(timeout));
+      timeoutRefs.current = [];
     }
   };
 
   const handleGenerateCourse = (data: CourseGenerationFormData) => generateCourse(data, false);
   const handleGenerateCoursePro = (data: CourseGenerationFormData) => generateCourse(data, true);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      timeoutRefs.current.forEach(timeout => clearTimeout(timeout));
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
@@ -214,18 +246,88 @@ export default function Home() {
           {/* Error Display */}
           {error && (
             <Alert variant="destructive" className="max-w-2xl mx-auto">
-              <AlertDescription>
-                {error}
-              </AlertDescription>
+              <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-        </div>
 
-        {/* Courses Showcase Section */}
-        <div className="mt-16">
+          {/* Courses Showcase */}
           <CoursesShowcase limit={6} />
         </div>
       </div>
+      
+      {/* Loading Overlay with Skeleton */}
+      {isLoading && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="w-full max-w-6xl mx-auto p-8">
+            <div className="text-center mb-8">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+              <h2 className="text-2xl font-semibold mb-2">Generating Your Course</h2>
+              <p className="text-muted-foreground">{generatingStatus}</p>
+            </div>
+            
+            {/* Skeleton Layout mimicking final page */}
+            <div className="grid lg:grid-cols-2 gap-6">
+              {/* Video Player Skeleton */}
+              <Card>
+                <CardHeader>
+                  <Skeleton className="h-5 w-32" />
+                  <Skeleton className="h-4 w-full mt-2" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="aspect-video w-full rounded-lg" />
+                </CardContent>
+              </Card>
+              
+              {/* Course Structure Skeleton */}
+              <Card>
+                <CardHeader>
+                  <Skeleton className="h-5 w-40" />
+                  <Skeleton className="h-4 w-full mt-2" />
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-4 w-16" />
+                      </div>
+                      <Skeleton className="h-3 w-full" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </div>
+            
+            {/* Course Details Skeleton */}
+            <Card className="mt-6">
+              <CardHeader>
+                <Skeleton className="h-5 w-32" />
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <Skeleton className="h-4 w-24 mb-2" />
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-3/4 mt-1" />
+                  </div>
+                  <div>
+                    <Skeleton className="h-4 w-32 mb-2" />
+                    <div className="space-y-2">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="flex items-start gap-2">
+                          <Skeleton className="h-4 w-4 mt-0.5" />
+                          <Skeleton className="h-3 w-full" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
