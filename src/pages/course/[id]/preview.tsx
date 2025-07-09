@@ -10,6 +10,7 @@ import { Progress } from '@/components/ui/progress';
 import { Clock, BookOpen, HelpCircle, ArrowLeft, Lock, CheckCircle, XCircle, ChevronRight, Play, Pause, ExternalLink } from 'lucide-react';
 import Header from '@/components/Header';
 import QuestionOverlay from '@/components/QuestionOverlay';
+import CourseCurriculumCard from '@/components/CourseCurriculumCard';
 
 // TypeScript interfaces
 interface Question {
@@ -703,176 +704,16 @@ export default function CoursePreviewPage() {
           )}
 
           {/* Course Curriculum Card */}
-          {courseData.segments.length > 0 && (
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">Course Curriculum</CardTitle>
-                  <Badge variant="secondary" className="text-xs">
-                    {Math.min(answeredQuestions.size, FREE_QUESTIONS_LIMIT)} of {FREE_QUESTIONS_LIMIT} free questions
-                  </Badge>
-                </div>
-                <CardDescription>
-                  Complete questions to reveal the curriculum
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {courseData.segments.flatMap((segment, segmentIndex) => 
-                    segment.questions.map((question, questionIndex) => {
-                      const questionId = `${segmentIndex}-${questionIndex}`;
-                      const isAnswered = answeredQuestions.has(questionId);
-                      const isCorrect = questionResults[questionId];
-                      const isExpanded = expandedExplanations.has(questionId);
-                      const globalQuestionIndex = courseData.segments
-                        .slice(0, segmentIndex)
-                        .reduce((acc, seg) => acc + seg.questions.length, 0) + questionIndex;
-                      const isFreeQuestion = globalQuestionIndex < FREE_QUESTIONS_LIMIT;
-                      const isLocked = !isFreeQuestion;
-
-                      return (
-                        <div
-                          key={questionId}
-                          className={`relative p-4 rounded-lg border transition-all ${
-                            isAnswered 
-                              ? isCorrect 
-                                ? 'bg-green-50/50 border-green-200' 
-                                : 'bg-red-50/50 border-red-200'
-                              : isLocked
-                              ? 'bg-muted/30 border-muted'
-                              : 'bg-background border-border'
-                          }`}
-                        >
-                          <div className="flex items-start gap-3">
-                            <div className="flex-shrink-0 mt-0.5">
-                              {isAnswered ? (
-                                isCorrect ? (
-                                  <CheckCircle className="h-5 w-5 text-green-600" />
-                                ) : (
-                                  <XCircle className="h-5 w-5 text-red-600" />
-                                )
-                              ) : isLocked ? (
-                                <Lock className="h-5 w-5 text-muted-foreground" />
-                              ) : (
-                                <div className="h-5 w-5 rounded-full border-2 border-muted-foreground" />
-                              )}
-                            </div>
-                            
-                            <div className="flex-1 space-y-1">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-muted-foreground">
-                                  {formatTimestamp(question.timestamp)}
-                                </span>
-                                {question.type && question.type !== 'multiple-choice' && (
-                                  <Badge variant="outline" className="text-xs">
-                                    {question.type === 'true-false' ? 'True/False' : 
-                                     question.type === 'hotspot' ? 'Hotspot' :
-                                     question.type === 'matching' ? 'Matching' :
-                                     question.type === 'sequencing' ? 'Sequence' :
-                                     question.type}
-                                  </Badge>
-                                )}
-                                {isAnswered && (
-                                  <Badge 
-                                    variant="outline" 
-                                    className={`text-xs ${
-                                      isCorrect 
-                                        ? 'bg-green-100 text-green-700 border-green-300' 
-                                        : 'bg-red-100 text-red-700 border-red-300'
-                                    }`}
-                                  >
-                                    {isCorrect ? 'Correct' : 'Incorrect'}
-                                  </Badge>
-                                )}
-                                {isLocked && (
-                                  <Badge variant="outline" className="text-xs">
-                                    Premium
-                                  </Badge>
-                                )}
-                              </div>
-                              
-                              <div className={`text-sm ${isLocked && !isAnswered ? 'relative' : ''}`}>
-                                {isAnswered ? (
-                                  <>
-                                    <p className="font-medium">{question.question}</p>
-                                    {isAnswered && (
-                                      <button
-                                        onClick={() => {
-                                          if (isExpanded) {
-                                            setExpandedExplanations(prev => {
-                                              const next = new Set(prev);
-                                              next.delete(questionId);
-                                              return next;
-                                            });
-                                          } else {
-                                            setExpandedExplanations(prev => new Set(prev).add(questionId));
-                                          }
-                                        }}
-                                        className="text-xs text-primary hover:underline mt-1"
-                                      >
-                                        {isExpanded ? 'Hide' : 'Show'} explanation
-                                      </button>
-                                    )}
-                                    {isExpanded && (
-                                      <div className="mt-2 p-3 bg-background rounded-md border">
-                                        <p className="text-sm text-muted-foreground">
-                                          {question.explanation}
-                                        </p>
-                                      </div>
-                                    )}
-                                  </>
-                                ) : isLocked ? (
-                                  <>
-                                    <p className="font-medium blur-sm select-none">
-                                      {question.question}
-                                    </p>
-                                    <button
-                                      onClick={() => setShowLoginModal(true)}
-                                      className="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-[2px] rounded hover:bg-background/60 transition-colors"
-                                    >
-                                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                        <Lock className="h-3 w-3" />
-                                        <span className="underline">Sign up to unlock</span>
-                                      </div>
-                                    </button>
-                                  </>
-                                ) : (
-                                  <p className="text-muted-foreground italic">
-                                    Complete the video to reveal this question
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-                
-                {allQuestions.length > FREE_QUESTIONS_LIMIT && (
-                  <div className="mt-6 p-4 bg-primary/5 rounded-lg border border-primary/20">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium">
-                          🎓 Unlock {allQuestions.length - FREE_QUESTIONS_LIMIT} more questions
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Get full access to all course content
-                        </p>
-                      </div>
-                      <Button 
-                        size="sm" 
-                        onClick={() => setShowLoginModal(true)}
-                      >
-                        Sign Up
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
+          <CourseCurriculumCard
+            courseData={courseData}
+            answeredQuestions={answeredQuestions}
+            questionResults={questionResults}
+            expandedExplanations={expandedExplanations}
+            setExpandedExplanations={setExpandedExplanations}
+            setShowLoginModal={setShowLoginModal}
+            freeQuestionsLimit={FREE_QUESTIONS_LIMIT}
+            formatTimestamp={formatTimestamp}
+          />
         </div>
       </div>
 
