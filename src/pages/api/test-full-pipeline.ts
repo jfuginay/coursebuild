@@ -52,7 +52,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           '✅ Course Ready - Using test course from database',
           '✅ Enhanced Quiz Service - Would analyze YouTube video with Gemini',
           '✅ Visual Context Identification - Would extract educational moments',
-          '✅ Targeted Frame Processing - Would call visual-frame-service',
+          '✅ Integrated Visual Processing - Built into enhanced-quiz-service',
           '✅ Frame Capture - Would extract frames at specific timestamps',
           '✅ Gemini Vision Analysis - Would detect objects with educational context',
           '✅ Bounding Box Generation - Would follow Google AI pattern',
@@ -63,7 +63,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           step1: 'generateEnhancedQuestions() analyzes YouTube video',
           step2: 'Identifies visual moments with timestamps and context',
           step3: 'processVisualQuestions() filters requires_frame_capture=true',
-          step4: 'Calls visual-frame-service with specific questions',
+          step4: 'Processes visual elements with integrated image analysis',
           step5: 'captureFrameAtTimestamp() extracts exact frames',
           step6: 'detectObjectsInFrame() uses Gemini Vision with context',
           step7: 'convertBoundingBoxes() follows Google AI [ymin,xmin,ymax,xmax] pattern',
@@ -78,9 +78,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           'Ensure all edge functions are deployed'
         ],
         services_status: {
-          'enhanced-quiz-service': 'Deployed (81.7kB)',
-          'visual-frame-service': 'Deployed (84.77kB)',
-          'frame-capture-service': 'Deployed (81.34kB)'
+                  'enhanced-quiz-service': 'Deployed (81.7kB) - Integrated visual processing',
+        'gemini-quiz-service': 'Deployed - Core video understanding'
         }
       });
     }
