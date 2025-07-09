@@ -112,11 +112,11 @@ async function generateEnhancedQuestions(
                   options: { 
                     type: "array", 
                     items: { type: "string" },
-                    description: "Answer options for multiple-choice questions"
+                    description: "Answer options for multiple-choice questions and true/false questions"
                   },
                   correct_answer: { 
                     type: "number", 
-                    description: "Answer index for multiple-choice (0-based), 1 for true/0 for false" 
+                    description: "Answer index for multiple-choice (0-based), 0 for true/1 for false" 
                   },
                   explanation: { 
                     type: "string", 

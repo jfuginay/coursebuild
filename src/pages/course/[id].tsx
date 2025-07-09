@@ -186,6 +186,37 @@ export default function CoursePage() {
     }
   };
 
+  // Parse options - handle both array and JSON string formats
+  const parseOptions = (options: string[] | string): string[] => {
+    if (Array.isArray(options)) {
+      return options;
+    }
+    
+    if (typeof options === 'string') {
+      try {
+        const parsed = JSON.parse(options);
+        return Array.isArray(parsed) ? parsed : [options];
+      } catch (e) {
+        // If parsing fails, treat as a single option
+        return [options];
+      }
+    }
+    
+    return [];
+  };
+
+  // Enhanced parseOptions function that handles true/false questions
+  const parseOptionsWithTrueFalse = (options: string[] | string, questionType: string): string[] => {
+    const parsedOptions = parseOptions(options);
+    
+    // For true/false questions, ensure we have the correct options
+    if (parsedOptions.length === 0 && (questionType === 'true-false' || questionType === 'true_false')) {
+      return ['True', 'False'];
+    }
+    
+    return parsedOptions;
+  };
+
   const fetchQuestions = async () => {
     try {
       const response = await fetch(`/api/course/${id}/questions`);
@@ -195,7 +226,7 @@ export default function CoursePage() {
         // Parse options for each question to ensure they're arrays and correct_answer is a number
         const parsedQuestions = data.questions.map((q: any) => ({
           ...q,
-          options: parseOptions(q.options || []),
+          options: parseOptionsWithTrueFalse(q.options || [], q.type),
           correct_answer: parseInt(q.correct_answer) || 0
         }));
         
@@ -219,25 +250,6 @@ export default function CoursePage() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Parse options - handle both array and JSON string formats
-  const parseOptions = (options: string[] | string): string[] => {
-    if (Array.isArray(options)) {
-      return options;
-    }
-    
-    if (typeof options === 'string') {
-      try {
-        const parsed = JSON.parse(options);
-        return Array.isArray(parsed) ? parsed : [options];
-      } catch (e) {
-        // If parsing fails, treat as a single option
-        return [options];
-      }
-    }
-    
-    return [];
   };
 
   const initializePlayer = (retryCount = 0) => {

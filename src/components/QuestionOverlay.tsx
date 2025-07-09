@@ -46,9 +46,37 @@ export default function QuestionOverlay({
 
   if (!isVisible) return null;
 
+  // Debug logging for all questions
+  console.log('🎯 QuestionOverlay received question:', {
+    id: question.id,
+    type: question.type,
+    hasOptions: !!question.options,
+    optionsLength: Array.isArray(question.options) ? question.options.length : 'not array',
+    hasBoundingBoxes: !!question.bounding_boxes,
+    boundingBoxCount: question.bounding_boxes?.length || 0,
+    hasDetectedObjects: !!question.detected_objects,
+    detectedObjectsCount: question.detected_objects?.length || 0,
+    hasFrameTimestamp: !!question.frame_timestamp,
+    hasPlayer: !!player,
+    requiresVideoOverlay: question.requires_video_overlay
+  });
+
   // Handle video overlay questions - check for bounding boxes and video overlay capability
   const hasValidBoundingBoxes = question.bounding_boxes && question.bounding_boxes.length > 0;
-  const isVideoOverlayQuestion = question.requires_video_overlay || (hasValidBoundingBoxes && question.frame_timestamp);
+  const hasValidDetectedObjects = question.detected_objects && question.detected_objects.length > 0;
+  const isVideoOverlayQuestion = question.requires_video_overlay || 
+    (hasValidBoundingBoxes && question.frame_timestamp) ||
+    (question.type === 'hotspot' && (hasValidBoundingBoxes || hasValidDetectedObjects)); // Only show hotspot if it has interactive elements
+
+  // Log if hotspot question is being filtered out
+  if (question.type === 'hotspot' && !hasValidBoundingBoxes && !hasValidDetectedObjects) {
+    console.warn('⚠️ Invalid hotspot question reached component - this should have been filtered at API level:', {
+      questionId: question.id,
+      boundingBoxCount: question.bounding_boxes?.length || 0,
+      detectedObjectsCount: question.detected_objects?.length || 0
+    });
+    return null;
+  }
   
   if (isVideoOverlayQuestion && player) {
     console.log('🎬 Rendering video overlay question:', {
@@ -56,7 +84,10 @@ export default function QuestionOverlay({
       frameTimestamp: question.frame_timestamp,
       boundingBoxCount: question.bounding_boxes?.length || 0,
       timestamp: question.timestamp,
-      type: question.type
+      type: question.type,
+      isHotspot: question.type === 'hotspot',
+      requiresVideoOverlay: question.requires_video_overlay,
+      hasValidBoundingBoxes: hasValidBoundingBoxes
     });
     
     return (
@@ -100,6 +131,8 @@ export default function QuestionOverlay({
       </div>
     );
   }
+
+
 
   // Handle matching questions
   if (question.matching_pairs && question.matching_pairs.length > 0) {
@@ -207,6 +240,11 @@ export default function QuestionOverlay({
   };
 
   const parsedOptions = parseOptions(question.options || []);
+  
+  // Handle true/false questions that might not have options set
+  const finalOptions = parsedOptions.length === 0 && (question.type === 'true-false' || question.type === 'true_false') 
+    ? ['True', 'False'] 
+    : parsedOptions;
 
   const handleAnswerSelect = (optionIndex: number) => {
     if (hasAnswered) return;
@@ -237,8 +275,41 @@ export default function QuestionOverlay({
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
+  // Handle hotspot questions without player (fallback)
+  if (question.type === 'hotspot' && !player && (hasValidBoundingBoxes || hasValidDetectedObjects)) {
+    console.log('🔍 Hotspot question detected but no player available - showing error with continue option');
+    return (
+      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-2xl mx-auto">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg">Hotspot Question</CardTitle>
+              <Badge variant="secondary" className="text-xs">
+                {formatTimestamp(question.timestamp)}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div>
+              <p className="text-lg font-medium mb-4">{question.question}</p>
+              <p className="text-sm text-muted-foreground">
+                This is a hotspot question that requires video interaction. Please ensure the video player is loaded.
+              </p>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={onContinue} className="flex items-center gap-2">
+                <Play className="h-4 w-4" />
+                Continue Video
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   // Handle case where no options are available
-  if (parsedOptions.length === 0) {
+  if (finalOptions.length === 0) {
     return (
       <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <Card className="w-full max-w-2xl mx-auto">
@@ -285,7 +356,7 @@ export default function QuestionOverlay({
             <p className="text-lg font-medium mb-4">{question.question}</p>
             
             <div className="space-y-3">
-              {parsedOptions.map((option, index) => {
+              {finalOptions.map((option, index) => {
                 let buttonClass = "w-full text-left p-4 rounded-lg border transition-all duration-200 ";
                 
                 if (hasAnswered) {

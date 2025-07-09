@@ -254,6 +254,21 @@ export default function CoursePreviewPage() {
           (q.options !== null || q.type === 'hotspot' || q.type === 'matching' || q.type === 'sequencing') && q.timestamp >= 10
         );
         
+        // Enhanced function to handle true/false questions
+        const processQuestionOptions = (question: any): any => {
+          let options = question.options || [];
+          
+          // For true/false questions, ensure we have the correct options
+          if ((!options || options.length === 0) && (question.type === 'true-false' || question.type === 'true_false')) {
+            options = ['True', 'False'];
+          }
+          
+          return {
+            ...question,
+            options: options
+          };
+        };
+        
         // Group questions into segments based on timestamp ranges
         const segments: any[] = [];
         const sortedQuestions = validQuestions.sort((a: any, b: any) => a.timestamp - b.timestamp);
@@ -281,29 +296,30 @@ export default function CoursePreviewPage() {
             };
           }
           
-          // Add question to current segment (preserve all visual question data)
+          // Process question and add to current segment
+          const processedQuestion = processQuestionOptions(q);
           currentSegment.questions.push({
-            id: q.id || `question-${index}`,
-            question: q.question,
-            type: q.type || 'multiple-choice',
-            options: q.options || [], // Handle null options for visual questions
-            correct: parseInt(q.correct_answer) || 0,
-            correct_answer: parseInt(q.correct_answer) || 0,
-            explanation: q.explanation,
-            timestamp: q.timestamp,
-            visual_context: q.visual_context,
-            frame_timestamp: q.frame_timestamp,
-            bounding_boxes: q.bounding_boxes || [],
-            detected_objects: q.detected_objects || [],
-            matching_pairs: q.matching_pairs || [],
-            requires_video_overlay: q.requires_video_overlay || false,
-            video_overlay: q.video_overlay || false,
-            bounding_box_count: q.bounding_box_count || 0
+            id: processedQuestion.id || `question-${index}`,
+            question: processedQuestion.question,
+            type: processedQuestion.type || 'multiple-choice',
+            options: processedQuestion.options, // Now properly handled for true/false
+            correct: parseInt(processedQuestion.correct_answer) || 0,
+            correct_answer: parseInt(processedQuestion.correct_answer) || 0,
+            explanation: processedQuestion.explanation,
+            timestamp: processedQuestion.timestamp,
+            visual_context: processedQuestion.visual_context,
+            frame_timestamp: processedQuestion.frame_timestamp,
+            bounding_boxes: processedQuestion.bounding_boxes || [],
+            detected_objects: processedQuestion.detected_objects || [],
+            matching_pairs: processedQuestion.matching_pairs || [],
+            requires_video_overlay: processedQuestion.requires_video_overlay || false,
+            video_overlay: processedQuestion.video_overlay || false,
+            bounding_box_count: processedQuestion.bounding_box_count || 0
           });
           
           // Extract concepts from visual context if available
-          if (q.visual_context && currentSegment.concepts.length < 3) {
-            const concept = q.visual_context.substring(0, 50).replace(/[^a-zA-Z0-9\s]/g, '').trim();
+          if (processedQuestion.visual_context && currentSegment.concepts.length < 3) {
+            const concept = processedQuestion.visual_context.substring(0, 50).replace(/[^a-zA-Z0-9\s]/g, '').trim();
             if (concept && !currentSegment.concepts.includes(concept)) {
               currentSegment.concepts.push(concept);
             }

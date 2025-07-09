@@ -192,6 +192,37 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
                       src={thumbnailUrl}
                       alt={course.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        // Fallback to smaller resolution thumbnails
+                        const img = e.target as HTMLImageElement;
+                        const currentSrc = img.src;
+                        
+                        if (currentSrc.includes('maxresdefault.jpg')) {
+                          img.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+                        } else if (currentSrc.includes('hqdefault.jpg')) {
+                          img.src = `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`;
+                        } else if (currentSrc.includes('mqdefault.jpg')) {
+                          img.src = `https://img.youtube.com/vi/${videoId}/default.jpg`;
+                        } else {
+                          // All thumbnails failed, hide the image
+                          img.style.display = 'none';
+                          const parentDiv = img.parentElement;
+                          if (parentDiv) {
+                            parentDiv.innerHTML = `
+                              <div class="w-full h-full flex items-center justify-center">
+                                <div class="text-center">
+                                  <div class="h-8 w-8 mx-auto mb-2 opacity-50">
+                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.55-2.55a.999.999 0 011.45.89v6.32a.999.999 0 01-1.45.89L15 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h8a2 2 0 012 2v3z"/>
+                                    </svg>
+                                  </div>
+                                  <p class="text-xs text-muted-foreground">Video Thumbnail</p>
+                                </div>
+                              </div>
+                            `;
+                          }
+                        }
+                      }}
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
