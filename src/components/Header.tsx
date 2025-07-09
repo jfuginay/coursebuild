@@ -1,5 +1,5 @@
 import { useRouter } from 'next/router';
-import { Info, LogOut, User } from 'lucide-react';
+import { Info, LogOut, User, BarChart3 } from 'lucide-react';
 import Logo from '@/components/Logo';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
@@ -49,6 +49,9 @@ const Header = () => {
                 <DropdownMenuItem onClick={() => router.push('/profiles')}>
                   <User className="mr-2 h-4 w-4" />
                   Profile
+                <DropdownMenuItem onClick={() => router.push("/dashboard")}>
+                  <BarChart3 className="mr-2 h-4 w-4" />
+                  Dashboard
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleSignOut}>
                   <LogOut className="mr-2 h-4 w-4" />

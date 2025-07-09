@@ -10,6 +10,7 @@ import { Progress } from '@/components/ui/progress';
 import Header from '@/components/Header';
 import QuestionOverlay from '@/components/QuestionOverlay';
 import CourseCurriculumCard from '@/components/CourseCurriculumCard';
+import VideoProgressBar from '@/components/VideoProgressBar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -99,6 +100,7 @@ export default function CoursePage() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [showQuestion, setShowQuestion] = useState(false);
   const [answeredQuestions, setAnsweredQuestions] = useState<Set<number>>(new Set());
+  const [skippedQuestions, setSkippedQuestions] = useState<Set<number>>(new Set());
   const [correctAnswers, setCorrectAnswers] = useState(0);
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [isYTApiLoaded, setIsYTApiLoaded] = useState(false);
@@ -713,6 +715,66 @@ export default function CoursePage() {
     playerRef.current?.playVideo();
   };
 
+  const handleVideoSeek = async (seekTime: number) => {
+    if (!playerRef.current || !questions) return;
+
+    // Find all questions between current time and seek time
+    const questionsInRange = questions
+      .map((question, index) => ({ ...question, index }))
+      .filter(q => {
+        if (seekTime > currentTime) {
+          // Seeking forward - find unanswered questions we're skipping
+          return q.timestamp > currentTime && q.timestamp <= seekTime && !answeredQuestions.has(q.index);
+        } else {
+          // Seeking backward - no need to mark questions
+          return false;
+        }
+      });
+
+    // Mark skipped questions
+    if (questionsInRange.length > 0) {
+      console.log(`⏩ Skipping ${questionsInRange.length} questions`);
+      
+      const newSkippedQuestions = new Set(skippedQuestions);
+      for (const question of questionsInRange) {
+        newSkippedQuestions.add(question.index);
+        
+        // Track as incorrect for progress if user is authenticated
+        if (user && supabase) {
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+              await fetch('/api/user/progress', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${session.access_token}`
+                },
+                body: JSON.stringify({
+                  courseId: id,
+                  segmentIndex: 0, // In this simpler structure, we don't have segments
+                  segmentTitle: 'Main',
+                  questionId: question.id,
+                  selectedAnswer: -1, // Indicate skipped
+                  isCorrect: false,
+                  timeSpent: 0,
+                  explanationViewed: false
+                })
+              });
+            }
+          } catch (error) {
+            console.error('Failed to track skipped question:', error);
+          }
+        }
+      }
+      setSkippedQuestions(newSkippedQuestions);
+    }
+
+    // Seek the video
+    playerRef.current.seekTo(seekTime);
+    setCurrentTime(seekTime);
+  };
+
   const extractVideoId = (url: string): string => {
     const patterns = [
       /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
@@ -973,28 +1035,21 @@ export default function CoursePage() {
                     <span>{formatTime(duration)}</span>
                   </div>
                   
-                  {/* Progress bar with contained markers */}
-                  <div className="relative">
-                    <Progress value={progressPercentage} className="h-2" />
-                    
-                    {/* Question markers positioned relative to progress bar */}
-                    <div className="absolute top-0 left-0 right-0 h-2">
-                      {questions.map((question, index) => {
-                        const position = Math.min(Math.max((question.timestamp / duration) * 100, 0.5), 99.5);
-                        const isAnswered = answeredQuestions.has(index);
-                        return (
-                          <div
-                            key={index}
-                            className={`absolute top-0 w-3 h-3 rounded-full transform -translate-x-1/2 -translate-y-0.5 border-2 border-background shadow-sm ${
-                              isAnswered ? 'bg-green-500' : 'bg-primary'
-                            }`}
-                            style={{ left: `${position}%` }}
-                            title={`Question at ${formatTime(question.timestamp)}`}
-                          />
-                        );
-                      })}
-                    </div>
-                  </div>
+                  {/* Interactive Progress Bar */}
+                  <VideoProgressBar
+                    currentTime={currentTime}
+                    duration={duration}
+                    onSeek={handleVideoSeek}
+                    questions={questions.map((question, index) => ({
+                      ...question,
+                      id: `0-${index}` // Simple ID for single segment structure
+                    }))}
+                    answeredQuestions={new Set(
+                      Array.from(answeredQuestions).map(index => `0-${index}`)
+                    )}
+                    formatTimestamp={formatTime}
+                    className=""
+                  />
                 </div>
               )}
 
