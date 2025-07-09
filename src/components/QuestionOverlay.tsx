@@ -5,13 +5,14 @@ import { Badge } from '@/components/ui/badge';
 import { CheckCircle, XCircle, Play } from 'lucide-react';
 import VideoOverlayQuestion from '@/components/visual/VideoOverlayQuestion';
 import MatchingQuestion from '@/components/visual/MatchingQuestion';
+import SequencingQuestion from '@/components/visual/SequencingQuestion';
 
 interface Question {
   id: string;
   question: string;
   type: string;
   options?: string[] | string; // Can be array or JSON string
-  correct_answer: string | number;
+  correct_answer: number; // Index for multiple choice, 1/0 for true/false
   explanation: string;
   timestamp: number;
   visual_context?: string;
@@ -19,6 +20,7 @@ interface Question {
   bounding_boxes?: any[];
   detected_objects?: any[];
   matching_pairs?: any[];
+  sequence_items?: string[];
   requires_video_overlay?: boolean;
   video_overlay?: boolean;
 }
@@ -101,6 +103,12 @@ export default function QuestionOverlay({
 
   // Handle matching questions
   if (question.matching_pairs && question.matching_pairs.length > 0) {
+    console.log('🔗 Rendering matching question:', {
+      questionId: question.id,
+      matchingPairs: question.matching_pairs,
+      pairsCount: question.matching_pairs.length
+    });
+    
     return (
       <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div className="w-full max-w-4xl mx-auto">
@@ -108,12 +116,57 @@ export default function QuestionOverlay({
             question={question.question}
             pairs={question.matching_pairs.map((pair, index) => ({
               id: `pair-${index}`,
-              left: pair.left || 'Item',
-              right: pair.right || 'Match',
-              imageUrl: undefined // No images needed for video overlay approach
+              left: {
+                id: `left-${index}`,
+                content: pair.left || 'Item',
+                type: 'text' as const
+              },
+              right: {
+                id: `right-${index}`,
+                content: pair.right || 'Match',
+                type: 'text' as const
+              }
             }))}
             explanation={question.explanation}
             onAnswer={(isCorrect) => {
+              console.log('🎯 Matching question answered:', { isCorrect, questionId: question.id });
+              onAnswer(isCorrect);
+              setHasAnswered(true);
+              setShowExplanation(true);
+            }}
+            showAnswer={hasAnswered}
+            disabled={hasAnswered}
+          />
+          {hasAnswered && (
+            <div className="mt-4 flex justify-center">
+              <Button onClick={onContinue} className="flex items-center gap-2">
+                <Play className="h-4 w-4" />
+                Continue Video
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Handle sequencing questions
+  if (question.sequence_items && question.sequence_items.length > 0) {
+    console.log('🔄 Rendering sequencing question:', {
+      questionId: question.id,
+      sequenceItems: question.sequence_items,
+      itemsCount: question.sequence_items.length
+    });
+    
+    return (
+      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-4xl mx-auto">
+          <SequencingQuestion
+            question={question.question}
+            items={question.sequence_items}
+            explanation={question.explanation}
+            onAnswer={(isCorrect) => {
+              console.log('🎯 Sequencing question answered:', { isCorrect, questionId: question.id });
               onAnswer(isCorrect);
               setHasAnswered(true);
               setShowExplanation(true);
@@ -163,9 +216,7 @@ export default function QuestionOverlay({
     setShowExplanation(true);
     
     // Determine correct answer index
-    const correctIndex = typeof question.correct_answer === 'string' 
-      ? parseInt(question.correct_answer) 
-      : question.correct_answer;
+    const correctIndex = question.correct_answer;
     
     const isCorrect = optionIndex === correctIndex;
     onAnswer(isCorrect);
@@ -178,9 +229,7 @@ export default function QuestionOverlay({
     onContinue();
   };
 
-  const correctIndex = typeof question.correct_answer === 'string' 
-    ? parseInt(question.correct_answer) 
-    : question.correct_answer;
+  const correctIndex = question.correct_answer;
 
   const formatTimestamp = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);

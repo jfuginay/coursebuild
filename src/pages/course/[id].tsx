@@ -24,7 +24,7 @@ interface Question {
   question: string;
   type: string;
   options?: string[] | string; // Can be array or JSON string
-  correct_answer: string | number;
+  correct_answer: number; // Index for multiple choice, 1/0 for true/false
   explanation: string;
   timestamp: number;
   visual_context?: string;
@@ -192,10 +192,11 @@ export default function CoursePage() {
       const data = await response.json();
 
       if (data.success) {
-        // Parse options for each question to ensure they're arrays
-        const parsedQuestions = data.questions.map((q: Question) => ({
+        // Parse options for each question to ensure they're arrays and correct_answer is a number
+        const parsedQuestions = data.questions.map((q: any) => ({
           ...q,
-          options: parseOptions(q.options || [])
+          options: parseOptions(q.options || []),
+          correct_answer: parseInt(q.correct_answer) || 0
         }));
         
         console.log('📊 Questions fetched for course:', data.questions.length);

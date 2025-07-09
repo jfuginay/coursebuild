@@ -8,56 +8,29 @@ const corsHeaders = {
 };
 
 const ENHANCED_QUIZ_GENERATION_PROMPT = `
-You are an expert educational content creator. Analyze this YouTube video and generate engaging quiz questions.
+You are an educational content creator analyzing this video to generate diverse quiz questions.
+
+Task: Create 6-8 engaging questions that test video comprehension, spaced throughout the content.
+
+Question Types Available:
+- MULTIPLE-CHOICE: Standard questions with 4 options
+- TRUE-FALSE: Simple true/false questions  
+- HOTSPOT: Visual questions requiring object detection on video frames
+- MATCHING: Connect related concepts or items
+- SEQUENCING: Order steps or events chronologically
 
 Guidelines:
-1. Watch the entire video and understand the key concepts presented
-2. Include accurate timestamps where each question should appear (in seconds from video start)
-3. Mix question types: multiple choice, true/false, visual hotspot, matching, and sequencing
-4. For visual questions, provide clear descriptions of what students should identify
-5. Make questions educational and challenging but fair
-6. Ensure correct answers are clearly determinable from the video content
-7. Include detailed explanations for learning reinforcement
+- Include accurate timestamps (seconds from video start)
+- Generate at least 2 visual hotspot questions with clear target objects
+- Provide detailed explanations for learning reinforcement
+- Ensure answers are determinable from video content
+- Space questions throughout video duration (avoid clustering)
 
-Output Format:
-Return a valid JSON object with this structure:
+For HOTSPOT questions: Specify 2-3 target objects and precise frame timing for detection.
+For MATCHING questions: Provide pairs of related items to connect.
+For SEQUENCING questions: List items in correct chronological order.
 
-{
-  "video_summary": "Brief 2-3 sentence summary of the video content and main topics",
-  "total_duration": <video_length_in_seconds>,
-  "questions": [
-    {
-      "timestamp": <seconds_when_question_should_appear>,
-      "question": "Question text asking students to identify or interact with video content",
-      "type": "multiple-choice|true-false|hotspot|matching|sequencing",
-      "options": ["option1", "option2", "option3", "option4"], // Only for multiple-choice
-      "correct_answer": "answer_index",
-      "explanation": "One sentence explanation of why this is correct and what students should learn",
-      "frame_timestamp": <specific_second_for_frame_capture>, // Precise timing for visual analysis
-      "target_objects": ["object1", "object2"], // What objects/elements to detect for hotspot questions
-      "question_context": "Additional one sentence context about what the question is asking students to find or identify",
-      "matching_pairs": [{"left": "Item A", "right": "Match A"}, {"left": "Item B", "right": "Match B"}], // Only for matching questions
-      "sequence_items": ["First step", "Second step", "Third step"] // Only for sequencing questions - correct order
-    }
-  ]
-}
-
-Question Type Requirements:
-- HOTSPOT: Use "target_objects" and "frame_timestamp" for object detection on video frames
-- MATCHING: Use "matching_pairs" array with left/right pairs to match
-- SEQUENCING: Use "sequence_items" array with items in correct chronological order
-- MULTIPLE-CHOICE: Use "options" array with "correct_answer" as index
-- TRUE-FALSE: Set "correct_answer" as "true" or "false"
-
-Requirements:
-- Generate 6-8 diverse questions
-- At least 2 visual hotspot questions with clear target objects
-- Questions should be spaced throughout the video (not clustered)
-- Each hotspot question should specify 2-3 target objects to detect
-- Frame timestamps should be precise (within 1-2 seconds of optimal moment)
-- Visual context should be detailed enough for accurate object detection
-
-Focus on creating educational questions that test comprehension, analysis, and visual recognition skills.`;
+Focus on educational value and visual recognition skills.`;
 
 interface EnhancedQuizRequest {
   course_id: string;
@@ -76,7 +49,7 @@ async function generateEnhancedQuestions(
   enableVisualQuestions: boolean = true
 ) {
   console.log('🎓 Generating enhanced questions...');
-
+  
   const focusTopics = enableVisualQuestions ? 
     'Include visual hotspot questions with clear target objects for detection.' : 
     'Focus on comprehension and analysis questions.';
@@ -91,8 +64,8 @@ async function generateEnhancedQuestions(
       contents: [
         {
           parts: [
-            {
-              fileData: {
+    {
+      fileData: {
                 fileUri: youtubeUrl
               }
             },
@@ -142,8 +115,8 @@ async function generateEnhancedQuestions(
                     description: "Answer options for multiple-choice questions"
                   },
                   correct_answer: { 
-                    type: "string", 
-                    description: "(answer index for multiple-choice, 'true'/'false' for true-false)" 
+                    type: "number", 
+                    description: "Answer index for multiple-choice (0-based), 1 for true/0 for false" 
                   },
                   explanation: { 
                     type: "string", 
@@ -190,7 +163,7 @@ async function generateEnhancedQuestions(
     };
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY2')}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -208,11 +181,11 @@ async function generateEnhancedQuestions(
 
     if (!text) {
       throw new Error('No response from Gemini API');
-    }
+  }
 
     // Parse the structured JSON response
     let analysisResult;
-    try {
+  try {
       // With structured output, the response should be direct JSON
       analysisResult = JSON.parse(text);
       
@@ -224,7 +197,7 @@ async function generateEnhancedQuestions(
       if (!analysisResult.video_summary || !analysisResult.total_duration) {
         throw new Error('Invalid response structure: missing video_summary or total_duration');
       }
-    } catch (parseError) {
+  } catch (parseError) {
       console.error('Failed to parse structured Gemini response:', parseError);
       console.log('Response length:', text.length);
       console.log('Response start:', text.substring(0, 500));
@@ -243,7 +216,7 @@ async function generateEnhancedQuestions(
       } catch (fallbackError) {
         console.error('Fallback JSON extraction also failed:', fallbackError);
         throw new Error(`Failed to parse structured Gemini response: ${parseError}`);
-      }
+  }
     }
 
     console.log(`✅ Generated ${analysisResult.questions?.length || 0} questions using structured output`);
@@ -420,11 +393,11 @@ Mark objects as correct answers based on what the question is specifically askin
           }
         }
       };
-
+    
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY2')}`,
         {
-          method: 'POST',
+      method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(geminiRequest)
         }
@@ -522,7 +495,7 @@ Mark objects as correct answers based on what the question is specifically askin
       console.log(`✅ Detected ${normalizedElements.length} objects for question at ${question.timestamp}s using Gemini bounding boxes`);
       updatedQuestions.push(updatedQuestion);
 
-    } catch (error) {
+  } catch (error) {
       console.error(`❌ Error generating bounding boxes for question ${question.timestamp}:`, error);
       updatedQuestions.push(question);
     }
@@ -563,7 +536,7 @@ async function storeEnhancedQuestions(
     question: q.question,
     type: mapGeminiTypeToDbType(q.type),
     options: q.options ? JSON.stringify(q.options) : null,
-    correct_answer: String(q.correct_answer),
+    correct_answer: typeof q.correct_answer === 'string' ? parseInt(q.correct_answer) || 0 : q.correct_answer,
     explanation: q.explanation,
     has_visual_asset: ['hotspot', 'matching', 'sequencing'].includes(q.type),
     fallback_prompt: q.type === 'hotspot' ? `Generate simple diagram showing objects` : null,
@@ -590,7 +563,7 @@ async function storeEnhancedQuestions(
       try {
         const metadata = JSON.parse(question.metadata);
         const detectedElements = metadata.detected_elements || [];
-        
+
         if (detectedElements.length > 0) {
           console.log(`🎯 Creating ${detectedElements.length} bounding boxes for question ${question.id}`);
           
@@ -604,10 +577,10 @@ async function storeEnhancedQuestions(
             height: parseFloat(element.height.toFixed(4)),
             confidence_score: element.confidence_score || 0.8,
             is_correct_answer: element.is_correct_answer || false
-          }));
+      }));
 
           const { data: createdBoxes, error: boxError } = await supabaseClient
-            .from('bounding_boxes')
+        .from('bounding_boxes')
             .insert(boundingBoxesToInsert)
             .select();
 
@@ -639,9 +612,9 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
+      const geminiApiKey = Deno.env.get('GEMINI_API_KEY2');
     if (!geminiApiKey) {
-      throw new Error('GEMINI_API_KEY environment variable is not set');
+    throw new Error('GEMINI_API_KEY2 environment variable is not set');
     }
 
     const {

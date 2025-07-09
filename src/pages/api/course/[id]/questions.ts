@@ -67,6 +67,7 @@ export default async function handler(
         video_overlay: metadata.video_overlay || false,
         detected_elements: metadata.detected_elements || [],
         matching_pairs: metadata.matching_pairs || [],
+        sequence_items: metadata.sequence_items || [],
         bounding_boxes: boundingBoxes.map((box: any) => ({
           id: box.id,
           label: box.label,

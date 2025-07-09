@@ -13,11 +13,22 @@ import QuestionOverlay from '@/components/QuestionOverlay';
 
 // TypeScript interfaces
 interface Question {
+  id: string;
   question: string;
+  type: string;
   options: string[];
   correct: number;
   explanation: string;
   timestamp: number; // in seconds
+  correct_answer: number; // Index for multiple choice, 1/0 for true/false
+  visual_context?: string;
+  frame_timestamp?: number;
+  bounding_boxes?: any[];
+  detected_objects?: any[];
+  matching_pairs?: any[];
+  requires_video_overlay?: boolean;
+  video_overlay?: boolean;
+  bounding_box_count?: number;
 }
 
 interface Segment {
@@ -193,6 +204,15 @@ export default function CoursePreviewPage() {
         // Check if we're within 0.5 seconds of this question's timestamp
         // and haven't answered it yet
         if (Math.abs(currentTime - question.timestamp) < 0.5 && !answeredQuestions.has(questionId)) {
+          console.log('🎯 Triggering question:', {
+            questionId,
+            type: question.type,
+            timestamp: question.timestamp,
+            currentTime,
+            hasVisualData: !!(question.bounding_boxes?.length || question.matching_pairs?.length),
+            requiresVideoOverlay: question.requires_video_overlay
+          });
+          
           // Pause the video and show this specific question
           playerRef.current?.pauseVideo();
           setCurrentSegmentIndex(segmentIndex);
@@ -229,9 +249,9 @@ export default function CoursePreviewPage() {
       console.log('Questions data:', questionsData);
 
       if (questionsData.success && questionsData.questions.length > 0) {
-        // Filter out questions with null options and very early questions
+        // Filter out questions with null options (except visual questions) and very early questions
         const validQuestions = questionsData.questions.filter((q: any) => 
-          q.options !== null && q.timestamp >= 10
+          (q.options !== null || q.type === 'hotspot' || q.type === 'matching' || q.type === 'sequencing') && q.timestamp >= 10
         );
         
         // Group questions into segments based on timestamp ranges
@@ -261,15 +281,24 @@ export default function CoursePreviewPage() {
             };
           }
           
-          // Add question to current segment
+          // Add question to current segment (preserve all visual question data)
           currentSegment.questions.push({
+            id: q.id || `question-${index}`,
             question: q.question,
-            options: q.options,
+            type: q.type || 'multiple-choice',
+            options: q.options || [], // Handle null options for visual questions
             correct: parseInt(q.correct_answer) || 0,
-            correct_answer: q.correct_answer,
+            correct_answer: parseInt(q.correct_answer) || 0,
             explanation: q.explanation,
             timestamp: q.timestamp,
-            visual_context: q.visual_context
+            visual_context: q.visual_context,
+            frame_timestamp: q.frame_timestamp,
+            bounding_boxes: q.bounding_boxes || [],
+            detected_objects: q.detected_objects || [],
+            matching_pairs: q.matching_pairs || [],
+            requires_video_overlay: q.requires_video_overlay || false,
+            video_overlay: q.video_overlay || false,
+            bounding_box_count: q.bounding_box_count || 0
           });
           
           // Extract concepts from visual context if available
@@ -298,6 +327,16 @@ export default function CoursePreviewPage() {
             segment.title = "Tensors and Applications";
           }
         });
+        
+        // Debug visual questions
+        const allProcessedQuestions = segments.flatMap(s => s.questions);
+        const visualQuestions = allProcessedQuestions.filter(q => 
+          q.type === 'hotspot' || q.type === 'matching' || q.type === 'sequencing' || q.requires_video_overlay
+        );
+        console.log('🎬 Preview page - processed visual questions:', visualQuestions.length);
+        if (visualQuestions.length > 0) {
+          console.log('🖼️ Sample visual question:', visualQuestions[0]);
+        }
         
         setCourseData({
           title: courseData.course.title,
@@ -827,6 +866,7 @@ export default function CoursePreviewPage() {
           }}
           onContinue={handleContinue}
           isVisible={showQuestion}
+          player={player}
         />
       )}
 

@@ -48,8 +48,8 @@ Return your response in the following JSON format:
       "timestamp": 240,
       "question": "The speaker states that this process is irreversible.",
       "type": "true_false",
-      "correct_answer": false,
-      "explanation": "This is false because at 4:00 the speaker clarifies that...",
+      "correct_answer": 0,
+      "explanation": "This is false because at 4:00 the speaker clarifies that... (Use 1 for true, 0 for false)",
       "visual_context": "Description of any diagrams or visuals shown"
     },
     {
@@ -91,9 +91,9 @@ serve(async (req) => {
     );
 
     // Get Gemini API key
-    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
+      const geminiApiKey = Deno.env.get('GEMINI_API_KEY2');
     if (!geminiApiKey) {
-      throw new Error('GEMINI_API_KEY environment variable is not set');
+    throw new Error('GEMINI_API_KEY2 environment variable is not set');
     }
 
     // Parse request
@@ -194,7 +194,7 @@ serve(async (req) => {
       question: q.question,
       type: mapGeminiTypeToDbType(q.type),
       options: q.options ? JSON.stringify(q.options) : null,
-      correct_answer: String(q.correct_answer),
+      correct_answer: typeof q.correct_answer === 'string' ? parseInt(q.correct_answer) || 0 : q.correct_answer,
       explanation: q.explanation,
       visual_context: q.visual_context,
       accepted: false
