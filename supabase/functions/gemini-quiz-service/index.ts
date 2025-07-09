@@ -8,57 +8,160 @@ const corsHeaders = {
 };
 
 const QUIZ_GENERATION_PROMPT = `
-You are an expert educational content creator. Analyze this YouTube video and generate engaging quiz questions based on its content.
+You are an expert educational content creator and instructional designer. Your task is to create high-quality quiz questions that test deep understanding, not just recall. Follow these advanced educational design principles:
 
-Guidelines:
-1. Watch the entire video and understand the key concepts presented
-2. Create questions that test understanding of the main ideas and important details
-3. Include accurate timestamps where each question should appear (in seconds from video start)
-4. Mix question types: multiple choice, true/false, and visual hotspot questions
-5. Ensure questions are directly related to content at the specified timestamp
-6. Make questions educational and engaging, not trivial
-7. Provide clear explanations for answers
-8. Pay attention to visual elements like diagrams, charts, demonstrations, or on-screen text
+## LEARNING TAXONOMY FRAMEWORK
+Target different levels of Bloom's taxonomy:
+1. **REMEMBER** (Basic): Facts, definitions, procedures
+2. **UNDERSTAND** (Conceptual): Explanation, interpretation, comparison
+3. **APPLY** (Procedural): Using concepts in new situations
+4. **ANALYZE** (Analytical): Breaking down, relationships, patterns
+5. **EVALUATE** (Critical): Judgments, critiques, assessments
+6. **CREATE** (Creative): Synthesis, design, innovation
+
+## QUESTION TYPE SELECTION CRITERIA
+
+### MULTIPLE CHOICE (mcq)
+- **Best for**: Concept understanding, problem-solving steps, comparing alternatives
+- **Avoid**: Simple recall or "what did the speaker say" questions
+- **Timestamp Strategy**: Place during or immediately after key concept explanations
+- **Quality Check**: Distractors should be plausible misconceptions, not obviously wrong
+
+### TRUE/FALSE (true_false)
+- **Best for**: Common misconceptions, principle validation, cause-effect relationships
+- **Avoid**: Trivial facts or easily guessed statements
+- **Timestamp Strategy**: After complex explanations where misconceptions are likely
+- **Quality Check**: Statement should require understanding, not just recall
+
+### HOTSPOT (hotspot)
+- **Best for**: Visual identification, component recognition, spatial relationships
+- **CRITICAL**: Frame questions as "Click on the [specific object]" where multiple similar objects are visible
+- **Optimal Timestamps**: 
+  - During close-up views with MULTIPLE objects/components visible
+  - When diagrams/charts show several distinct elements
+  - During demonstrations with 3+ clear visual elements on screen
+  - Avoid: Fast-moving scenes, transitions, unclear visuals, or single-object frames
+- **Quality Check**: Must have 3+ visible objects for meaningful choice; target object should be educationally significant
+- **Question Framing**: "Click on the resistor in this circuit" (when circuit shows multiple components)
+
+### MATCHING (matching)
+- **Best for**: Connecting concepts, cause-effect pairs, category relationships
+- **Avoid**: Arbitrary connections or simple definitional matching
+- **Content Analysis**: Look for natural conceptual pairs in the content
+- **Quality Check**: Pairs should test understanding of relationships, not memorization
+
+### SEQUENCING (sequencing)
+- **Best for**: Process steps, logical progression, chronological understanding
+- **Avoid**: Random order of speaker statements
+- **Focus on**: Logical/causal sequences, problem-solving steps, development stages
+- **Quality Check**: Sequence should have educational logic, not just temporal order
+
+## CONTENT ANALYSIS FRAMEWORK
+
+### Phase 1: Video Structure Analysis
+1. Identify main topics and subtopics
+2. Map conceptual relationships and dependencies
+3. Locate key moments: explanations, examples, demonstrations
+4. Identify visual elements: diagrams, objects, processes
+
+### Phase 2: Learning Objective Mapping
+1. What should students UNDERSTAND after watching?
+2. What can they DO with this knowledge?
+3. What common MISCONCEPTIONS might arise?
+4. What CONNECTIONS exist between concepts?
+
+### Phase 3: Question Strategy
+1. **Conceptual Questions** (40%): Test understanding of main ideas
+2. **Application Questions** (30%): Test ability to use knowledge
+3. **Analysis Questions** (20%): Test ability to break down complex ideas
+4. **Visual Questions** (10%): Test visual recognition and spatial understanding
+
+## TIMESTAMP OPTIMIZATION GUIDELINES
+
+### For ALL Questions:
+- Place questions at natural pause points or after complete explanations
+- Avoid interrupting mid-sentence or during transitions
+- Space questions every 60-90 seconds for optimal engagement
+- Consider cognitive load - avoid clustering difficult questions
+
+### For HOTSPOT Questions Specifically:
+- **Prime Moments**: When 3+ objects are clearly visible and stationary for user selection
+- **Avoid**: Motion blur, poor lighting, cluttered scenes, single-object frames
+- **Ideal Scenarios**: 
+  - Labeled diagrams showing multiple components/elements
+  - Close-up views with several equipment/components visible
+  - Clear demonstrations with 3+ distinct selectable objects
+  - Paused or slow-motion sequences with multiple visible elements
+- **REQUIREMENT**: Only generate hotspot questions when multiple similar objects are visible on screen
+
+### For VISUAL Questions (Matching/Sequencing):
+- Use when supporting visuals enhance comprehension
+- Timestamp should capture relevant visual context
+- Ensure visual elements support the learning objective
+
+## QUALITY CONTROL CHECKLIST
+
+Before generating each question, verify:
+- ✅ Tests understanding, not just recall
+- ✅ Relates to learning objectives
+- ✅ Timestamp optimizes visual/auditory content
+- ✅ Distractors are educationally meaningful
+- ✅ Question type matches content appropriately
+- ✅ Explanation deepens understanding
+
+## SPECIFIC INSTRUCTIONS
+
+1. **Analyze the entire video** to understand the educational flow
+2. **Identify 3-5 key concepts** that students should master
+3. **Map visual opportunities** for hotspot questions (look for clear diagrams, labeled components, demonstrations)
+4. **Create questions that build on each other** - early questions can support later ones
+5. **Prioritize depth over breadth** - better to have fewer high-quality questions
 
 Requirements:
-- Generate {maxQuestions} questions maximum
+- Generate maximum {maxQuestions} questions
 - Difficulty level: {difficulty}
-- Questions should be spaced throughout the video duration
-- Each question should have an accurate timestamp within the video
-- For visual hotspot questions, describe specific visual elements shown at that timestamp
-- Include a variety of question types to test different aspects of understanding
+- Include at least 1 hotspot question IF suitable visual content exists
+- Focus on {focusTopics}
+- Ensure explanations teach, don't just confirm answers
 
-{focusTopics}
-
-Return your response in the following JSON format:
+Return response in this JSON format:
 {
-  "video_summary": "Brief summary of the video content and main topics covered",
+  "video_summary": "Educational summary focusing on key learning objectives and concepts",
   "total_duration": "Duration in seconds",
+  "learning_objectives": ["List of 3-5 key things students should understand"],
+  "content_analysis": {
+    "main_topics": ["Topic 1", "Topic 2"],
+    "key_visual_moments": [
+      {
+        "timestamp": 120,
+        "description": "Circuit diagram clearly showing components",
+        "educational_value": "Component identification and relationships"
+      }
+    ],
+    "common_misconceptions": ["Misconception 1", "Misconception 2"]
+  },
   "questions": [
     {
       "timestamp": 120,
-      "question": "What is the main concept being explained at this point in the video?",
+      "frame_timestamp": 118,
+      "question": "Why does increasing resistance in this circuit decrease current flow?",
       "type": "mcq",
-      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "bloom_level": "understand",
+      "options": ["According to Ohm's law...", "Because resistance blocks...", "The voltage drops...", "Current always decreases..."],
       "correct_answer": 0,
-      "explanation": "The correct answer is A because at 2:00 the speaker explains...",
-      "visual_context": "Description of what's shown on screen at this timestamp"
+      "explanation": "This tests understanding of Ohm's law relationship. The correct answer demonstrates comprehension of the inverse relationship between resistance and current when voltage is constant.",
+      "visual_context": "Circuit diagram showing resistor placement and current flow indicators",
+      "educational_rationale": "Tests conceptual understanding of fundamental electrical principles"
     },
     {
       "timestamp": 240,
-      "question": "The speaker states that this process is irreversible.",
-      "type": "true_false",
-      "correct_answer": 0,
-      "explanation": "This is false because at 4:00 the speaker clarifies that... (Use 1 for true, 0 for false)",
-      "visual_context": "Description of any diagrams or visuals shown"
-    },
-    {
-      "timestamp": 360,
-      "question": "Identify the component highlighted in the diagram shown at this timestamp.",
+      "question": "Click on the resistor component in this circuit diagram",
       "type": "hotspot",
-      "visual_context": "At 6:00, there's a circuit diagram with a red highlighted component",
+      "bloom_level": "apply",
+      "visual_context": "Circuit diagram showing multiple components: resistor, capacitor, inductor, and battery",
       "correct_answer": "resistor",
-      "explanation": "The highlighted component is a resistor because..."
+      "explanation": "The resistor (shown with zigzag symbol) is the component that limits current flow according to Ohm's law.",
+      "educational_rationale": "Tests ability to identify functional components among multiple similar objects"
     }
   ]
 }
@@ -71,7 +174,11 @@ function mapGeminiTypeToDbType(geminiType: string): string {
     case 'true_false':
       return 'true-false';
     case 'hotspot':
-      return 'short-answer';
+      return 'hotspot';
+    case 'matching':
+      return 'matching';
+    case 'sequencing':
+      return 'sequencing';
     default:
       return 'multiple-choice';
   }
@@ -91,9 +198,9 @@ serve(async (req) => {
     );
 
     // Get Gemini API key
-      const geminiApiKey = Deno.env.get('GEMINI_API_KEY2');
+      const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
     if (!geminiApiKey) {
-    throw new Error('GEMINI_API_KEY2 environment variable is not set');
+    throw new Error('GEMINI_API_KEY environment variable is not set');
     }
 
     // Parse request
@@ -186,33 +293,26 @@ serve(async (req) => {
       console.error('❌ JSON parsing error:', parseError);
       throw new Error(`Failed to parse Gemini response: ${parseError}`);
     }
-
-    // Create questions in database
-    const questionsToInsert = parsedResponse.questions.map((q: any) => {
-      // Ensure true/false questions have proper options
-      let options = q.options;
-      let correctAnswer = q.correct_answer;
-      
-      if (q.type === 'true_false') {
-        options = options || ["True", "False"];
-        // Convert boolean to array index
-        if (typeof correctAnswer === 'boolean') {
-          correctAnswer = correctAnswer ? 1 : 0;
-        }
-      }
-      
-      return {
-        course_id: course_id,
-        timestamp: q.timestamp,
-        question: q.question,
-        type: mapGeminiTypeToDbType(q.type),
-        options: options ? JSON.stringify(options) : null,
-        correct_answer: typeof correctAnswer === 'string' ? parseInt(correctAnswer) || 0 : correctAnswer,
-        explanation: q.explanation,
-        visual_context: q.visual_context,
-        accepted: false
-      };
-    });
+    // Create questions in database with enhanced fields
+    const questionsToInsert = parsedResponse.questions.map((q: any) => ({
+      course_id: course_id,
+      timestamp: q.timestamp,
+      frame_timestamp: q.frame_timestamp || q.timestamp,
+      question: q.question,
+      type: mapGeminiTypeToDbType(q.type),
+      options: q.options ? JSON.stringify(q.options) : null,
+      correct_answer: typeof q.correct_answer === 'string' ? parseInt(q.correct_answer) || 0 : q.correct_answer,
+      explanation: q.explanation,
+      has_visual_asset: q.type === 'hotspot' || q.visual_context,
+      metadata: JSON.stringify({
+        bloom_level: q.bloom_level,
+        educational_rationale: q.educational_rationale,
+      visual_context: q.visual_context,
+        learning_objectives: parsedResponse.learning_objectives || [],
+        content_analysis: parsedResponse.content_analysis || {}
+      }),
+      accepted: false
+    }));
 
     const { data: questions, error: questionsError } = await supabaseClient
       .from('questions')

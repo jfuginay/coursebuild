@@ -45,15 +45,19 @@ function extractVideoId(url: string): string | null {
   return null;
 }
 
-// Transform enhanced quiz service response to expected frontend structure
+// Transform quiz-generation-v4 response to expected frontend structure
 function transformResponseToExpectedFormat(edgeResponse: any): any {
+  // Handle new quiz-generation-v4 response structure
   const { 
-    questions = [], 
+    final_questions = [], 
     video_summary = "AI Generated Course", 
-    total_duration,
-    visual_moments = [],
-    enhanced_features = {}
+    total_duration = 0,
+    pipeline_results = {},
+    pipeline_metadata = {}
   } = edgeResponse;
+  
+  // Use final_questions from quiz-generation-v4 response
+  const questions = final_questions || [];
   
   if (!questions || !Array.isArray(questions)) {
     return {
@@ -64,7 +68,8 @@ function transformResponseToExpectedFormat(edgeResponse: any): any {
       enhanced_features: {
         visual_questions_enabled: false,
         visual_questions_count: 0,
-        frame_capture_available: false
+        frame_capture_available: false,
+        pipeline_v4_enabled: true
       }
     };
   }
@@ -98,6 +103,16 @@ function transformResponseToExpectedFormat(edgeResponse: any): any {
       };
     }
     
+    // Parse metadata if available
+    let metadata: any = {};
+    try {
+      if (q.metadata) {
+        metadata = typeof q.metadata === 'string' ? JSON.parse(q.metadata) : q.metadata;
+      }
+    } catch (e) {
+      console.warn('Failed to parse question metadata:', e);
+    }
+    
     // Transform question format based on type
     let transformedQuestion: any;
     
@@ -106,13 +121,15 @@ function transformResponseToExpectedFormat(edgeResponse: any): any {
         transformedQuestion = {
           type: 'hotspot',
           question: q.question || 'Identify the highlighted element',
-          visual_context: q.visual_context,
+          visual_context: metadata.question_context || q.visual_context,
           frame_url: q.frame_url,
           bounding_boxes: q.bounding_boxes || [],
           detected_objects: q.detected_objects || [],
           visual_asset_id: q.visual_asset_id,
           correct_answer: q.correct_answer,
-          explanation: q.explanation || 'Visual identification question'
+          explanation: q.explanation || 'Visual identification question',
+          target_objects: metadata.target_objects || [],
+          frame_timestamp: q.frame_timestamp || metadata.frame_timestamp
         };
         break;
         
@@ -120,11 +137,23 @@ function transformResponseToExpectedFormat(edgeResponse: any): any {
         transformedQuestion = {
           type: 'matching',
           question: q.question || 'Match the following elements',
-          matching_pairs: q.matching_pairs || [],
+          matching_pairs: metadata.matching_pairs || [],
           visual_context: q.visual_context,
           frame_url: q.frame_url,
           visual_asset_id: q.visual_asset_id,
-          explanation: q.explanation || 'Matching question'
+          explanation: q.explanation || 'Matching question',
+          relationship_type: metadata.relationship_type || 'general'
+        };
+        break;
+        
+      case 'sequencing':
+        transformedQuestion = {
+          type: 'sequencing',
+          question: q.question || 'Arrange in correct sequence',
+          sequence_items: metadata.sequence_items || [],
+          visual_context: q.visual_context,
+          explanation: q.explanation || 'Sequencing question',
+          sequence_type: metadata.sequence_type || 'general'
         };
         break;
         
@@ -137,7 +166,8 @@ function transformResponseToExpectedFormat(edgeResponse: any): any {
           options: q.options || (q.type === 'true-false' ? ["True", "False"] : ["Option A", "Option B", "Option C", "Option D"]),
           correct_answer: typeof q.correct_answer === 'string' ? parseInt(q.correct_answer) || 0 : (q.correct_answer || 0),
           explanation: q.explanation || 'No explanation provided',
-          visual_context: q.visual_context
+          visual_context: q.visual_context,
+          misconception_analysis: metadata.misconception_analysis || {}
     };
         break;
     }
@@ -145,24 +175,17 @@ function transformResponseToExpectedFormat(edgeResponse: any): any {
     // Add additional metadata
     transformedQuestion.timestamp = q.timestamp;
     transformedQuestion.has_visual_asset = q.has_visual_asset || false;
-    transformedQuestion.visual_question_type = q.visual_question_type;
+    transformedQuestion.quality_score = q.quality_score || 0;
+    transformedQuestion.meets_threshold = q.meets_threshold || false;
     
     currentSegment.questions.push(transformedQuestion);
     
     // Add visual context as concepts
-    if (q.visual_context) {
-      const conceptText = q.visual_context.substring(0, 50);
-      if (!currentSegment.concepts.includes(conceptText)) {
+    if (q.visual_context || metadata.question_context) {
+      const conceptText = (q.visual_context || metadata.question_context || '').substring(0, 50);
+      if (conceptText && !currentSegment.concepts.includes(conceptText)) {
         currentSegment.concepts.push(conceptText);
       }
-    }
-    
-    // Add visual moments for this segment
-    const relatedVisualMoment = visual_moments.find((vm: any) => 
-      Math.abs(vm.timestamp - q.timestamp) < 30
-    );
-    if (relatedVisualMoment && !currentSegment.visual_moments.some((vm: any) => vm.timestamp === relatedVisualMoment.timestamp)) {
-      currentSegment.visual_moments.push(relatedVisualMoment);
     }
   });
   
@@ -191,17 +214,30 @@ function transformResponseToExpectedFormat(edgeResponse: any): any {
   
   // Calculate duration from total_duration or estimate
   const durationText = total_duration 
-    ? `${Math.ceil(parseInt(total_duration) / 60)} minutes`
+    ? `${Math.ceil(total_duration / 60)} minutes`
     : "30 minutes";
+  
+  // Calculate enhanced features from pipeline results
+  const visualQuestionsCount = questions.filter((q: any) => q.has_visual_asset).length;
+  const avgQualityScore = questions.length > 0 
+    ? questions.reduce((sum: number, q: any) => sum + (q.quality_score || 0), 0) / questions.length 
+    : 0;
   
   return {
     title: video_summary.substring(0, 80) + (video_summary.length > 80 ? "..." : ""),
-    description: `Interactive course with ${enhanced_features.visual_questions_count || 0} visual questions generated from YouTube video content using AI analysis.`,
+    description: `Interactive course with ${visualQuestionsCount} visual questions generated using Quiz Generation Pipeline v4.0.`,
     duration: durationText,
     segments: segments,
     video_summary: video_summary,
-    visual_moments: visual_moments,
-    enhanced_features: enhanced_features
+    visual_moments: [],
+    enhanced_features: {
+      visual_questions_enabled: visualQuestionsCount > 0,
+      visual_questions_count: visualQuestionsCount,
+      frame_capture_available: true,
+      pipeline_v4_enabled: true,
+      average_quality_score: avgQualityScore,
+      pipeline_metadata: pipeline_metadata
+    }
   };
 }
 
@@ -224,7 +260,7 @@ export default async function handler(
   }
 
   try {
-    const { youtubeUrl, useEnhanced } = req.body;
+    const { youtubeUrl } = req.body;
 
     if (!youtubeUrl) {
       return res.status(400).json({ error: 'YouTube URL is required' });
@@ -256,8 +292,8 @@ export default async function handler(
 
     console.log('✅ Course created:', course.id);
 
-    // Step 2: Call appropriate service based on useEnhanced flag
-    const serviceName = useEnhanced ? 'enhanced-quiz-service' : 'gemini-quiz-service';
+    // Step 2: Call quiz-generation-v4 service (replacing enhanced-quiz-service)
+    const serviceName = 'quiz-generation-v4';
     const edgeResponse = await fetch(
       `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/${serviceName}`,
       {
@@ -271,8 +307,7 @@ export default async function handler(
           course_id: course.id,
           youtube_url: youtubeUrl,
           max_questions: 10,
-          difficulty_level: 'medium',
-          focus_topics: ['visual learning', 'educational content'],
+          difficulty_level: 'intermediate',
           enable_visual_questions: true
         })
       }
@@ -289,10 +324,10 @@ export default async function handler(
 
     const edgeData = await edgeResponse.json();
     console.log(`✅ ${serviceName} completed successfully!`);
-    console.log(`   - Questions generated: ${edgeData.questions?.length || 0}`);
-    console.log(`   - Visual questions: ${edgeData.enhanced_features?.visual_questions_count || 0}`);
-    console.log(`   - Video summary: ${edgeData.video_summary?.substring(0, 100) || 'N/A'}...`);
-    console.log(`   - Visual moments identified: ${edgeData.visual_moments?.length || 0}`);
+    console.log(`   - Questions generated: ${edgeData.final_questions?.length || 0}`);
+    console.log(`   - Quality metrics: Average score ${edgeData.pipeline_results?.verification?.verification_metadata?.average_score || 0}`);
+    console.log(`   - Visual questions: ${edgeData.final_questions?.filter((q: any) => q.has_visual_asset).length || 0}`);
+    console.log(`   - Pipeline timings: ${JSON.stringify(edgeData.pipeline_metadata?.stage_timings || {})}`);
 
     // Step 3: Transform response to expected format
     const transformedData = transformResponseToExpectedFormat(edgeData);
@@ -324,11 +359,11 @@ export default async function handler(
       course_id: course.id,
       enhanced_features: transformedData.enhanced_features,
       processing_summary: {
-        total_questions: edgeData.questions?.length || 0,
-        visual_questions: edgeData.enhanced_features?.visual_questions_count || 0,
+        total_questions: edgeData.final_questions?.length || 0,
+        visual_questions: edgeData.final_questions?.filter((q: any) => q.has_visual_asset).length || 0,
         segments_created: transformedData.segments?.length || 0,
         video_duration: transformedData.duration,
-        visual_moments: edgeData.visual_moments?.length || 0,
+        visual_moments: [], // No longer available in new pipeline
         service_used: serviceName
       }
     });

@@ -1,0 +1,13 @@
+{
+  "imports": {
+    "@supabase/functions-js/edge-runtime.d.ts": "https://esm.sh/@supabase/functions-js@2.1.5/src/edge-runtime.d.ts",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.1",
+    "@langchain/langgraph": "https://esm.sh/@langchain/langgraph@0.0.26",
+    "@langchain/core": "https://esm.sh/@langchain/core@0.1.52"
+  },
+  "compilerOptions": {
+    "allowJs": true,
+    "lib": ["deno.ns", "deno.unstable", "dom"],
+    "strict": true
+  }
+} 

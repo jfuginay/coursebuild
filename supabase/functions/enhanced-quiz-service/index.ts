@@ -163,7 +163,7 @@ async function generateEnhancedQuestions(
     };
 
     const response = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY2')}`,
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -295,25 +295,42 @@ async function generatePreciseBoundingBoxes(
     // Only process hotspot questions for bounding box generation
     if (question.type !== 'hotspot' || !question.target_objects || !question.frame_timestamp) {
       // For non-hotspot questions, add metadata for matching/sequencing
-      if (question.type === 'matching' && question.matching_pairs) {
-        const updatedQuestion = {
-          ...question,
-          metadata: JSON.stringify({
-            matching_pairs: question.matching_pairs,
-            video_overlay: true
-          })
-        };
-        updatedQuestions.push(updatedQuestion);
-      } else if (question.type === 'sequencing' && question.sequence_items) {
-        const updatedQuestion = {
-          ...question,
-          metadata: JSON.stringify({
-            sequence_items: question.sequence_items,
-            video_overlay: true
-          })
-        };
-        updatedQuestions.push(updatedQuestion);
+      if (question.type === 'matching') {
+        // Validate that matching question has valid pairs
+        const matchingPairs = question.matching_pairs || [];
+        if (matchingPairs.length >= 2) {
+          console.log(`✅ Processing matching question with ${matchingPairs.length} pairs`);
+          const updatedQuestion = {
+            ...question,
+            metadata: JSON.stringify({
+              matching_pairs: matchingPairs,
+              video_overlay: true
+            })
+          };
+          updatedQuestions.push(updatedQuestion);
+        } else {
+          console.warn(`⚠️ Skipping matching question with insufficient pairs (${matchingPairs.length}). Need at least 2 pairs for meaningful interaction.`);
+          // Don't add questions with insufficient matching pairs
+        }
+      } else if (question.type === 'sequencing') {
+        // Validate that sequencing question has valid items
+        const sequenceItems = question.sequence_items || [];
+        if (sequenceItems.length >= 3) {
+          console.log(`✅ Processing sequencing question with ${sequenceItems.length} items`);
+          const updatedQuestion = {
+            ...question,
+            metadata: JSON.stringify({
+              sequence_items: sequenceItems,
+              video_overlay: true
+            })
+          };
+          updatedQuestions.push(updatedQuestion);
+        } else {
+          console.warn(`⚠️ Skipping sequencing question with insufficient items (${sequenceItems.length}). Need at least 3 items for meaningful interaction.`);
+          // Don't add questions with insufficient sequence items
+        }
       } else {
+        // For other question types (multiple-choice, true-false), add as-is
         updatedQuestions.push(question);
       }
       continue;
@@ -325,16 +342,27 @@ async function generatePreciseBoundingBoxes(
       const endOffset = question.frame_timestamp + 0.5;
       
       const objectDetectionPrompt = `
-Return bounding boxes as an array with labels for the target objects.
-Never return masks. Limit to 10 objects maximum.
-If an object is present multiple times, give each object a unique label according to its distinct characteristics (colors, size, position, etc.).
+CRITICAL: Return bounding boxes for ALL visible objects in this frame to create a multiple-choice hotspot question. MINIMUM 3-5 bounding boxes required.
 
-QUESTION CONTEXT: ${question.question_context}
-TARGET OBJECTS TO FIND: ${question.target_objects.join(', ')}
+QUESTION: "${question.question}"
+CORRECT ANSWER: ${question.target_objects.join(', ')}
+CONTEXT: ${question.question_context}
 
-For the question "${question.question}", identify and return bounding boxes for each target object that is clearly visible in this video segment.
+Requirements:
+1. Find and mark the CORRECT answer object(s): ${question.target_objects.join(', ')}
+2. Find 2-4 DISTRACTOR objects that are visible but NOT the correct answer
+3. Include plausible alternatives that could confuse someone who doesn't understand the concept
+4. Each object should be clearly distinguishable and clickable
+5. Provide unique descriptive labels for each object
 
-Mark objects as correct answers based on what the question is specifically asking for.
+Guidelines:
+- ALWAYS return 3-5 bounding boxes minimum for interactive selection
+- Mark is_correct_answer=true ONLY for: ${question.target_objects.join(', ')}
+- Mark is_correct_answer=false for all distractor objects
+- Choose distractors that test understanding, not random objects
+- Ensure all objects are clearly visible and distinct
+
+Example good distractors for electronic components: similar-looking components, adjacent parts, related but different elements.
 `;
 
       console.log(`🔍 Detecting objects for question: "${question.question.substring(0, 50)}..."`);
@@ -395,7 +423,7 @@ Mark objects as correct answers based on what the question is specifically askin
       };
     
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY2')}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
         {
       method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -480,6 +508,43 @@ Mark objects as correct answers based on what the question is specifically askin
           description: `Detected via Gemini bounding box: ${bbox.label}`
         };
       }).filter(Boolean); // Remove any null entries
+
+      // QUALITY CHECK: Ensure we have multiple bounding boxes for meaningful interaction
+      if (normalizedElements.length < 2) {
+        console.warn(`⚠️ Only ${normalizedElements.length} bounding box(es) detected for hotspot question. Skipping question - needs multiple options for interaction.`);
+        updatedQuestions.push(question);
+        continue;
+      }
+
+      // Validate we have exactly one correct answer
+      const correctAnswers = normalizedElements.filter(el => el.is_correct_answer);
+      if (correctAnswers.length !== 1) {
+        console.warn(`⚠️ Expected exactly 1 correct answer, found ${correctAnswers.length}. Adjusting...`);
+        
+        // If no correct answer marked, mark the first one that matches target objects
+        if (correctAnswers.length === 0) {
+          const targetObjectLabels = question.target_objects.map((obj: string) => obj.toLowerCase());
+          for (const element of normalizedElements) {
+            const elementLabel = element.label.toLowerCase();
+            if (targetObjectLabels.some((target: string) => elementLabel.includes(target))) {
+              element.is_correct_answer = true;
+              console.log(`✅ Marked "${element.label}" as correct answer`);
+              break;
+            }
+          }
+        }
+        
+        // If multiple correct answers, keep only the first one
+        if (correctAnswers.length > 1) {
+          correctAnswers.slice(1).forEach(answer => {
+            answer.is_correct_answer = false;
+          });
+        }
+      }
+
+      console.log(`✅ Hotspot question validated: ${normalizedElements.length} total options, ${normalizedElements.filter(el => el.is_correct_answer).length} correct answer(s)`);
+      console.log(`📦 Bounding boxes: ${normalizedElements.map(el => `${el.label}(${el.is_correct_answer ? 'CORRECT' : 'distractor'})`).join(', ')}`);
+      
 
       // Update question with detected bounding boxes
       const updatedQuestion = {
@@ -626,9 +691,9 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-      const geminiApiKey = Deno.env.get('GEMINI_API_KEY2');
+      const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
     if (!geminiApiKey) {
-    throw new Error('GEMINI_API_KEY2 environment variable is not set');
+    throw new Error('GEMINI_API_KEY environment variable is not set');
     }
 
     const {

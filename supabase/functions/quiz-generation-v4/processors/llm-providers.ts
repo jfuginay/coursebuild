@@ -1,0 +1,419 @@
+/**
+ * LLM Provider Interface - Unified interface for Gemini and OpenAI
+ * 
+ * Provides a consistent interface for text generation that can switch between
+ * providers while maintaining the same API for question generation.
+ */
+
+import { getQuestionSchema } from './llm-schemas.ts';
+
+// =============================================================================
+// Types and Interfaces
+// =============================================================================
+
+interface LLMUsage {
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+}
+
+interface LLMResponse {
+  content: any;
+  usage: LLMUsage;
+  provider: 'openai' | 'gemini';
+  model: string;
+}
+
+interface LLMRequest {
+  prompt: string;
+  responseSchema: any;
+  generationConfig: {
+    temperature: number;
+    maxOutputTokens: number;
+    topK?: number;
+    topP?: number;
+  };
+}
+
+interface ProviderConfig {
+  preferredProvider: 'openai' | 'gemini';
+  fallbackProvider: 'openai' | 'gemini';
+  retryAttempts: number;
+  retryDelay: number;
+  geminiApiKey?: string;
+  openaiApiKey?: string;
+}
+
+// =============================================================================
+// Configuration
+// =============================================================================
+
+const DEFAULT_CONFIG: ProviderConfig = {
+  preferredProvider: 'openai',
+  fallbackProvider: 'gemini',
+  retryAttempts: 3,
+  retryDelay: 1000,
+  geminiApiKey: Deno.env.get('GEMINI_API_KEY') || '',
+  openaiApiKey: Deno.env.get('OPENAI_API_KEY') || ''
+};
+
+// =============================================================================
+// Provider Implementations
+// =============================================================================
+
+class GeminiProvider {
+  private readonly apiKey: string;
+  private readonly baseUrl: string;
+
+  constructor(apiKey: string) {
+    this.apiKey = apiKey;
+    this.baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
+  }
+
+  async generateResponse(prompt: string, questionType: string, config: any): Promise<LLMResponse> {
+    console.log(`🤖 Generating ${questionType} with Gemini`);
+    
+    const schema = getQuestionSchema(questionType, 'gemini'); // Use Gemini-compatible schema
+    
+    const requestBody = {
+      contents: [{
+        parts: [{ text: prompt }]
+      }],
+      generationConfig: {
+        temperature: config.temperature,
+        topK: config.topK,
+        topP: config.topP,
+        maxOutputTokens: config.maxOutputTokens,
+        candidateCount: 1,
+        responseMimeType: "application/json",
+        responseSchema: schema
+      }
+    };
+
+    const response = await fetch(`${this.baseUrl}/gemini-2.0-flash-exp:generateContent?key=${this.apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Gemini API error: ${response.status} - ${JSON.stringify(errorData)}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+      throw new Error('Invalid response structure from Gemini API');
+    }
+
+    const content = data.candidates[0].content.parts[0].text;
+    let parsedContent;
+    
+    try {
+      parsedContent = JSON.parse(content);
+    } catch (error) {
+      throw new Error(`Failed to parse Gemini response as JSON: ${(error as Error).message}`);
+    }
+
+    return {
+      content: parsedContent,
+      usage: {
+        promptTokens: data.usageMetadata?.promptTokenCount || 0,
+        completionTokens: data.usageMetadata?.candidatesTokenCount || 0,
+        totalTokens: data.usageMetadata?.totalTokenCount || 0
+      },
+      provider: 'gemini',
+      model: 'gemini-2.0-flash-exp'
+    };
+  }
+}
+
+class OpenAIProvider {
+  private readonly apiKey: string;
+  private readonly baseUrl: string;
+
+  constructor(apiKey: string) {
+    this.apiKey = apiKey;
+    this.baseUrl = 'https://api.openai.com/v1';
+  }
+
+  async generateResponse(prompt: string, questionType: string, config: any): Promise<LLMResponse> {
+    console.log(`🤖 Generating ${questionType} with OpenAI`);
+    
+    const schema = getQuestionSchema(questionType, 'openai'); // Use OpenAI-compatible schema
+    
+    const requestBody = {
+      model: 'gpt-4o-2024-08-06',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an expert educational content creator. Generate high-quality quiz questions according to the provided schema.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: `${questionType.replace('-', '_')}_question`,
+          schema: schema,
+          strict: true
+        }
+      },
+      temperature: config.temperature,
+      max_tokens: config.maxOutputTokens,
+      top_p: config.topP
+    };
+
+    const response = await fetch(`${this.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.apiKey}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`OpenAI API error: ${response.status} - ${JSON.stringify(errorData)}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      throw new Error('Invalid response structure from OpenAI API');
+    }
+
+    const content = data.choices[0].message.content;
+    let parsedContent;
+    
+    try {
+      parsedContent = JSON.parse(content);
+    } catch (error) {
+      throw new Error(`Failed to parse OpenAI response as JSON: ${(error as Error).message}`);
+    }
+
+    return {
+      content: parsedContent,
+      usage: {
+        promptTokens: data.usage?.prompt_tokens || 0,
+        completionTokens: data.usage?.completion_tokens || 0,
+        totalTokens: data.usage?.total_tokens || 0
+      },
+      provider: 'openai',
+      model: 'gpt-4o-2024-08-06'
+    };
+  }
+}
+
+// =============================================================================
+// Main LLM Service
+// =============================================================================
+
+export class LLMService {
+  private config: ProviderConfig;
+  private geminiProvider: GeminiProvider;
+  private openaiProvider: OpenAIProvider;
+
+  constructor(config: Partial<ProviderConfig> = {}) {
+    this.config = { ...DEFAULT_CONFIG, ...config };
+    this.geminiProvider = new GeminiProvider(this.config.geminiApiKey || '');
+    this.openaiProvider = new OpenAIProvider(this.config.openaiApiKey || '');
+  }
+
+  async generateQuestion(questionType: string, prompt: string, config: any): Promise<LLMResponse> {
+    const primaryProvider = config.preferredProvider || this.config.preferredProvider;
+    const fallbackProvider = primaryProvider === 'openai' ? 'gemini' : 'openai';
+
+    console.log(`🎯 Attempting ${questionType} generation with ${primaryProvider}`);
+
+    try {
+      const result = await this.attemptGeneration(primaryProvider, questionType, prompt, config);
+      console.log(`✅ ${primaryProvider} generation successful`);
+      return result;
+    } catch (primaryError) {
+      console.warn(`⚠️ ${primaryProvider} failed: ${(primaryError as Error).message}`);
+      
+      try {
+        console.log(`🔄 Falling back to ${fallbackProvider}`);
+        const result = await this.attemptGeneration(fallbackProvider, questionType, prompt, config);
+        console.log(`✅ ${fallbackProvider} fallback successful`);
+        return result;
+      } catch (fallbackError) {
+        console.error(`❌ Both providers failed`);
+        throw new Error(`All providers failed. Primary (${primaryProvider}): ${(primaryError as Error).message}. Fallback (${fallbackProvider}): ${(fallbackError as Error).message}`);
+      }
+    }
+  }
+
+  private async attemptGeneration(
+    provider: 'openai' | 'gemini',
+    questionType: string,
+    prompt: string,
+    config: any
+  ): Promise<LLMResponse> {
+    const providerInstance = provider === 'openai' ? this.openaiProvider : this.geminiProvider;
+    
+    for (let attempt = 1; attempt <= this.config.retryAttempts; attempt++) {
+      try {
+        const result = await providerInstance.generateResponse(prompt, questionType, config);
+        return result;
+      } catch (error) {
+        console.warn(`⚠️ ${provider} attempt ${attempt} failed: ${(error as Error).message}`);
+        
+        if (attempt < this.config.retryAttempts) {
+          const delay = this.config.retryDelay * Math.pow(2, attempt - 1);
+          console.log(`⏳ Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        } else {
+          throw error;
+        }
+      }
+    }
+    
+    throw new Error(`${provider} failed after ${this.config.retryAttempts} attempts`);
+  }
+
+  /**
+   * Set provider configuration
+   */
+  setConfig(config: Partial<ProviderConfig>): void {
+    this.config = { ...this.config, ...config };
+  }
+
+  /**
+   * Get current configuration
+   */
+  getConfig(): ProviderConfig {
+    return { ...this.config };
+  }
+
+  // =============================================================================
+  // Health Check and Testing
+  // =============================================================================
+
+  /**
+   * Check if both providers are available and working
+   */
+  async checkProviderHealth(): Promise<{ gemini: boolean; openai: boolean }> {
+    const testPrompt = "Generate a simple test question about basic mathematics.";
+    const testConfig = {
+      temperature: 0.5,
+      maxOutputTokens: 100,
+      topK: 30,
+      topP: 0.8
+    };
+
+    const [geminiResult, openaiResult] = await Promise.allSettled([
+      this.attemptGeneration('gemini', 'multiple-choice', testPrompt, testConfig),
+      this.attemptGeneration('openai', 'multiple-choice', testPrompt, testConfig)
+    ]);
+
+    return {
+      gemini: geminiResult.status === 'fulfilled',
+      openai: openaiResult.status === 'fulfilled'
+    };
+  }
+
+  /**
+   * Get usage statistics for the current session
+   */
+  getUsageStats(): { totalTokens: number; costEstimate: number } {
+    // This would be implemented to track usage across all requests
+    return {
+      totalTokens: 0,
+      costEstimate: 0
+    };
+  }
+}
+
+// =============================================================================
+// Exports
+// =============================================================================
+
+export default LLMService;
+export type { LLMResponse, LLMRequest, ProviderConfig };
+
+// =============================================================================
+// Convenience Functions
+// =============================================================================
+
+/**
+ * Create a default LLM service instance
+ */
+export const createLLMService = (config?: Partial<ProviderConfig>): LLMService => {
+  return new LLMService(config);
+};
+
+/**
+ * Enhanced JSON cleaning function (moved from MCQ processor)
+ */
+export const cleanJsonResponse = (jsonString: string): string => {
+  let cleaned = jsonString
+    .replace(/```json\n?/g, '')
+    .replace(/```\n?/g, '')
+    .replace(/": "([^"]*)"([^",\]}]*)"([^"]*)",?/g, '": "$1\\"$2\\"$3",')
+    .replace(/": "([^"]*)"([^",\]}\n]*)",/g, '": "$1\\"$2",')
+    .replace(/[\x00-\x1F\x7F]/g, '')
+    .replace(/,(\s*[}\]])/g, '$1')
+    .replace(/\\(?!["\\/bfnrt])/g, '\\\\')
+    .replace(/": "([^"]*)\n([^"]*)",/g, '": "$1\\n$2",')
+    .trim();
+  
+  if (!cleaned.startsWith('{')) {
+    const startIndex = cleaned.indexOf('{');
+    if (startIndex !== -1) {
+      cleaned = cleaned.substring(startIndex);
+    }
+  }
+  
+  if (!cleaned.endsWith('}')) {
+    const endIndex = cleaned.lastIndexOf('}');
+    if (endIndex !== -1) {
+      cleaned = cleaned.substring(0, endIndex + 1);
+    }
+  }
+  
+  return cleaned;
+};
+
+// =============================================================================
+// Export Default Service Instance
+// =============================================================================
+
+export const llmService = createLLMService();
+
+// =============================================================================
+// Provider Status and Health Check
+// =============================================================================
+
+export const checkProviderHealth = async (): Promise<{
+  gemini: boolean;
+  openai: boolean;
+  timestamp: number;
+}> => {
+  const testPrompt = "Generate a simple test response with a single field called 'test' with value 'ok'";
+  const testConfig = {
+    temperature: 0.1,
+    maxOutputTokens: 50,
+    topK: 30,
+    topP: 0.8
+  };
+
+  const [geminiResult, openaiResult] = await Promise.allSettled([
+    new GeminiProvider(Deno.env.get('GEMINI_API_KEY') || '').generateResponse(testPrompt, 'multiple-choice', testConfig),
+    new OpenAIProvider(Deno.env.get('OPENAI_API_KEY') || '').generateResponse(testPrompt, 'multiple-choice', testConfig)
+  ]);
+
+  return {
+    gemini: geminiResult.status === 'fulfilled',
+    openai: openaiResult.status === 'fulfilled',
+    timestamp: Date.now()
+  };
+}; 

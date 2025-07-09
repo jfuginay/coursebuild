@@ -196,6 +196,26 @@ export default function CoursePage() {
     }
   }, [currentTime, questions, currentQuestionIndex, answeredQuestions]);
 
+  // Adjust question timestamps when video duration becomes available
+  useEffect(() => {
+    if (questions.length > 0 && duration > 0 && isVideoReady) {
+      // Check if any questions need adjustment
+      const hasEndOfVideoQuestions = questions.some(question => question.timestamp > duration - 5);
+      
+      if (hasEndOfVideoQuestions) {
+        console.log(`🎬 Video duration: ${duration}s - checking for end-of-video questions...`);
+        const adjustedQuestions = adjustEndOfVideoQuestions(questions, duration);
+        
+        // Only update if adjustments were made
+        const questionsAdjusted = JSON.stringify(adjustedQuestions) !== JSON.stringify(questions);
+        if (questionsAdjusted) {
+          console.log('⏰ Applied timestamp adjustments for end-of-video questions');
+          setQuestions(adjustedQuestions);
+        }
+      }
+    }
+  }, [questions, duration, isVideoReady]);
+
   const fetchCourse = async () => {
     try {
       const response = await fetch(`/api/course/${id}`);
@@ -606,6 +626,33 @@ export default function CoursePage() {
       }
     }
     return '';
+  };
+
+  // Adjust question timestamps that are too close to the video end
+  const adjustEndOfVideoQuestions = (questions: Question[], videoDuration: number): Question[] => {
+    const END_BUFFER_SECONDS = 5; // Move questions this many seconds before the end
+    
+    return questions.map(question => {
+      // Check if question is within the last 5 seconds of the video
+      if (question.timestamp > videoDuration - END_BUFFER_SECONDS) {
+        const originalTimestamp = question.timestamp;
+        const adjustedTimestamp = Math.max(
+          videoDuration - END_BUFFER_SECONDS,
+          question.timestamp - END_BUFFER_SECONDS
+        );
+        
+        console.log(`⏰ Adjusting end-of-video question: ${originalTimestamp}s → ${adjustedTimestamp}s (video ends at ${videoDuration}s)`);
+        
+        return {
+          ...question,
+          timestamp: adjustedTimestamp,
+          frame_timestamp: question.frame_timestamp && question.frame_timestamp > videoDuration - END_BUFFER_SECONDS 
+            ? adjustedTimestamp - 2 
+            : question.frame_timestamp
+        };
+      }
+      return question;
+    });
   };
 
   const handleBackToHome = () => {
