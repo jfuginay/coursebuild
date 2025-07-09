@@ -114,8 +114,8 @@ export default function CourseCurriculumCard({
                   className={`relative p-4 rounded-lg border transition-all ${
                     isAnswered 
                       ? isCorrect 
-                        ? 'bg-green-50/50 border-green-200' 
-                        : 'bg-red-50/50 border-red-200'
+                        ? 'bg-green-50 border-green-200 text-green-900' 
+                        : 'bg-red-50 border-red-200 text-red-900'
                       : isLocked
                       ? 'bg-muted/30 border-muted'
                       : 'bg-background border-border'
@@ -146,8 +146,8 @@ export default function CourseCurriculumCard({
                             variant="outline" 
                             className={`text-xs ${
                               isCorrect 
-                                ? 'bg-green-100 text-green-700 border-green-300' 
-                                : 'bg-red-100 text-red-700 border-red-300'
+                                ? 'bg-green-100 text-green-800 border-green-300' 
+                                : 'bg-red-100 text-red-800 border-red-300'
                             }`}
                           >
                             {isCorrect ? 'Correct' : 'Incorrect'}
@@ -163,7 +163,13 @@ export default function CourseCurriculumCard({
                       <div className={`text-sm ${isLocked && !isAnswered ? 'relative' : ''}`}>
                         {isAnswered ? (
                           <>
-                            <p className="font-medium">{question.question}</p>
+                            <p className={`font-medium ${
+                              isCorrect 
+                                ? 'text-green-900' 
+                                : 'text-red-900'
+                            }`}>
+                              {question.question}
+                            </p>
                             {isAnswered && (
                               <button
                                 onClick={() => {
@@ -183,8 +189,16 @@ export default function CourseCurriculumCard({
                               </button>
                             )}
                             {isExpanded && (
-                              <div className="mt-2 p-3 bg-background rounded-md border">
-                                <p className="text-sm text-muted-foreground">
+                              <div className={`mt-2 p-3 rounded-md border ${
+                                isCorrect 
+                                  ? 'bg-green-50/70 border-green-200' 
+                                  : 'bg-red-50/70 border-red-200'
+                              }`}>
+                                <p className={`text-sm ${
+                                  isCorrect 
+                                    ? 'text-green-800' 
+                                    : 'text-red-800'
+                                }`}>
                                   {question.explanation}
                                 </p>
                               </div>
