@@ -1,4 +1,4 @@
-import { NextApiRequest, NextApiResponse } from 'next';
+import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -15,12 +15,13 @@ export default async function handler(
   }
 
   try {
+    // Extract user from authorization header
     const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Missing or invalid authorization header' });
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Authorization required' });
     }
 
-    const token = authHeader.substring(7);
+    const token = authHeader.split(' ')[1];
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
@@ -29,7 +30,7 @@ export default async function handler(
 
     console.log('📊 Fetching dashboard data for user:', user.id);
 
-    // 1. Get user profile and basic stats - with fallback for missing tables
+    // 1. Get user profile - fallback to basic profile if view doesn't exist
     let dashboardStats = null;
     try {
       const { data: statsData, error: statsError } = await supabase
@@ -39,43 +40,30 @@ export default async function handler(
         .single();
 
       if (statsError) {
-        console.log('📊 Dashboard stats view not available, calculating stats manually');
-        // Create basic stats structure and calculate manually
-        console.log('📊 Calculating stats manually from individual tables');
-        
-        // Get actual counts from individual tables
-        const { data: enrollmentCount } = await supabase
-          .from('user_course_enrollments')
-          .select('id, completion_percentage')
-          .eq('user_id', user.id);
-
-        const { data: questionsCount } = await supabase
-          .from('user_question_attempts')
-          .select('id, is_correct')
-          .eq('user_id', user.id);
-
-        const totalEnrollments = enrollmentCount?.length || 0;
-        const completedCourses = enrollmentCount?.filter(e => e.completion_percentage >= 100).length || 0;
-        const totalQuestions = questionsCount?.length || 0;
-        const correctAnswers = questionsCount?.filter(q => q.is_correct).length || 0;
-        
-        // Get basic profile
-        const { data: profile } = await supabase
+        console.log('Dashboard stats view not available, falling back to basic profile');
+        // Fallback: get basic profile data
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', user.id)
           .single();
 
+        if (profileError) {
+          console.error('Error fetching user profile:', profileError);
+          return res.status(500).json({ error: 'Failed to fetch user profile' });
+        }
+
+        // Create basic stats structure
         dashboardStats = {
           user_id: user.id,
-          email: profile?.email || user.email,
-          display_name: profile?.display_name || user.email?.split('@')[0],
-          subscription_tier: profile?.subscription_tier || 'free',
-          courses_enrolled: totalEnrollments,
-          courses_completed: completedCourses,
-          total_correct_answers: correctAnswers,
-          total_questions_attempted: totalQuestions,
-          total_points: correctAnswers * 10, // Simple points calculation
+          email: profile.email,
+          display_name: profile.display_name,
+          subscription_tier: profile.subscription_tier || 'free',
+          courses_enrolled: 0,
+          courses_completed: 0,
+          total_correct_answers: 0,
+          total_questions_attempted: 0,
+          total_points: 0,
           total_achievements: 0
         };
       } else {
@@ -86,7 +74,7 @@ export default async function handler(
       return res.status(500).json({ error: 'Failed to fetch dashboard data' });
     }
 
-    // 2. Get enrolled courses with progress - with fallback
+    // 2. Get enrolled courses with progress (with fallback)
     let enrollments = [];
     try {
       const { data: enrollmentData, error: enrollmentsError } = await supabase
@@ -116,7 +104,7 @@ export default async function handler(
       enrollments = [];
     }
 
-    // 3. Get recent question attempts (last 10) - with fallback
+    // 3. Get recent question attempts (last 10) (with fallback)
     let recentAttempts = [];
     try {
       const { data: attemptData, error: attemptsError } = await supabase
@@ -149,7 +137,7 @@ export default async function handler(
       recentAttempts = [];
     }
 
-    // 4. Get recent achievements (last 5) - with fallback
+    // 4. Get recent achievements (last 5) (with fallback)
     let recentAchievements = [];
     try {
       const { data: achievementData, error: achievementsError } = await supabase
@@ -170,11 +158,11 @@ export default async function handler(
       recentAchievements = [];
     }
 
-    // 5. Get learning streak data - with fallback
+    // 5. Get learning streak data (with fallback)
     let currentStreak = 0;
     let longestStreak = 0;
     let weeklyQuestions = 0;
-    
+
     try {
       const { data: streakData, error: streakError } = await supabase
         .from('user_question_attempts')
@@ -197,7 +185,7 @@ export default async function handler(
         }
         if (tempStreak > longestStreak) longestStreak = tempStreak;
 
-        // Calculate weekly activity
+        // 6. Calculate weekly activity
         const oneWeekAgo = new Date();
         oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
         
@@ -210,7 +198,7 @@ export default async function handler(
       console.log('Streak calculation failed, using defaults');
     }
 
-    // 7. Get course progress details for enrolled courses - with fallback
+    // 7. Get course progress details for enrolled courses (with fallback)
     const courseProgressDetails = [];
     if (enrollments && enrollments.length > 0) {
       for (const enrollment of enrollments) {
@@ -235,53 +223,40 @@ export default async function handler(
       }
     }
 
-    // Build response with tab structure
-    const response = {
-      success: true,
-      dashboardStats,
-      tabs: {
-        overview: {
-          stats: dashboardStats,
-          streaks: {
-            current: currentStreak,
-            longest: longestStreak,
-            weeklyQuestions
-          },
-          recentActivity: recentAttempts.slice(0, 5),
-          topCourses: courseProgressDetails.slice(0, 3)
-        },
-        courses: {
-          enrolled: courseProgressDetails,
-          totalEnrolled: enrollments.length,
-          completed: courseProgressDetails.filter(c => c.completion_percentage >= 100).length
-        },
-        progress: {
-          recentAttempts: recentAttempts,
-          streakData: {
-            current: currentStreak,
-            longest: longestStreak,
-            weeklyQuestions
-          },
-          achievements: recentAchievements
-        },
-        achievements: {
-          recent: recentAchievements,
-          total: dashboardStats.total_achievements,
-          categories: {
-            learning: recentAchievements.filter(a => a.category === 'learning').length,
-            streak: recentAchievements.filter(a => a.category === 'streak').length,
-            completion: recentAchievements.filter(a => a.category === 'completion').length
-          }
-        }
-      }
-    };
+    console.log('✅ Dashboard data fetched successfully');
 
-    return res.status(200).json(response);
+    return res.status(200).json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        ...dashboardStats
+      },
+      stats: {
+        coursesEnrolled: dashboardStats?.courses_enrolled || 0,
+        coursesCompleted: dashboardStats?.courses_completed || 0,
+        totalCorrectAnswers: dashboardStats?.total_correct_answers || 0,
+        totalQuestionsAttempted: dashboardStats?.total_questions_attempted || 0,
+        totalPoints: dashboardStats?.total_points || 0,
+        totalAchievements: dashboardStats?.total_achievements || 0,
+        currentStreak,
+        longestStreak,
+        weeklyQuestions,
+        accuracyRate: dashboardStats?.total_questions_attempted > 0 
+          ? Math.round((dashboardStats.total_correct_answers / dashboardStats.total_questions_attempted) * 100)
+          : 0
+      },
+      enrollments: courseProgressDetails,
+      recentActivity: {
+        attempts: recentAttempts || [],
+        achievements: recentAchievements || []
+      }
+    });
 
   } catch (error) {
-    console.error('Dashboard API error:', error);
-    return res.status(500).json({ 
-      error: 'Internal server error',
+    console.error('API Error:', error);
+    return res.status(500).json({
+      error: 'Failed to fetch dashboard data',
       message: error instanceof Error ? error.message : 'Unknown error'
     });
   }
