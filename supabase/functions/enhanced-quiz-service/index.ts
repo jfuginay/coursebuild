@@ -595,19 +595,33 @@ async function storeEnhancedQuestions(
 ): Promise<any[]> {
   console.log('💾 Storing enhanced questions with precise bounding boxes...');
 
-  const questionsToInsert = questions.map((q: any) => ({
-    course_id: courseId,
-    timestamp: q.timestamp,
-    question: q.question,
-    type: mapGeminiTypeToDbType(q.type),
-    options: q.options ? JSON.stringify(q.options) : null,
-    correct_answer: typeof q.correct_answer === 'string' ? parseInt(q.correct_answer) || 0 : q.correct_answer,
-    explanation: q.explanation,
-    has_visual_asset: ['hotspot', 'matching', 'sequencing'].includes(q.type),
-    fallback_prompt: q.type === 'hotspot' ? `Generate simple diagram showing objects` : null,
-    frame_timestamp: q.frame_timestamp || null,
-    metadata: q.metadata || null
-  }));
+  const questionsToInsert = questions.map((q: any) => {
+    // Ensure true/false questions have proper options
+    let options = q.options;
+    let correctAnswer = q.correct_answer;
+    
+    if (q.type === 'true_false') {
+      options = options || ["True", "False"];
+      // Convert boolean to array index
+      if (typeof correctAnswer === 'boolean') {
+        correctAnswer = correctAnswer ? 1 : 0;
+      }
+    }
+    
+    return {
+      course_id: courseId,
+      timestamp: q.timestamp,
+      question: q.question,
+      type: mapGeminiTypeToDbType(q.type),
+      options: options ? JSON.stringify(options) : null,
+      correct_answer: typeof correctAnswer === 'string' ? parseInt(correctAnswer) || 0 : correctAnswer,
+      explanation: q.explanation,
+      has_visual_asset: ['hotspot', 'matching', 'sequencing'].includes(q.type),
+      fallback_prompt: q.type === 'hotspot' ? `Generate simple diagram showing objects` : null,
+      frame_timestamp: q.frame_timestamp || null,
+      metadata: q.metadata || null
+    };
+  });
 
   const { data: createdQuestions, error: questionsError } = await supabaseClient
     .from('questions')

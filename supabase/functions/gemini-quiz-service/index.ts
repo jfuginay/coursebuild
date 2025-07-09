@@ -293,7 +293,6 @@ serve(async (req) => {
       console.error('❌ JSON parsing error:', parseError);
       throw new Error(`Failed to parse Gemini response: ${parseError}`);
     }
-
     // Create questions in database with enhanced fields
     const questionsToInsert = parsedResponse.questions.map((q: any) => ({
       course_id: course_id,

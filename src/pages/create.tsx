@@ -73,6 +73,22 @@ export default function Create() {
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [courseId, setCourseId] = useState<string>('');
 
+  // Helper function to extract video ID
+  const extractVideoId = (url: string): string => {
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+      /youtube\.com\/watch\?.*v=([^&\n?#]+)/
+    ];
+    
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match) {
+        return match[1];
+      }
+    }
+    return '';
+  };
+
   // Debounced save function
   const debouncedSave = useCallback(
     (() => {
@@ -119,7 +135,32 @@ export default function Create() {
   );
 
   useEffect(() => {
-    // Get data from router state
+    // Try to get data from sessionStorage first (fallback for feature branch compatibility)
+    const storedData = sessionStorage.getItem('courseData');
+    const storedUrl = sessionStorage.getItem('youtubeUrl');
+    
+    if (storedData && storedUrl) {
+      try {
+        const parsedData = JSON.parse(storedData);
+        setCourseData(parsedData);
+        setYoutubeUrl(storedUrl);
+        setVideoId(extractVideoId(storedUrl));
+        
+        // Initialize editing state
+        setEditTitle(parsedData.title || '');
+        setEditDescription(parsedData.description || '');
+        
+        console.log('Course data loaded from sessionStorage:', parsedData.title);
+        
+        // Clear sessionStorage after reading
+        sessionStorage.removeItem('courseData');
+        sessionStorage.removeItem('youtubeUrl');
+      } catch (error) {
+        console.error('Error parsing course data from sessionStorage:', error);
+      }
+    }
+    
+    // Get data from router state (main branch approach)
     if (router.query.data && router.query.youtubeUrl) {
       try {
         const parsedData = JSON.parse(router.query.data as string);
@@ -131,13 +172,13 @@ export default function Create() {
         setEditTitle(parsedData.title || '');
         setEditDescription(parsedData.description || '');
         
-        console.log('Course data loaded:', parsedData.title);
+        console.log('Course data loaded from router query:', parsedData.title);
       } catch (error) {
-        console.error('Error parsing course data:', error);
+        console.error('Error parsing course data from router query:', error);
       }
     }
     
-    // Get courseId from router query
+    // Get courseId from router query (main branch functionality)
     if (router.query.courseId) {
       setCourseId(router.query.courseId as string);
       console.log('Course ID set:', router.query.courseId);
@@ -390,7 +431,7 @@ export default function Create() {
       }
 
       const data = await response.json();
-      setSuggestions(data.suggestions.topics || []);
+      setSuggestions(data.topics || []);
     } catch (error) {
       console.error('Error loading suggestions:', error);
       setSuggestionsError('Failed to load course suggestions. Please try again.');
@@ -402,21 +443,6 @@ export default function Create() {
   const handleSelectVideo = (videoUrl: string) => {
     // Navigate to home page with the selected video URL
     router.push(`/?url=${encodeURIComponent(videoUrl)}`);
-  };
-
-  const extractVideoId = (url: string): string => {
-    const patterns = [
-      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-      /youtube\.com\/watch\?.*v=([^&\n?#]+)/
-    ];
-    
-    for (const pattern of patterns) {
-      const match = url.match(pattern);
-      if (match) {
-        return match[1];
-      }
-    }
-    return '';
   };
 
   if (!courseData) {
@@ -727,64 +753,20 @@ export default function Create() {
                                   </div>
                                   
                                   {questionStatus === 'pending' && (
-                                    <div className="flex items-center gap-2">
-                                      {hasValidId ? (
-                                        <>
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => handleAcceptQuestion(questionId)}
-                                            disabled={isProcessing}
-                                            className="h-8 px-4 text-xs bg-emerald-50 border-emerald-300 hover:bg-emerald-100 text-emerald-700 hover:border-emerald-400 transition-colors duration-200 font-medium"
-                                          >
-                                            {isProcessing ? (
-                                              <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                                            ) : (
-                                              <Check className="h-3 w-3 mr-1" />
-                                            )}
-                                            Accept
-                                          </Button>
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => handleRejectQuestion(questionId)}
-                                            disabled={isProcessing}
-                                            className="h-8 px-4 text-xs bg-red-50 border-red-300 hover:bg-red-100 text-red-700 hover:border-red-400 transition-colors duration-200 font-medium"
-                                          >
-                                            {isProcessing ? (
-                                              <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                                            ) : (
-                                              <X className="h-3 w-3 mr-1" />
-                                            )}
-                                            Reject
-                                          </Button>
-                                        </>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => hasValidId ? handleRejectQuestion(questionId) : handleLocalReject(segmentIndex, questionIndex)}
+                                      disabled={isProcessing}
+                                      className="h-8 px-4 text-xs bg-red-50 border-red-300 hover:bg-red-100 text-red-700 hover:border-red-400 transition-colors duration-200 font-medium"
+                                    >
+                                      {isProcessing ? (
+                                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
                                       ) : (
-                                        <div className="flex items-center gap-2">
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            disabled
-                                            className="h-8 px-4 text-xs bg-gray-50 border-gray-300 text-gray-400 cursor-not-allowed"
-                                          >
-                                            <Check className="h-3 w-3 mr-1" />
-                                            Accept
-                                          </Button>
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => handleLocalReject(segmentIndex, questionIndex)}
-                                            className="h-8 px-4 text-xs bg-red-50 border-red-300 hover:bg-red-100 text-red-700 hover:border-red-400 transition-colors duration-200 font-medium"
-                                          >
-                                            <X className="h-3 w-3 mr-1" />
-                                            Remove
-                                          </Button>
-                                          <Badge variant="secondary" className="text-xs">
-                                            Not saved
-                                          </Badge>
-                                        </div>
+                                        <X className="h-3 w-3 mr-1" />
                                       )}
-                                    </div>
+                                      Remove
+                                    </Button>
                                   )}
                               </div>
                               <p className="text-sm mb-2">{question.question}</p>
@@ -982,4 +964,4 @@ export default function Create() {
       </div>
     </div>
   );
-} 
+}

@@ -75,6 +75,41 @@ export default async function handler(
       });
     }
 
+    if (req.method === 'DELETE') {
+      // First, delete all associated questions
+      const { error: questionsError } = await supabase
+        .from('questions')
+        .delete()
+        .eq('course_id', id);
+
+      if (questionsError) {
+        console.error('Error deleting questions:', questionsError);
+        return res.status(500).json({ 
+          error: 'Failed to delete associated questions',
+          message: questionsError.message 
+        });
+      }
+
+      // Then, delete the course
+      const { error: courseError } = await supabase
+        .from('courses')
+        .delete()
+        .eq('id', id);
+
+      if (courseError) {
+        console.error('Error deleting course:', courseError);
+        return res.status(500).json({ 
+          error: 'Failed to delete course',
+          message: courseError.message 
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Course and associated questions deleted successfully'
+      });
+    }
+
     return res.status(405).json({ error: 'Method not allowed' });
 
   } catch (error) {

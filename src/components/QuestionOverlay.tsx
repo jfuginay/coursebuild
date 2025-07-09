@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, XCircle, Play } from 'lucide-react';
 import VideoOverlayQuestion from '@/components/visual/VideoOverlayQuestion';
@@ -8,10 +9,11 @@ import MatchingQuestion from '@/components/visual/MatchingQuestion';
 import SequencingQuestion from '@/components/visual/SequencingQuestion';
 
 interface Question {
-  id: string;
+  id?: string;
   question: string;
   type: string;
   options?: string[] | string; // Can be array or JSON string
+  correct?: number; // Legacy support from feature branch
   correct_answer: number; // Index for multiple choice, 1/0 for true/false
   explanation: string;
   timestamp: number;
@@ -41,8 +43,9 @@ export default function QuestionOverlay({
   player 
 }: QuestionOverlayProps) {
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-  const [hasAnswered, setHasAnswered] = useState(false);
   const [showExplanation, setShowExplanation] = useState(false);
+  const [isCorrect, setIsCorrect] = useState(false);
+  const [hasAnswered, setHasAnswered] = useState(false);
 
   if (!isVisible) return null;
 
@@ -96,43 +99,41 @@ export default function QuestionOverlay({
         <div className="absolute bottom-0 left-0 right-0 p-4 pointer-events-auto">
           <div className="max-w-4xl mx-auto">
             <VideoOverlayQuestion
-            question={question.question}
+              question={question.question}
               frameTimestamp={question.frame_timestamp || question.timestamp}
-            boundingBoxes={(question.bounding_boxes || []).map((box, index) => ({
-              id: box.id || `box-${index}`,
-              label: box.label || 'Element',
-              x: box.x || 0,
-              y: box.y || 0,
-              width: box.width || 0.1,
-              height: box.height || 0.1,
+              boundingBoxes={(question.bounding_boxes || []).map((box, index) => ({
+                id: box.id || `box-${index}`,
+                label: box.label || 'Element',
+                x: box.x || 0,
+                y: box.y || 0,
+                width: box.width || 0.1,
+                height: box.height || 0.1,
                 isCorrectAnswer: box.isCorrectAnswer || false,
                 confidenceScore: box.confidenceScore || 0.5
-            }))}
-            explanation={question.explanation}
+              }))}
+              explanation={question.explanation}
               player={player}
-            onAnswer={(isCorrect) => {
-              onAnswer(isCorrect);
-              setHasAnswered(true);
-              setShowExplanation(true);
-            }}
-            showAnswer={hasAnswered}
-            disabled={hasAnswered}
-          />
-          {hasAnswered && (
-            <div className="mt-4 flex justify-center">
-              <Button onClick={onContinue} className="flex items-center gap-2">
-                <Play className="h-4 w-4" />
-                Continue Video
-              </Button>
-            </div>
-          )}
+              onAnswer={(isCorrect) => {
+                onAnswer(isCorrect);
+                setHasAnswered(true);
+                setShowExplanation(true);
+              }}
+              showAnswer={hasAnswered}
+              disabled={hasAnswered}
+            />
+            {hasAnswered && (
+              <div className="mt-4 flex justify-center">
+                <Button onClick={onContinue} className="flex items-center gap-2">
+                  <Play className="h-4 w-4" />
+                  Continue Video
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </div>
     );
   }
-
-
 
   // Handle matching questions
   if (question.matching_pairs && question.matching_pairs.length > 0) {
@@ -246,28 +247,38 @@ export default function QuestionOverlay({
     ? ['True', 'False'] 
     : parsedOptions;
 
-  const handleAnswerSelect = (optionIndex: number) => {
-    if (hasAnswered) return;
-    
-    setSelectedAnswer(optionIndex);
-    setHasAnswered(true);
+  const handleAnswerSelect = (index: number) => {
+    if (showExplanation) return;
+    setSelectedAnswer(index);
+  };
+
+  const handleSubmit = () => {
+    if (selectedAnswer === null) return;
+
+    // Handle both formats: correct as index or correct_answer as value
+    // Support legacy 'correct' field from feature branch
+    const correctIndex = question.correct !== undefined ? question.correct : 
+                        question.correct_answer !== undefined ? 
+                        (typeof question.correct_answer === 'number' ? 
+                          question.correct_answer : 
+                          parseInt(question.correct_answer as string)) : 0;
+
+    const correct = selectedAnswer === correctIndex;
+    setIsCorrect(correct);
     setShowExplanation(true);
-    
-    // Determine correct answer index
-    const correctIndex = question.correct_answer;
-    
-    const isCorrect = optionIndex === correctIndex;
-    onAnswer(isCorrect);
+    setHasAnswered(true);
+    onAnswer(correct);
   };
 
   const handleContinue = () => {
     setSelectedAnswer(null);
-    setHasAnswered(false);
     setShowExplanation(false);
+    setIsCorrect(false);
+    setHasAnswered(false);
     onContinue();
   };
 
-  const correctIndex = question.correct_answer;
+  const correctIndex = question.correct !== undefined ? question.correct : question.correct_answer;
 
   const formatTimestamp = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -340,16 +351,20 @@ export default function QuestionOverlay({
     );
   }
 
+  // Standard multiple choice / true-false question UI
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <Card className="w-full max-w-2xl mx-auto">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Interactive Question</CardTitle>
+            <CardTitle className="text-lg">Time to Test Your Knowledge!</CardTitle>
             <Badge variant="secondary" className="text-xs">
               {formatTimestamp(question.timestamp)}
             </Badge>
           </div>
+          <CardDescription>
+            Answer this question to continue watching the video
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div>
@@ -357,36 +372,42 @@ export default function QuestionOverlay({
             
             <div className="space-y-3">
               {finalOptions.map((option, index) => {
+                const isThisCorrect = index === correctIndex;
+                const isSelected = selectedAnswer === index;
+                
                 let buttonClass = "w-full text-left p-4 rounded-lg border transition-all duration-200 ";
                 
-                if (hasAnswered) {
-                  if (index === correctIndex) {
-                    buttonClass += "bg-green-50 border-green-200 text-green-800";
-                  } else if (index === selectedAnswer && index !== correctIndex) {
-                    buttonClass += "bg-red-50 border-red-200 text-red-800";
+                if (showExplanation) {
+                  if (isThisCorrect) {
+                    buttonClass += "bg-green-50 border-green-200 text-green-800 dark:bg-green-950/20 dark:border-green-800";
+                  } else if (isSelected && !isThisCorrect) {
+                    buttonClass += "bg-red-50 border-red-200 text-red-800 dark:bg-red-950/20 dark:border-red-800";
                   } else {
                     buttonClass += "bg-muted/50 border-border opacity-60";
                   }
                 } else {
-                  buttonClass += "bg-background border-border hover:bg-muted/50 cursor-pointer";
+                  if (isSelected) {
+                    buttonClass += "border-primary bg-primary/10";
+                  } else {
+                    buttonClass += "bg-background border-border hover:bg-muted/50 cursor-pointer hover:border-primary/50";
+                  }
                 }
 
                 return (
                   <button
                     key={index}
                     onClick={() => handleAnswerSelect(index)}
-                    disabled={hasAnswered}
+                    disabled={showExplanation}
                     className={buttonClass}
                   >
-                    <div className="flex items-center">
-                      {hasAnswered && index === correctIndex && (
-                        <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
-                      )}
-                      {hasAnswered && index === selectedAnswer && index !== correctIndex && (
-                        <XCircle className="h-4 w-4 mr-2 text-red-600" />
-                      )}
-                      <span className="font-medium mr-2">{String.fromCharCode(65 + index)}.</span>
+                    <div className="flex items-center justify-between">
                       <span>{option}</span>
+                      {showExplanation && isThisCorrect && (
+                        <CheckCircle className="h-5 w-5 text-green-500" />
+                      )}
+                      {showExplanation && isSelected && !isThisCorrect && (
+                        <XCircle className="h-5 w-5 text-red-500" />
+                      )}
                     </div>
                   </button>
                 );
@@ -395,31 +416,33 @@ export default function QuestionOverlay({
           </div>
 
           {showExplanation && (
-            <div className="bg-muted/50 p-4 rounded-lg">
-              <div className="flex items-center mb-2">
-                {selectedAnswer === correctIndex ? (
-                  <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
-                ) : (
-                  <XCircle className="h-4 w-4 mr-2 text-red-600" />
-                )}
-                <span className="font-medium">
-                  {selectedAnswer === correctIndex ? 'Correct!' : 'Incorrect'}
-                </span>
-              </div>
-              <p className="text-sm text-muted-foreground">{question.explanation}</p>
-            </div>
+            <Alert className={`${isCorrect ? 'border-green-500' : 'border-red-500'}`}>
+              <AlertDescription>
+                <strong className={isCorrect ? 'text-green-600' : 'text-red-600'}>
+                  {isCorrect ? 'Correct!' : 'Not quite right.'}
+                </strong>
+                <p className="mt-2">{question.explanation}</p>
+              </AlertDescription>
+            </Alert>
           )}
 
-          {hasAnswered && (
-            <div className="flex justify-end">
+          <div className="flex justify-end gap-3 pt-4">
+            {!showExplanation ? (
+              <Button
+                onClick={handleSubmit}
+                disabled={selectedAnswer === null}
+              >
+                Submit Answer
+              </Button>
+            ) : (
               <Button onClick={handleContinue} className="flex items-center gap-2">
                 <Play className="h-4 w-4" />
-                Continue Video
+                Continue Watching
               </Button>
-            </div>
-          )}
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>
   );
-} 
+}
