@@ -188,17 +188,31 @@ serve(async (req) => {
     }
 
     // Create questions in database
-    const questionsToInsert = parsedResponse.questions.map((q: any) => ({
-      course_id: course_id,
-      timestamp: q.timestamp,
-      question: q.question,
-      type: mapGeminiTypeToDbType(q.type),
-      options: q.options ? JSON.stringify(q.options) : null,
-      correct_answer: typeof q.correct_answer === 'string' ? parseInt(q.correct_answer) || 0 : q.correct_answer,
-      explanation: q.explanation,
-      visual_context: q.visual_context,
-      accepted: false
-    }));
+    const questionsToInsert = parsedResponse.questions.map((q: any) => {
+      // Ensure true/false questions have proper options
+      let options = q.options;
+      let correctAnswer = q.correct_answer;
+      
+      if (q.type === 'true_false') {
+        options = options || ["True", "False"];
+        // Convert boolean to array index
+        if (typeof correctAnswer === 'boolean') {
+          correctAnswer = correctAnswer ? 1 : 0;
+        }
+      }
+      
+      return {
+        course_id: course_id,
+        timestamp: q.timestamp,
+        question: q.question,
+        type: mapGeminiTypeToDbType(q.type),
+        options: options ? JSON.stringify(options) : null,
+        correct_answer: typeof correctAnswer === 'string' ? parseInt(correctAnswer) || 0 : correctAnswer,
+        explanation: q.explanation,
+        visual_context: q.visual_context,
+        accepted: false
+      };
+    });
 
     const { data: questions, error: questionsError } = await supabaseClient
       .from('questions')

@@ -133,9 +133,9 @@ function transformResponseToExpectedFormat(edgeResponse: any): any {
       default:
         transformedQuestion = {
           type: q.type === 'true-false' ? 'true_false' : 'multiple_choice',
-      question: q.question || 'Sample question',
+          question: q.question || 'Sample question',
           options: q.options || (q.type === 'true-false' ? ["True", "False"] : ["Option A", "Option B", "Option C", "Option D"]),
-      correct: typeof q.correct_answer === 'string' ? parseInt(q.correct_answer) || 0 : (q.correct_answer || 0),
+          correct_answer: typeof q.correct_answer === 'string' ? parseInt(q.correct_answer) || 0 : (q.correct_answer || 0),
           explanation: q.explanation || 'No explanation provided',
           visual_context: q.visual_context
     };
