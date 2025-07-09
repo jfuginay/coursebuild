@@ -1,3 +1,4 @@
+import Head from 'next/head';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -88,8 +89,12 @@ export default function About() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
-      <Header />
+    <>
+      <Head>
+        <title>About - CourseBuilder</title>
+      </Head>
+      <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+        <Header />
       
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto space-y-12">
@@ -275,5 +280,6 @@ export default function About() {
         </div>
       </div>
     </div>
+    </>
   );
 } 
