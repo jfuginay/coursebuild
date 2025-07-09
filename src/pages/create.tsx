@@ -348,15 +348,15 @@ export default function Create() {
                             }
                             
                             return (
-                              <div key={questionIndex} className="p-4 bg-muted/30 rounded-lg">
+                            <div key={questionIndex} className="p-4 bg-muted/30 rounded-lg">
                                 <div className="flex items-center justify-between mb-2">
                                   <div className="flex items-center gap-2">
-                                    <Badge variant="outline" className="text-xs">
-                                      {question.type}
-                                    </Badge>
-                                    <span className="text-sm font-medium">
-                                      Question {questionIndex + 1}
-                                    </span>
+                                <Badge variant="outline" className="text-xs">
+                                  {question.type}
+                                </Badge>
+                                <span className="text-sm font-medium">
+                                  Question {questionIndex + 1}
+                                </span>
                                     {question.visual_question_type && (
                                       <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
                                         {question.visual_question_type}
@@ -398,39 +398,39 @@ export default function Create() {
                                       </Button>
                                     </div>
                                   )}
-                                </div>
-                                <p className="text-sm mb-2">{question.question}</p>
+                              </div>
+                              <p className="text-sm mb-2">{question.question}</p>
                                 {question.options && question.options.length > 0 && (
-                                  <div className="space-y-1">
-                                    {question.options.map((option, optionIndex) => (
-                                      <div 
-                                        key={optionIndex} 
-                                        className={`text-xs p-2 rounded ${
+                                <div className="space-y-1">
+                                  {question.options.map((option, optionIndex) => (
+                                    <div 
+                                      key={optionIndex} 
+                                      className={`text-xs p-2 rounded ${
                                           question.correct !== undefined && optionIndex === question.correct 
-                                            ? 'bg-primary/10 border border-primary/20' 
-                                            : 'bg-background'
-                                        }`}
-                                      >
-                                        {String.fromCharCode(65 + optionIndex)}. {option}
+                                          ? 'bg-primary/10 border border-primary/20' 
+                                          : 'bg-background'
+                                      }`}
+                                    >
+                                      {String.fromCharCode(65 + optionIndex)}. {option}
                                         {question.correct !== undefined && optionIndex === question.correct && (
-                                          <CheckCircle className="inline h-3 w-3 ml-2 text-primary" />
-                                        )}
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
+                                        <CheckCircle className="inline h-3 w-3 ml-2 text-primary" />
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                                 {question.visual_question_type && (
                                   <div className="mt-2 text-xs text-muted-foreground">
                                     <strong>Visual Type:</strong> {question.visual_question_type}
                                     {question.has_visual_asset && ' (Interactive)'}
                                   </div>
                                 )}
-                                {question.explanation && (
-                                  <div className="mt-2 text-xs text-muted-foreground">
-                                    <strong>Explanation:</strong> {question.explanation}
-                                  </div>
-                                )}
-                              </div>
+                              {question.explanation && (
+                                <div className="mt-2 text-xs text-muted-foreground">
+                                  <strong>Explanation:</strong> {question.explanation}
+                                </div>
+                              )}
+                            </div>
                             );
                           })}
                         </div>

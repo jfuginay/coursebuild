@@ -269,7 +269,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         description: "Enhanced Quiz Service generates questions with timestamps and visual context, then Visual Frame Service performs targeted object detection using Gemini Vision API",
         workflow: [
           "1. generateEnhancedQuestions() identifies visual moments with context",
-          "2. processVisualQuestions() calls visual-frame-service with specific questions",
+          "2. processVisualQuestions() processes visual elements with integrated analysis",
           "3. captureFrameAtTimestamp() gets exact frame needed",
           "4. detectObjectsInFrame() uses Gemini Vision with visual context",
           "5. convertBoundingBoxes() follows Google AI documentation pattern",

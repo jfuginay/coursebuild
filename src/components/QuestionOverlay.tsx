@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, XCircle, Play } from 'lucide-react';
-import HotspotQuestion from '@/components/visual/HotspotQuestion';
+import VideoOverlayQuestion from '@/components/visual/VideoOverlayQuestion';
 import MatchingQuestion from '@/components/visual/MatchingQuestion';
 
 interface Question {
@@ -15,13 +15,12 @@ interface Question {
   explanation: string;
   timestamp: number;
   visual_context?: string;
-  frame_url?: string;
+  frame_timestamp?: number; // For video overlay timing
   bounding_boxes?: any[];
   detected_objects?: any[];
-  visual_asset_id?: string;
   matching_pairs?: any[];
-  has_visual_asset?: boolean;
-  visual_question_type?: string;
+  requires_video_overlay?: boolean;
+  video_overlay?: boolean;
 }
 
 interface QuestionOverlayProps {
@@ -29,13 +28,15 @@ interface QuestionOverlayProps {
   onAnswer: (correct: boolean) => void;
   onContinue: () => void;
   isVisible: boolean;
+  player?: any; // YouTube player instance
 }
 
 export default function QuestionOverlay({ 
   question, 
   onAnswer, 
   onContinue, 
-  isVisible 
+  isVisible,
+  player 
 }: QuestionOverlayProps) {
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [hasAnswered, setHasAnswered] = useState(false);
@@ -43,26 +44,39 @@ export default function QuestionOverlay({
 
   if (!isVisible) return null;
 
-  // Handle visual question types
-  if (question.type === 'hotspot' && question.frame_url && question.bounding_boxes) {
+  // Handle video overlay questions - check for bounding boxes and video overlay capability
+  const hasValidBoundingBoxes = question.bounding_boxes && question.bounding_boxes.length > 0;
+  const isVideoOverlayQuestion = question.requires_video_overlay || (hasValidBoundingBoxes && question.frame_timestamp);
+  
+  if (isVideoOverlayQuestion && player) {
+    console.log('🎬 Rendering video overlay question:', {
+      questionId: question.id,
+      frameTimestamp: question.frame_timestamp,
+      boundingBoxCount: question.bounding_boxes?.length || 0,
+      timestamp: question.timestamp,
+      type: question.type
+    });
+    
     return (
-      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-4xl mx-auto">
-          <HotspotQuestion
+      <div className="fixed inset-0 z-50 pointer-events-none">
+        {/* Question UI positioned at bottom - not covering video */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 pointer-events-auto">
+          <div className="max-w-4xl mx-auto">
+            <VideoOverlayQuestion
             question={question.question}
-            imageUrl={question.frame_url}
-            altText={question.visual_context || 'Interactive hotspot question'}
-            boundingBoxes={question.bounding_boxes.map((box, index) => ({
+              frameTimestamp={question.frame_timestamp || question.timestamp}
+            boundingBoxes={(question.bounding_boxes || []).map((box, index) => ({
               id: box.id || `box-${index}`,
               label: box.label || 'Element',
               x: box.x || 0,
               y: box.y || 0,
               width: box.width || 0.1,
               height: box.height || 0.1,
-              isCorrectAnswer: box.is_correct_answer || false,
-              confidenceScore: box.confidence_score || 0.5
+                isCorrectAnswer: box.isCorrectAnswer || false,
+                confidenceScore: box.confidenceScore || 0.5
             }))}
             explanation={question.explanation}
+              player={player}
             onAnswer={(isCorrect) => {
               onAnswer(isCorrect);
               setHasAnswered(true);
@@ -79,12 +93,14 @@ export default function QuestionOverlay({
               </Button>
             </div>
           )}
+          </div>
         </div>
       </div>
     );
   }
 
-  if (question.type === 'matching' && question.matching_pairs) {
+  // Handle matching questions
+  if (question.matching_pairs && question.matching_pairs.length > 0) {
     return (
       <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div className="w-full max-w-4xl mx-auto">
@@ -94,7 +110,7 @@ export default function QuestionOverlay({
               id: `pair-${index}`,
               left: pair.left || 'Item',
               right: pair.right || 'Match',
-              imageUrl: pair.frame_timestamp ? question.frame_url : undefined
+              imageUrl: undefined // No images needed for video overlay approach
             }))}
             explanation={question.explanation}
             onAnswer={(isCorrect) => {
