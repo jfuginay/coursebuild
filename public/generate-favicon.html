@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Generate CourseBuilder Favicon</title>
+</head>
+<body>
+    <h1>CourseBuilder Favicon Generator</h1>
+    <p>Use this page to generate favicon images. Right-click and save each canvas as the specified filename.</p>
+    
+    <h2>16x16 favicon</h2>
+    <canvas id="favicon16" width="16" height="16" style="border: 1px solid #ccc; image-rendering: pixelated; width: 64px; height: 64px;"></canvas>
+    
+    <h2>32x32 favicon</h2>
+    <canvas id="favicon32" width="32" height="32" style="border: 1px solid #ccc; image-rendering: pixelated; width: 128px; height: 128px;"></canvas>
+    
+    <h2>180x180 Apple Touch Icon</h2>
+    <canvas id="apple180" width="180" height="180" style="border: 1px solid #ccc; width: 180px; height: 180px;"></canvas>
+
+    <script>
+        function drawIcon(canvasId, size) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            
+            // Background
+            ctx.fillStyle = '#3b82f6';
+            ctx.fillRect(0, 0, size, size);
+            
+            // Text
+            ctx.fillStyle = 'white';
+            ctx.font = `bold ${size * 0.4}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('CB', size / 2, size / 2);
+        }
+        
+        drawIcon('favicon16', 16);
+        drawIcon('favicon32', 32);
+        drawIcon('apple180', 180);
+    </script>
+</body>
+</html>
