@@ -73,6 +73,22 @@ export default function Create() {
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [courseId, setCourseId] = useState<string>('');
 
+  // Helper function to extract video ID
+  const extractVideoId = (url: string): string => {
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+      /youtube\.com\/watch\?.*v=([^&\n?#]+)/
+    ];
+    
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match) {
+        return match[1];
+      }
+    }
+    return '';
+  };
+
   // Debounced save function
   const debouncedSave = useCallback(
     (() => {
@@ -119,7 +135,32 @@ export default function Create() {
   );
 
   useEffect(() => {
-    // Get data from router state
+    // Try to get data from sessionStorage first (fallback for feature branch compatibility)
+    const storedData = sessionStorage.getItem('courseData');
+    const storedUrl = sessionStorage.getItem('youtubeUrl');
+    
+    if (storedData && storedUrl) {
+      try {
+        const parsedData = JSON.parse(storedData);
+        setCourseData(parsedData);
+        setYoutubeUrl(storedUrl);
+        setVideoId(extractVideoId(storedUrl));
+        
+        // Initialize editing state
+        setEditTitle(parsedData.title || '');
+        setEditDescription(parsedData.description || '');
+        
+        console.log('Course data loaded from sessionStorage:', parsedData.title);
+        
+        // Clear sessionStorage after reading
+        sessionStorage.removeItem('courseData');
+        sessionStorage.removeItem('youtubeUrl');
+      } catch (error) {
+        console.error('Error parsing course data from sessionStorage:', error);
+      }
+    }
+    
+    // Get data from router state (main branch approach)
     if (router.query.data && router.query.youtubeUrl) {
       try {
         const parsedData = JSON.parse(router.query.data as string);
@@ -131,13 +172,13 @@ export default function Create() {
         setEditTitle(parsedData.title || '');
         setEditDescription(parsedData.description || '');
         
-        console.log('Course data loaded:', parsedData.title);
+        console.log('Course data loaded from router query:', parsedData.title);
       } catch (error) {
-        console.error('Error parsing course data:', error);
+        console.error('Error parsing course data from router query:', error);
       }
     }
     
-    // Get courseId from router query
+    // Get courseId from router query (main branch functionality)
     if (router.query.courseId) {
       setCourseId(router.query.courseId as string);
       console.log('Course ID set:', router.query.courseId);
@@ -402,21 +443,6 @@ export default function Create() {
   const handleSelectVideo = (videoUrl: string) => {
     // Navigate to home page with the selected video URL
     router.push(`/?url=${encodeURIComponent(videoUrl)}`);
-  };
-
-  const extractVideoId = (url: string): string => {
-    const patterns = [
-      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-      /youtube\.com\/watch\?.*v=([^&\n?#]+)/
-    ];
-    
-    for (const pattern of patterns) {
-      const match = url.match(pattern);
-      if (match) {
-        return match[1];
-      }
-    }
-    return '';
   };
 
   if (!courseData) {
@@ -982,4 +1008,4 @@ export default function Create() {
       </div>
     </div>
   );
-} 
+}

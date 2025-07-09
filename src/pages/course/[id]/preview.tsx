@@ -18,14 +18,15 @@ interface Question {
   type: string;
   options: string[];
   correct: number;
+  correct_answer: number; // Index for multiple choice, 1/0 for true/false
   explanation: string;
   timestamp: number; // in seconds
-  correct_answer: number; // Index for multiple choice, 1/0 for true/false
   visual_context?: string;
   frame_timestamp?: number;
   bounding_boxes?: any[];
   detected_objects?: any[];
   matching_pairs?: any[];
+  sequence_items?: string[];
   requires_video_overlay?: boolean;
   video_overlay?: boolean;
   bounding_box_count?: number;
@@ -109,7 +110,7 @@ export default function CoursePreviewPage() {
   
   // Free segments limit (first 2 segments with questions)
   const FREE_SEGMENTS_LIMIT = 2;
-  const FREE_QUESTIONS_LIMIT = 2; // Total questions across free segments
+  const FREE_QUESTIONS_LIMIT = 3; // Total questions across free segments
 
   // Convert timestamp string to seconds
   const timestampToSeconds = (timestamp: string): number => {
@@ -312,6 +313,7 @@ export default function CoursePreviewPage() {
             bounding_boxes: processedQuestion.bounding_boxes || [],
             detected_objects: processedQuestion.detected_objects || [],
             matching_pairs: processedQuestion.matching_pairs || [],
+            sequence_items: processedQuestion.sequence_items || [],
             requires_video_overlay: processedQuestion.requires_video_overlay || false,
             video_overlay: processedQuestion.video_overlay || false,
             bounding_box_count: processedQuestion.bounding_box_count || 0
@@ -402,8 +404,6 @@ export default function CoursePreviewPage() {
     return '';
   };
 
-
-
   const handleContinue = () => {
     if (currentSegmentIndex === null || currentQuestionIndex === null) return;
 
@@ -446,8 +446,6 @@ export default function CoursePreviewPage() {
     
     router.push(`/signup?returnUrl=/course/${id}`);
   };
-
-
 
   const handleBackToHome = () => {
     router.push('/');
@@ -765,6 +763,15 @@ export default function CoursePreviewPage() {
                                 <span className="text-xs text-muted-foreground">
                                   {formatTimestamp(question.timestamp)}
                                 </span>
+                                {question.type && question.type !== 'multiple-choice' && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {question.type === 'true-false' ? 'True/False' : 
+                                     question.type === 'hotspot' ? 'Hotspot' :
+                                     question.type === 'matching' ? 'Matching' :
+                                     question.type === 'sequencing' ? 'Sequence' :
+                                     question.type}
+                                  </Badge>
+                                )}
                                 {isAnswered && (
                                   <Badge 
                                     variant="outline" 
@@ -933,4 +940,4 @@ export default function CoursePreviewPage() {
       </Dialog>
     </div>
   );
-} 
+}
