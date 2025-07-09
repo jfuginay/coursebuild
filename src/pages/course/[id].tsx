@@ -19,6 +19,10 @@ interface Course {
   youtube_url: string;
   created_at: string;
   published: boolean;
+  courseId?: string;
+  questionsGenerated?: boolean;
+  questions?: Question[];
+  videoId?: string;
 }
 
 interface Question {
@@ -99,6 +103,10 @@ export default function CoursePage() {
   const [questionResults, setQuestionResults] = useState<Record<string, boolean>>({});
   const [expandedExplanations, setExpandedExplanations] = useState<Set<string>>(new Set());
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [nextCourse, setNextCourse] = useState<Course | null>(null);
+  const [showNextCourseModal, setShowNextCourseModal] = useState(false);
+  const [isLoadingNextCourse, setIsLoadingNextCourse] = useState(false);
+  const [nextCourseApiCalled, setNextCourseApiCalled] = useState(false); // Track if API was called
 
   // Free questions limit
   const FREE_QUESTIONS_LIMIT = 2;
@@ -278,6 +286,140 @@ export default function CoursePage() {
     }
   };
 
+  const fetchNextCourse = async () => {
+    // Prevent multiple API calls - check if already loaded, loading, or already called
+    if (nextCourse || isLoadingNextCourse || nextCourseApiCalled) {
+      console.log('📚 Next course already loaded, loading, or API already called, skipping fetch');
+      return;
+    }
+    
+    console.log('📚 Starting next course generation...');
+    setIsLoadingNextCourse(true);
+    setNextCourseApiCalled(true); // Mark API as called
+    
+    try {
+      // Get wrong answers from questionResults
+      const wrongAnswers = Object.entries(questionResults)
+        .filter(([questionId, isCorrect]) => !isCorrect)
+        .map(([questionId, isCorrect]) => {
+          const questionIndex = parseInt(questionId.split('-')[1]);
+          return questions[questionIndex];
+        })
+        .filter(question => question); // Filter out any undefined questions
+
+      console.log('📊 Sending wrong answers to next course API:', wrongAnswers);
+
+      const response = await fetch(`/api/get-next-course`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          currentCourseId: id,
+          videoUrl: course?.youtube_url,
+          wrongQuestions: wrongAnswers
+        })
+      });
+      
+      const data = await response.json();
+
+      if (data.success) {
+        console.log('📚 Next course generated with questions:', {
+          courseId: data.courseId,
+          title: data.nextCourse.title,
+          hasQuestions: !!data.courseId
+        });
+        
+        // Now fetch the actual course and questions from Supabase using the courseId
+        try {
+          // Fetch course data from database
+          const courseResponse = await fetch(`/api/course/${data.courseId}`);
+          const courseData = await courseResponse.json();
+          
+          if (courseData.success) {
+            // Fetch questions for the course
+            const questionsResponse = await fetch(`/api/course/${data.courseId}/questions`);
+            const questionsData = await questionsResponse.json();
+            
+            if (questionsData.success) {
+              // Parse questions like in the main fetchQuestions function
+              const parsedQuestions = questionsData.questions.map((q: any) => ({
+                ...q,
+                options: parseOptionsWithTrueFalse(q.options || [], q.type),
+                correct: parseInt(q.correct_answer) || 0,
+                correct_answer: parseInt(q.correct_answer) || 0
+              }));
+              
+              // Store the next course with database-fetched data
+              setNextCourse({
+                ...courseData.course,
+                courseId: data.courseId,
+                questionsGenerated: true,
+                questions: parsedQuestions, // Add questions to next course
+                videoId: extractVideoId(courseData.course.youtube_url)
+              });
+              
+              console.log('✅ Next course data fetched from database:', {
+                courseId: data.courseId,
+                title: courseData.course.title,
+                questionsCount: parsedQuestions.length
+              });
+            } else {
+              console.error('Failed to fetch questions for next course:', questionsData.error);
+              // Still set course without questions
+              setNextCourse({
+                ...courseData.course,
+                courseId: data.courseId,
+                questionsGenerated: false,
+                questions: [],
+                videoId: extractVideoId(courseData.course.youtube_url)
+              });
+            }
+          } else {
+            console.error('Failed to fetch next course from database:', courseData.error);
+            // Fallback to the original course data from API
+            setNextCourse({
+              ...data.nextCourse,
+              courseId: data.courseId,
+              questionsGenerated: !!data.courseId
+            });
+          }
+        } catch (fetchError) {
+          console.error('Error fetching next course from database:', fetchError);
+          // Fallback to the original course data from API
+          setNextCourse({
+            ...data.nextCourse,
+            courseId: data.courseId,
+            questionsGenerated: !!data.courseId
+          });
+        }
+      } else {
+        console.error('Failed to fetch next course:', data.error);
+        // Reset API called state on error so it can be retried
+        setNextCourseApiCalled(false);
+      }
+    } catch (err) {
+      console.error('Error fetching next course:', err);
+      // Reset API called state on error so it can be retried
+      setNextCourseApiCalled(false);
+    } finally {
+      setIsLoadingNextCourse(false);
+    }
+  };
+
+  // Helper function for debugging player state
+  const getPlayerStateName = (state: number) => {
+    const states: Record<number, string> = {
+      [-1]: 'UNSTARTED',
+      [0]: 'ENDED',
+      [1]: 'PLAYING',
+      [2]: 'PAUSED',
+      [3]: 'BUFFERING',
+      [5]: 'CUED'
+    };
+    return states[state] || `UNKNOWN(${state})`;
+  };
+
   const initializePlayer = (retryCount = 0) => {
     console.log(`🎯 initializePlayer called (attempt ${retryCount + 1})`, {
       hasYT: !!window.YT,
@@ -351,12 +493,34 @@ export default function CoursePage() {
           setIsVideoReady(true);
           startTimeTracking();
         },
-        onStateChange: (event: any) => {
-            console.log('🎬 Player state changed:', event.data);
+        onStateChange: async (event: any) => {
+          console.log('🎬 Player state changed:', {
+            stateCode: event.data,
+            stateName: getPlayerStateName(event.data),
+            YT_ENDED: window.YT?.PlayerState?.ENDED,
+            nextCourse: !!nextCourse,
+            isLoadingNextCourse: isLoadingNextCourse,
+            showNextCourseModal: showNextCourseModal
+          });
+          
           if (event.data === window.YT.PlayerState.PLAYING) {
             startTimeTracking();
           } else if (event.data === window.YT.PlayerState.PAUSED) {
             stopTimeTracking();
+          } else if (event.data === window.YT.PlayerState.ENDED || event.data === 0) {
+            console.log('🏁 Video ended - handling next course logic');
+            stopTimeTracking();
+            
+            // Always show modal first
+            setShowNextCourseModal(true);
+            
+            // If nextCourse hasn't been fetched yet and we're not already loading/called, fetch it now
+            
+            console.log('🔄 Modal shown, next course state:', { 
+              nextCourse: !!nextCourse, 
+              isLoadingNextCourse: isLoadingNextCourse,
+              nextCourseApiCalled: nextCourseApiCalled
+            });
           }
         },
           onError: (event: any) => {
@@ -687,8 +851,8 @@ export default function CoursePage() {
                 </div>
               )}
 
-              {/* External Link */}
-              <div className="flex justify-center">
+              {/* External Links */}
+              <div className="flex justify-center gap-3">
                 <Button 
                   variant="outline" 
                   size="sm"
@@ -696,6 +860,19 @@ export default function CoursePage() {
                 >
                   <ExternalLink className="mr-2 h-4 w-4" />
                   Watch on YouTube
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={fetchNextCourse}
+                  disabled={isLoadingNextCourse || !!nextCourse || nextCourseApiCalled}
+                >
+                  {isLoadingNextCourse ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                  ) : (
+                    <BookOpen className="mr-2 h-4 w-4" />
+                  )}
+                  {nextCourse ? 'Next Course Ready' : isLoadingNextCourse ? 'Generating...' : nextCourseApiCalled ? 'Generating...' : 'Generate Next Course'}
                 </Button>
               </div>
             </CardContent>
@@ -804,6 +981,81 @@ export default function CoursePage() {
               className="w-full"
             >
               I Already Have an Account
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Next Course Modal */}
+      <Dialog open={showNextCourseModal} onOpenChange={setShowNextCourseModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>🎉 Course Complete!</DialogTitle>
+            <DialogDescription>
+              Great job finishing this course! Ready to continue learning?
+            </DialogDescription>
+          </DialogHeader>
+          {nextCourse ? (
+            <div className="space-y-4 my-4">
+              <div className="p-4 bg-muted rounded-lg">
+                <h3 className="font-semibold text-sm mb-1">Up Next:</h3>
+                <h4 className="font-medium">{nextCourse.title}</h4>
+                <p className="text-sm text-muted-foreground mt-2">{nextCourse.description}</p>
+                {nextCourse.questionsGenerated && (
+                  <div className="mt-3 flex items-center gap-2 text-xs text-green-600">
+                    <div className="w-2 h-2 bg-green-600 rounded-full"></div>
+                    Interactive questions generated
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : isLoadingNextCourse ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <span className="ml-2 text-muted-foreground">Generating next course...</span>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center py-8">
+              <span className="text-muted-foreground">No next course available</span>
+            </div>
+          )}
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button 
+              onClick={() => {
+                if (nextCourse) {
+                  console.log('📚 Navigating to next course:', {
+                    courseId: nextCourse.id,
+                    title: nextCourse.title,
+                    questionsGenerated: nextCourse.questionsGenerated,
+                    nextCourse: nextCourse
+                  });
+                  
+                  // Close modal before navigation
+                  setShowNextCourseModal(false);
+                  
+                  // Force full page reload to ensure fresh state
+                  window.location.href = `/course/${nextCourse.id}`;
+                }
+              }}
+              className="w-full"
+              disabled={!nextCourse || isLoadingNextCourse}
+              style={{ backgroundColor: '#8B5CF6' }}
+            >
+              {isLoadingNextCourse ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Generating Course...
+                </>
+              ) : (
+                'Start Next Course'
+              )}
+            </Button>
+            <Button 
+              onClick={() => setShowNextCourseModal(false)}
+              variant="outline"
+              className="w-full"
+            >
+              Stay Here
             </Button>
           </DialogFooter>
         </DialogContent>
