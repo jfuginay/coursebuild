@@ -59,19 +59,21 @@
   - Fixed "0/0 Correct" display to show actual question count
   - Changed from `answeredQuestions.size` to `questions.length`
 
+### Recently Resolved ✅
+- [x] **High Priority**: True/False quiz display (Issue #5) - ✅ RESOLVED
+  - Fixed Gemini service to return ["True", "False"] options for true-false questions
+  - Added boolean-to-index conversion for correct answers
+  - Resolved data parsing inconsistencies between API and UI
+- [x] **High Priority**: Visual question type detection (Issue #28) - ✅ RESOLVED
+  - Fixed QuestionOverlay to properly detect visual question types
+  - Added support for matching_pairs data transformation
+  - Visual questions now route correctly to interactive components
+- [x] **High Priority**: Data format inconsistencies (Issue #12) - ✅ RESOLVED
+  - Fixed correct_answer field type mismatches with robust parsing
+  - Added error handling for parseInt operations
+  - Resolved database schema alignment issues
+
 ### Active Issues 🔄
-- [ ] **High Priority**: True/False quiz display (Issue #5) - 🔄 OPEN
-  - Gemini service returns null options for true-false questions
-  - Should return options = ["True", "False"] for consistent UI
-  - Data parsing inconsistencies between API and UI
-- [ ] **High Priority**: Visual question type detection (NEW)
-  - Questions with bounding boxes not being identified as `type: 'hotspot'` in frontend
-  - QuestionOverlay routing visual questions to multiple-choice instead of visual components
-  - Backend generates visual questions but frontend type detection fails
-- [ ] **High Priority**: Data format inconsistencies (Issue #12)
-  - Question parsing between Supabase function and UI components
-  - correct_answer field type mismatches (string vs number)
-  - Database schema alignment issues
 
 ### Tracked Issues
 - [ ] **Medium Priority**: API rate limiting with Gemini API (Issue #13)
