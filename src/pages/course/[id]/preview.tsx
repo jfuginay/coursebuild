@@ -11,6 +11,8 @@ import { Clock, BookOpen, HelpCircle, ArrowLeft, Lock, CheckCircle, XCircle, Che
 import Header from '@/components/Header';
 import QuestionOverlay from '@/components/QuestionOverlay';
 import CourseCurriculumCard from '@/components/CourseCurriculumCard';
+import VideoProgressBar from '@/components/VideoProgressBar';
+import { useAuth } from '@/contexts/AuthContext';
 
 // TypeScript interfaces
 interface Question {
@@ -85,6 +87,7 @@ declare global {
 export default function CoursePreviewPage() {
   const router = useRouter();
   const { id } = router.query;
+  const { user, supabase } = useAuth();
   const [course, setCourse] = useState<Course | null>(null);
   const [courseData, setCourseData] = useState<CourseData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -104,6 +107,7 @@ export default function CoursePreviewPage() {
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState<number | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answeredQuestions, setAnsweredQuestions] = useState<Set<string>>(new Set());
+  const [skippedQuestions, setSkippedQuestions] = useState<Set<string>>(new Set());
   const [correctAnswers, setCorrectAnswers] = useState<number>(0);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [questionResults, setQuestionResults] = useState<Record<string, boolean>>({}); // Track right/wrong
@@ -486,6 +490,73 @@ export default function CoursePreviewPage() {
     router.push('/');
   };
 
+  const handleVideoSeek = async (seekTime: number) => {
+    if (!playerRef.current || !courseData) return;
+
+    // Find all questions between current time and seek time
+    const questionsInRange = courseData.segments.flatMap((segment, segmentIndex) =>
+      segment.questions
+        .map((question, questionIndex) => ({
+          ...question,
+          segmentIndex,
+          questionIndex,
+          questionId: `${segmentIndex}-${questionIndex}`
+        }))
+        .filter(q => {
+          if (seekTime > currentTime) {
+            // Seeking forward - find unanswered questions we're skipping
+            return q.timestamp > currentTime && q.timestamp <= seekTime && !answeredQuestions.has(q.questionId);
+          } else {
+            // Seeking backward - no need to mark questions
+            return false;
+          }
+        })
+    );
+
+    // Mark skipped questions
+    if (questionsInRange.length > 0) {
+      console.log(`⏩ Skipping ${questionsInRange.length} questions`);
+      
+      const newSkippedQuestions = new Set(skippedQuestions);
+      for (const question of questionsInRange) {
+        newSkippedQuestions.add(question.questionId);
+        
+        // Track as incorrect for progress if user is authenticated
+        if (user && supabase) {
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+              await fetch('/api/user/progress', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${session.access_token}`
+                },
+                body: JSON.stringify({
+                  courseId: id,
+                  segmentIndex: question.segmentIndex,
+                  segmentTitle: `Segment ${question.segmentIndex + 1}`,
+                  questionId: question.id,
+                  selectedAnswer: -1, // Indicate skipped
+                  isCorrect: false,
+                  timeSpent: 0,
+                  explanationViewed: false
+                })
+              });
+            }
+          } catch (error) {
+            console.error('Failed to track skipped question:', error);
+          }
+        }
+      }
+      setSkippedQuestions(newSkippedQuestions);
+    }
+
+    // Seek the video
+    playerRef.current.seekTo(seekTime);
+    setCurrentTime(seekTime);
+  };
+
   // useEffect hooks after all function definitions
   useEffect(() => {
     console.log('Preview page - id:', id, 'router ready:', router.isReady);
@@ -672,40 +743,22 @@ export default function CoursePreviewPage() {
                 <div id="youtube-player" className="w-full h-full" />
               </div>
               
-              {/* Progress Bar */}
+              {/* Interactive Progress Bar */}
               {isVideoReady && duration > 0 && (
-                <div className="space-y-3 px-2">
-                  <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>{formatTimestamp(currentTime)}</span>
-                    <span>{formatTimestamp(duration)}</span>
-                  </div>
-                  
-                  {/* Progress bar with contained markers */}
-                  <div className="relative">
-                    <Progress value={progressPercentage} className="h-2" />
-                    
-                    {/* Question markers positioned relative to progress bar */}
-                    <div className="absolute top-0 left-0 right-0 h-2">
-                      {courseData.segments.flatMap((segment, segmentIndex) => 
-                        segment.questions.map((question, questionIndex) => {
-                          const position = Math.min(Math.max((question.timestamp / duration) * 100, 0.5), 99.5);
-                          const questionId = `${segmentIndex}-${questionIndex}`;
-                          const isAnswered = answeredQuestions.has(questionId);
-                          return (
-                            <div
-                              key={questionId}
-                              className={`absolute top-0 w-3 h-3 rounded-full transform -translate-x-1/2 -translate-y-0.5 border-2 border-background shadow-sm ${
-                                isAnswered ? 'bg-green-500' : 'bg-primary'
-                              }`}
-                              style={{ left: `${position}%` }}
-                              title={`Question at ${formatTimestamp(question.timestamp)}`}
-                            />
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-                </div>
+                <VideoProgressBar
+                  currentTime={currentTime}
+                  duration={duration}
+                  onSeek={handleVideoSeek}
+                  questions={courseData.segments.flatMap((segment, segmentIndex) => 
+                    segment.questions.map((question, questionIndex) => ({
+                      ...question,
+                      id: `${segmentIndex}-${questionIndex}`
+                    }))
+                  )}
+                  answeredQuestions={answeredQuestions}
+                  formatTimestamp={formatTimestamp}
+                  className="px-2"
+                />
               )}
 
               {/* External Link */}
