@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, Play, BookOpen, Clock, Users, CheckCircle, Check, X } from 'lucide-react';
+import { ArrowLeft, Play, BookOpen, Clock, Users, CheckCircle, Check, X, Sparkles, ExternalLink, Loader2 } from 'lucide-react';
 import Header from '@/components/Header';
 
 interface CourseData {
@@ -42,6 +42,16 @@ interface CourseData {
   }>;
 }
 
+interface CourseSuggestion {
+  nextStep: string;
+  video1: string;
+  video2: string;
+}
+
+interface SuggestionsResponse {
+  topics: CourseSuggestion[];
+}
+
 export default function Create() {
   const router = useRouter();
   const [courseData, setCourseData] = useState<CourseData | null>(null);
@@ -49,6 +59,9 @@ export default function Create() {
   const [videoId, setVideoId] = useState<string>('');
   const [questionStatuses, setQuestionStatuses] = useState<Record<string, 'accepted' | 'rejected' | 'pending'>>({});
   const [processingQuestions, setProcessingQuestions] = useState<Set<string>>(new Set());
+  const [suggestions, setSuggestions] = useState<CourseSuggestion[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState<boolean>(false);
+  const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
 
   useEffect(() => {
     // Get data from router state
@@ -57,23 +70,6 @@ export default function Create() {
         const parsedData = JSON.parse(router.query.data as string);
         setCourseData(parsedData);
         setYoutubeUrl(router.query.youtubeUrl as string);
-        
-        // Extract video ID from YouTube URL
-        const extractVideoId = (url: string): string => {
-          const patterns = [
-            /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-            /youtube\.com\/watch\?.*v=([^&\n?#]+)/
-          ];
-          
-          for (const pattern of patterns) {
-            const match = url.match(pattern);
-            if (match) {
-              return match[1];
-            }
-          }
-          return '';
-        };
-        
         setVideoId(extractVideoId(router.query.youtubeUrl as string));
       } catch (error) {
         console.error('Error parsing course data:', error);
@@ -149,6 +145,57 @@ export default function Create() {
         return newSet;
       });
     }
+  };
+
+  const handleLoadSuggestions = async () => {
+    if (!youtubeUrl) return;
+    
+    setLoadingSuggestions(true);
+    setSuggestionsError(null);
+    
+    try {
+      const response = await fetch('/api/course/suggestions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          videoUrl: youtubeUrl
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to load suggestions');
+      }
+
+      const data = await response.json();
+      setSuggestions(data.suggestions.topics || []);
+    } catch (error) {
+      console.error('Error loading suggestions:', error);
+      setSuggestionsError('Failed to load course suggestions. Please try again.');
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  };
+
+  const handleSelectVideo = (videoUrl: string) => {
+    // Navigate to home page with the selected video URL
+    router.push(`/?url=${encodeURIComponent(videoUrl)}`);
+  };
+
+  const extractVideoId = (url: string): string => {
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+      /youtube\.com\/watch\?.*v=([^&\n?#]+)/
+    ];
+    
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match) {
+        return match[1];
+      }
+    }
+    return '';
   };
 
   if (!courseData) {
@@ -443,6 +490,140 @@ export default function Create() {
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* AI Generated Course Suggestions */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-purple-600" />
+                AI Generated Course Suggestions
+              </CardTitle>
+              <CardDescription>
+                Discover next-level topics to continue your learning journey
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {suggestions.length === 0 && !loadingSuggestions && (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground mb-4">
+                    Get AI-powered suggestions for your next course topics
+                  </p>
+                  <Button onClick={handleLoadSuggestions} disabled={loadingSuggestions}>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Generate Suggestions
+                  </Button>
+                </div>
+              )}
+
+              {loadingSuggestions && (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                  <span className="text-muted-foreground">Generating personalized suggestions...</span>
+                </div>
+              )}
+
+              {suggestionsError && (
+                <Alert variant="destructive" className="mb-4">
+                  <AlertDescription>{suggestionsError}</AlertDescription>
+                </Alert>
+              )}
+
+              {suggestions.length > 0 && (
+                <div className="space-y-6">
+                  {suggestions.map((suggestion, index) => (
+                    <div key={index} className="space-y-4">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-sm">
+                          Topic {index + 1}
+                        </Badge>
+                        <h3 className="text-lg font-semibold">{suggestion.nextStep}</h3>
+                      </div>
+                      
+                      <div className="grid md:grid-cols-2 gap-4">
+                        {/* Video 1 */}
+                        <div className="space-y-3">
+                          <div className="aspect-video">
+                            <iframe
+                              src={`https://www.youtube.com/embed/${extractVideoId(suggestion.video1)}`}
+                              title="Suggested video 1"
+                              frameBorder="0"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                              allowFullScreen
+                              className="w-full h-full rounded-lg"
+                            />
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => window.open(suggestion.video1, '_blank')}
+                              className="text-xs"
+                            >
+                              <ExternalLink className="h-3 w-3 mr-1" />
+                              Watch on YouTube
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => handleSelectVideo(suggestion.video1)}
+                              className="bg-purple-600 hover:bg-purple-700"
+                            >
+                              Select
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Video 2 */}
+                        <div className="space-y-3">
+                          <div className="aspect-video">
+                            <iframe
+                              src={`https://www.youtube.com/embed/${extractVideoId(suggestion.video2)}`}
+                              title="Suggested video 2"
+                              frameBorder="0"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                              allowFullScreen
+                              className="w-full h-full rounded-lg"
+                            />
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => window.open(suggestion.video2, '_blank')}
+                              className="text-xs"
+                            >
+                              <ExternalLink className="h-3 w-3 mr-1" />
+                              Watch on YouTube
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => handleSelectVideo(suggestion.video2)}
+                              className="bg-purple-600 hover:bg-purple-700"
+                            >
+                              Select
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {index < suggestions.length - 1 && <Separator className="my-6" />}
+                    </div>
+                  ))}
+                  
+                  <div className="pt-4 border-t">
+                    <Button
+                      variant="outline"
+                      onClick={handleLoadSuggestions}
+                      disabled={loadingSuggestions}
+                      className="w-full"
+                    >
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Generate New Suggestions
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
