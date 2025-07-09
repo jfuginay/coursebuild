@@ -9,6 +9,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import Header from '@/components/Header';
 import QuestionOverlay from '@/components/QuestionOverlay';
+import CourseCurriculumCard from '@/components/CourseCurriculumCard';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
 interface Course {
   id: string;
@@ -23,7 +25,8 @@ interface Question {
   id: string;
   question: string;
   type: string;
-  options?: string[] | string; // Can be array or JSON string
+  options: string[]; // Always an array of strings
+  correct: number; // Index for multiple choice, 1/0 for true/false (alias for correct_answer)
   correct_answer: number; // Index for multiple choice, 1/0 for true/false
   explanation: string;
   timestamp: number;
@@ -35,6 +38,22 @@ interface Question {
   requires_video_overlay?: boolean;
   video_overlay?: boolean;
   bounding_box_count?: number;
+}
+
+interface Segment {
+  title: string;
+  timestamp: string;
+  timestampSeconds: number;
+  concepts: string[];
+  questions: Question[];
+}
+
+interface CourseData {
+  title: string;
+  description: string;
+  duration: string;
+  videoId: string;
+  segments: Segment[];
 }
 
 interface YTPlayer {
@@ -77,6 +96,12 @@ export default function CoursePage() {
   const [correctAnswers, setCorrectAnswers] = useState(0);
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [isYTApiLoaded, setIsYTApiLoaded] = useState(false);
+  const [questionResults, setQuestionResults] = useState<Record<string, boolean>>({});
+  const [expandedExplanations, setExpandedExplanations] = useState<Set<string>>(new Set());
+  const [showLoginModal, setShowLoginModal] = useState(false);
+
+  // Free questions limit
+  const FREE_QUESTIONS_LIMIT = 2;
 
   const playerRef = useRef<YTPlayer | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -227,6 +252,7 @@ export default function CoursePage() {
         const parsedQuestions = data.questions.map((q: any) => ({
           ...q,
           options: parseOptionsWithTrueFalse(q.options || [], q.type),
+          correct: parseInt(q.correct_answer) || 0,
           correct_answer: parseInt(q.correct_answer) || 0
         }));
         
@@ -392,6 +418,9 @@ export default function CoursePage() {
     if (correct) {
       setCorrectAnswers(prev => prev + 1);
     }
+    // Track question results for curriculum card
+    const questionId = `0-${currentQuestionIndex}`; // Using segment 0 since we're flattening
+    setQuestionResults(prev => ({ ...prev, [questionId]: correct }));
   };
 
   const handleContinueVideo = () => {
@@ -423,6 +452,59 @@ export default function CoursePage() {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = Math.floor(seconds % 60);
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  const formatTimestamp = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Convert questions to courseData format for curriculum card
+  const getCourseData = (): CourseData => {
+    if (!course || questions.length === 0) {
+      return {
+        title: course?.title || '',
+        description: course?.description || '',
+        duration: duration > 0 ? formatTime(duration) : 'Variable',
+        videoId: videoId,
+        segments: []
+      };
+    }
+
+    // Group questions into a single segment for simplicity
+    const segment: Segment = {
+      title: "Course Content",
+      timestamp: "00:00",
+      timestampSeconds: 0,
+      concepts: [],
+      questions: questions // Questions are already properly formatted from fetchQuestions
+    };
+
+    return {
+      title: course.title,
+      description: course.description,
+      duration: duration > 0 ? formatTime(duration) : 'Variable',
+      videoId: videoId,
+      segments: [segment]
+    };
+  };
+
+  // Convert answeredQuestions Set<number> to Set<string> format expected by curriculum card
+  const getAnsweredQuestionsForCurriculum = (): Set<string> => {
+    return new Set(Array.from(answeredQuestions).map(index => `0-${index}`));
+  };
+
+  const handleLoginRedirect = () => {
+    // Save progress before redirecting
+    localStorage.setItem('courseProgress', JSON.stringify({
+      courseId: id,
+      currentTime,
+      answeredQuestions: Array.from(answeredQuestions),
+      correctAnswers
+    }));
+    
+    router.push(`/login?returnUrl=/course/${id}`);
   };
 
   const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -655,6 +737,18 @@ export default function CoursePage() {
               </CardContent>
             </Card>
           )}
+
+          {/* Course Curriculum Card */}
+          <CourseCurriculumCard
+            courseData={getCourseData()}
+            answeredQuestions={getAnsweredQuestionsForCurriculum()}
+            questionResults={questionResults}
+            expandedExplanations={expandedExplanations}
+            setExpandedExplanations={setExpandedExplanations}
+            setShowLoginModal={setShowLoginModal}
+            freeQuestionsLimit={FREE_QUESTIONS_LIMIT}
+            formatTimestamp={formatTimestamp}
+          />
         </div>
       </div>
 
@@ -668,6 +762,52 @@ export default function CoursePage() {
           player={player}
         />
       )}
+
+      {/* Login Modal */}
+      <Dialog open={showLoginModal} onOpenChange={setShowLoginModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Ready to Continue Learning?</DialogTitle>
+            <DialogDescription>
+              You've completed the free preview! Sign up or log in to:
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 my-4">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-500" />
+              <span>Access all course segments</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-500" />
+              <span>Track your complete progress</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-500" />
+              <span>Get personalized recommendations</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-500" />
+              <span>Earn certificates</span>
+            </div>
+          </div>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button 
+              onClick={handleLoginRedirect}
+              className="w-full"
+              style={{ backgroundColor: '#8B5CF6' }}
+            >
+              Sign Up Free
+            </Button>
+            <Button 
+              onClick={handleLoginRedirect}
+              variant="outline"
+              className="w-full"
+            >
+              I Already Have an Account
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 
