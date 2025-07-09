@@ -110,7 +110,7 @@ Return your response in the following JSON format:
 
 async function testGeminiVideoAnalysis() {
   const youtubeUrl = 'https://www.youtube.com/watch?v=RnWiqO7cFzo&ab_channel=MGBits';
-  const geminiApiKey = process.env.GEMINI_API_KEY || 'REMOVED_API_KEY';
+  const geminiApiKey = process.env.GEMINI_API_KEY;
   
   console.log('🎬 Testing Gemini video analysis for:', youtubeUrl);
   console.log('🔑 Gemini API Key:', geminiApiKey ? 'Present' : 'Missing');
