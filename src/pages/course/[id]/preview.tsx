@@ -387,6 +387,40 @@ export default function CoursePreviewPage() {
     return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Adjust question timestamps that are too close to the video end
+  const adjustEndOfVideoQuestions = (courseData: CourseData, videoDuration: number): CourseData => {
+    const END_BUFFER_SECONDS = 5; // Move questions this many seconds before the end
+    const adjustedSegments = courseData.segments.map(segment => ({
+      ...segment,
+      questions: segment.questions.map(question => {
+        // Check if question is within the last 5 seconds of the video
+        if (question.timestamp > videoDuration - END_BUFFER_SECONDS) {
+          const originalTimestamp = question.timestamp;
+          const adjustedTimestamp = Math.max(
+            videoDuration - END_BUFFER_SECONDS,
+            question.timestamp - END_BUFFER_SECONDS
+          );
+          
+          console.log(`⏰ Adjusting end-of-video question: ${originalTimestamp}s → ${adjustedTimestamp}s (video ends at ${videoDuration}s)`);
+          
+          return {
+            ...question,
+            timestamp: adjustedTimestamp,
+            frame_timestamp: question.frame_timestamp && question.frame_timestamp > videoDuration - END_BUFFER_SECONDS 
+              ? adjustedTimestamp - 2 
+              : question.frame_timestamp
+          };
+        }
+        return question;
+      })
+    }));
+
+    return {
+      ...courseData,
+      segments: adjustedSegments
+    };
+  };
+
   const extractVideoId = (url: string): string => {
     const patterns = [
       /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
@@ -497,6 +531,28 @@ export default function CoursePreviewPage() {
       checkForQuestions();
     }
   }, [currentTime, courseData, answeredQuestions]);
+
+  // Adjust question timestamps when video duration becomes available
+  useEffect(() => {
+    if (courseData && duration > 0 && isVideoReady) {
+      // Check if any questions need adjustment
+      const hasEndOfVideoQuestions = courseData.segments.some(segment =>
+        segment.questions.some(question => question.timestamp > duration - 5)
+      );
+      
+      if (hasEndOfVideoQuestions) {
+        console.log(`🎬 Video duration: ${duration}s - checking for end-of-video questions...`);
+        const adjustedCourseData = adjustEndOfVideoQuestions(courseData, duration);
+        
+        // Only update if adjustments were made
+        const questionsAdjusted = JSON.stringify(adjustedCourseData) !== JSON.stringify(courseData);
+        if (questionsAdjusted) {
+          console.log('⏰ Applied timestamp adjustments for end-of-video questions');
+          setCourseData(adjustedCourseData);
+        }
+      }
+    }
+  }, [courseData, duration, isVideoReady]);
 
   // Get all questions for progress calculation
   const getAllQuestions = () => {

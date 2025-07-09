@@ -23,6 +23,10 @@
     "supabase:logs:enhanced": "npx supabase functions logs enhanced-quiz-service",
 
     "test:enhanced-quiz": "curl -X POST http://localhost:3000/api/test-enhanced-quiz",
+    "test:question-quality": "node test-enhanced-question-quality.js",
+    "test:hotspot-boxes": "node test-hotspot-multiple-boxes.js",
+    "test:matching-processing": "node test-matching-question-processing.js",
+    "test:end-of-video": "node test-end-of-video-questions.js",
 
 
     "demo:targeted-visual": "curl -X POST http://localhost:3000/api/demo-targeted-visual | jq '.'",
