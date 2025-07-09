@@ -286,20 +286,34 @@ async function storeEnhancedQuestions(
 ): Promise<any[]> {
   console.log('💾 Storing enhanced questions...');
 
-  const questionsToInsert = questions.map((q: any) => ({
-    course_id: courseId,
-    timestamp: q.timestamp,
-    question: q.question,
-    type: mapGeminiTypeToDbType(q.type),
-    options: q.options ? JSON.stringify(q.options) : null,
-    correct_answer: String(q.correct_answer),
-    explanation: q.explanation,
-    visual_context: q.visual_context,
-    has_visual_asset: q.requires_frame_capture || false,
-    visual_question_type: q.visual_question_type || null,
-    fallback_prompt: q.type === 'hotspot' ? `Generate simple diagram for: ${q.question}` : null,
-    accepted: false
-  }));
+  const questionsToInsert = questions.map((q: any) => {
+    // Ensure true/false questions have proper options
+    let options = q.options;
+    let correctAnswer = q.correct_answer;
+    
+    if (q.type === 'true_false') {
+      options = options || ["True", "False"];
+      // Convert boolean to array index
+      if (typeof correctAnswer === 'boolean') {
+        correctAnswer = correctAnswer ? 1 : 0;
+      }
+    }
+    
+    return {
+      course_id: courseId,
+      timestamp: q.timestamp,
+      question: q.question,
+      type: mapGeminiTypeToDbType(q.type),
+      options: options ? JSON.stringify(options) : null,
+      correct_answer: String(correctAnswer),
+      explanation: q.explanation,
+      visual_context: q.visual_context,
+      has_visual_asset: q.requires_frame_capture || false,
+      visual_question_type: q.visual_question_type || null,
+      fallback_prompt: q.type === 'hotspot' ? `Generate simple diagram for: ${q.question}` : null,
+      accepted: false
+    };
+  });
 
   const { data: createdQuestions, error: questionsError } = await supabaseClient
     .from('questions')

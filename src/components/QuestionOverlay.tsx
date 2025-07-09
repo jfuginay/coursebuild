@@ -90,12 +90,56 @@ export default function QuestionOverlay({
         <div className="w-full max-w-4xl mx-auto">
           <MatchingQuestion
             question={question.question}
-            pairs={question.matching_pairs.map((pair, index) => ({
-              id: `pair-${index}`,
-              left: pair.left || 'Item',
-              right: pair.right || 'Match',
-              imageUrl: pair.frame_timestamp ? question.frame_url : undefined
-            }))}
+            pairs={question.matching_pairs.map((pair, index) => {
+              // Handle different pair formats from the API
+              if (typeof pair.left === 'string' && typeof pair.right === 'string') {
+                // Simple string format
+                return {
+                  id: `pair-${index}`,
+                  left: {
+                    id: `left-${index}`,
+                    content: pair.left,
+                    type: 'text' as const
+                  },
+                  right: {
+                    id: `right-${index}`,
+                    content: pair.right,
+                    type: 'text' as const
+                  }
+                };
+              } else if (pair.visual && pair.match) {
+                // Visual matching format from demo-targeted-visual
+                return {
+                  id: `pair-${index}`,
+                  left: {
+                    id: `left-${index}`,
+                    content: pair.visual,
+                    type: pair.bbox ? 'frame_crop' as const : 'text' as const,
+                    imageUrl: pair.bbox && question.frame_url ? question.frame_url : undefined
+                  },
+                  right: {
+                    id: `right-${index}`,
+                    content: pair.match,
+                    type: 'text' as const
+                  }
+                };
+              } else {
+                // Default fallback
+                return {
+                  id: `pair-${index}`,
+                  left: {
+                    id: `left-${index}`,
+                    content: pair.left || 'Item',
+                    type: 'text' as const
+                  },
+                  right: {
+                    id: `right-${index}`,
+                    content: pair.right || 'Match',
+                    type: 'text' as const
+                  }
+                };
+              }
+            })}
             explanation={question.explanation}
             onAnswer={(isCorrect) => {
               onAnswer(isCorrect);
@@ -146,10 +190,17 @@ export default function QuestionOverlay({
     setHasAnswered(true);
     setShowExplanation(true);
     
-    // Determine correct answer index
-    const correctIndex = typeof question.correct_answer === 'string' 
-      ? parseInt(question.correct_answer) 
-      : question.correct_answer;
+    // Determine correct answer index with proper error handling
+    let correctIndex: number;
+    if (typeof question.correct_answer === 'string') {
+      const parsed = parseInt(question.correct_answer);
+      correctIndex = isNaN(parsed) ? 0 : parsed;
+    } else if (typeof question.correct_answer === 'number') {
+      correctIndex = question.correct_answer;
+    } else {
+      // Fallback for undefined or null
+      correctIndex = 0;
+    }
     
     const isCorrect = optionIndex === correctIndex;
     onAnswer(isCorrect);
@@ -162,9 +213,19 @@ export default function QuestionOverlay({
     onContinue();
   };
 
-  const correctIndex = typeof question.correct_answer === 'string' 
-    ? parseInt(question.correct_answer) 
-    : question.correct_answer;
+  // Helper function to get correct answer index consistently
+  const getCorrectAnswerIndex = (correct_answer: string | number): number => {
+    if (typeof correct_answer === 'string') {
+      const parsed = parseInt(correct_answer);
+      return isNaN(parsed) ? 0 : parsed;
+    } else if (typeof correct_answer === 'number') {
+      return correct_answer;
+    } else {
+      return 0;
+    }
+  };
+  
+  const correctIndex = getCorrectAnswerIndex(question.correct_answer);
 
   const formatTimestamp = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
