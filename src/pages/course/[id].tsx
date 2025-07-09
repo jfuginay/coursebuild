@@ -9,6 +9,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import Header from '@/components/Header';
 import QuestionOverlay from '@/components/QuestionOverlay';
+import CourseCurriculumCard from '@/components/CourseCurriculumCard';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
 interface Course {
   id: string;
@@ -23,19 +25,35 @@ interface Question {
   id: string;
   question: string;
   type: string;
-  options?: string[] | string; // Can be array or JSON string
-  correct_answer: string | number;
+  options: string[]; // Always an array of strings
+  correct: number; // Index for multiple choice, 1/0 for true/false (alias for correct_answer)
+  correct_answer: number; // Index for multiple choice, 1/0 for true/false
   explanation: string;
   timestamp: number;
   visual_context?: string;
-  frame_url?: string;
+  frame_timestamp?: number; // For video overlay timing
   bounding_boxes?: any[];
   detected_objects?: any[];
-  visual_asset_id?: string;
   matching_pairs?: any[];
-  has_visual_asset?: boolean;
-  visual_question_type?: string;
+  requires_video_overlay?: boolean;
+  video_overlay?: boolean;
   bounding_box_count?: number;
+}
+
+interface Segment {
+  title: string;
+  timestamp: string;
+  timestampSeconds: number;
+  concepts: string[];
+  questions: Question[];
+}
+
+interface CourseData {
+  title: string;
+  description: string;
+  duration: string;
+  videoId: string;
+  segments: Segment[];
 }
 
 interface YTPlayer {
@@ -77,6 +95,13 @@ export default function CoursePage() {
   const [answeredQuestions, setAnsweredQuestions] = useState<Set<number>>(new Set());
   const [correctAnswers, setCorrectAnswers] = useState(0);
   const [isVideoReady, setIsVideoReady] = useState(false);
+  const [isYTApiLoaded, setIsYTApiLoaded] = useState(false);
+  const [questionResults, setQuestionResults] = useState<Record<string, boolean>>({});
+  const [expandedExplanations, setExpandedExplanations] = useState<Set<string>>(new Set());
+  const [showLoginModal, setShowLoginModal] = useState(false);
+
+  // Free questions limit
+  const FREE_QUESTIONS_LIMIT = 2;
 
   const playerRef = useRef<YTPlayer | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -89,34 +114,73 @@ export default function CoursePage() {
   }, [id]);
 
   useEffect(() => {
-    // Load YouTube iframe API only once
-    if (!window.YT && !document.querySelector('script[src*="youtube.com/iframe_api"]')) {
-      const script = document.createElement('script');
-      script.src = 'https://www.youtube.com/iframe_api';
-      script.async = true;
-      document.body.appendChild(script);
-      
-      // Set up the API ready callback
-      window.onYouTubeIframeAPIReady = () => {
-        console.log('YouTube API loaded');
-        // Trigger re-render to initialize player
-        setIsVideoReady(false);
-      };
+    console.log('🔍 Checking YouTube API availability...');
+    
+    // Check if YT API is already loaded
+    if (window.YT && window.YT.Player) {
+      console.log('✅ YouTube API already loaded');
+      setIsYTApiLoaded(true);
+      return;
     }
 
+    // Load YouTube iframe API if not already loaded
+    if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+      console.log('📥 Loading YouTube iframe API...');
+    const script = document.createElement('script');
+    script.src = 'https://www.youtube.com/iframe_api';
+    script.async = true;
+    document.body.appendChild(script);
+    } else {
+      console.log('📜 YouTube API script already exists');
+    }
+
+    // Set up the callback for when API is ready
+    window.onYouTubeIframeAPIReady = () => {
+      console.log('✅ YouTube API loaded and ready');
+      setIsYTApiLoaded(true);
+    };
+
+    // Fallback timeout in case API fails to load
+    const timeout = setTimeout(() => {
+      if (!isYTApiLoaded) {
+        console.warn('⏰ YouTube API timeout - attempting fallback');
+        // Check one more time if the API is actually available
+        if (window.YT && window.YT.Player) {
+          console.log('✅ YouTube API available after timeout check');
+          setIsYTApiLoaded(true);
+        } else {
+          console.error('❌ YouTube API failed to load within timeout');
+          setError('YouTube video player failed to load. Please try refreshing the page.');
+        }
+      }
+    }, 10000); // 10 second timeout
+
     return () => {
+      clearTimeout(timeout);
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
     };
-  }, []);
+  }, [isYTApiLoaded]);
 
   useEffect(() => {
-    // Initialize player when we have video ID and YouTube API is ready
-    if (videoId && window.YT && window.YT.Player && !player) {
+    console.log('🎯 Player initialization check:', {
+      videoId: videoId,
+      isYTApiLoaded: isYTApiLoaded,
+      hasWindowYT: !!(window.YT && window.YT.Player),
+      hasPlayer: !!player
+    });
+    
+    if (videoId && isYTApiLoaded && window.YT && window.YT.Player && !player) {
+      console.log('🚀 Attempting to initialize player...');
+      // Add small delay to ensure DOM is ready
+      const timer = setTimeout(() => {
       initializePlayer();
+      }, 100);
+      
+      return () => clearTimeout(timer);
     }
-  }, [videoId, player]);
+  }, [videoId, isYTApiLoaded, player]);
 
   useEffect(() => {
     if (player && questions.length > 0) {
@@ -132,7 +196,11 @@ export default function CoursePage() {
       if (data.success) {
         setCourse(data.course);
         const extractedVideoId = extractVideoId(data.course.youtube_url);
-        console.log('Extracted video ID:', extractedVideoId, 'from URL:', data.course.youtube_url);
+        console.log('🎬 Course loaded:', {
+          title: data.course.title,
+          youtubeUrl: data.course.youtube_url,
+          extractedVideoId: extractedVideoId
+        });
         setVideoId(extractedVideoId);
       } else {
         setError(data.error || 'Failed to fetch course');
@@ -140,40 +208,6 @@ export default function CoursePage() {
     } catch (err) {
       setError('Error loading course');
       console.error('Error fetching course:', err);
-    }
-  };
-
-  const fetchQuestions = async () => {
-    try {
-      const response = await fetch(`/api/course/${id}/questions`);
-      const data = await response.json();
-
-      if (data.success) {
-        // Parse options for each question to ensure they're arrays
-        const parsedQuestions = data.questions.map((q: Question) => ({
-          ...q,
-          options: parseOptions(q.options || [])
-        }));
-        
-        console.log('📊 Questions fetched for course:', data.questions.length);
-        console.log('🎯 Debug info:', data.debug);
-        console.log('📝 Sample question data:', data.questions[0]);
-        
-        // Log visual questions specifically
-        const visualQuestions = parsedQuestions.filter((q: Question) => q.type === 'hotspot' || q.type === 'matching' || q.has_visual_asset);
-        console.log('👁️ Visual questions found:', visualQuestions.length);
-        if (visualQuestions.length > 0) {
-          console.log('🖼️ First visual question:', visualQuestions[0]);
-        }
-        
-        setQuestions(parsedQuestions);
-      } else {
-        console.error('Failed to fetch questions:', data.error);
-      }
-    } catch (err) {
-      console.error('Error fetching questions:', err);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -196,81 +230,152 @@ export default function CoursePage() {
     return [];
   };
 
-  const initializePlayer = () => {
+  // Enhanced parseOptions function that handles true/false questions
+  const parseOptionsWithTrueFalse = (options: string[] | string, questionType: string): string[] => {
+    const parsedOptions = parseOptions(options);
+    
+    // For true/false questions, ensure we have the correct options
+    if (parsedOptions.length === 0 && (questionType === 'true-false' || questionType === 'true_false')) {
+      return ['True', 'False'];
+    }
+    
+    return parsedOptions;
+  };
+
+  const fetchQuestions = async () => {
+    try {
+      const response = await fetch(`/api/course/${id}/questions`);
+      const data = await response.json();
+
+      if (data.success) {
+        // Parse options for each question to ensure they're arrays and correct_answer is a number
+        const parsedQuestions = data.questions.map((q: any) => ({
+          ...q,
+          options: parseOptionsWithTrueFalse(q.options || [], q.type),
+          correct: parseInt(q.correct_answer) || 0,
+          correct_answer: parseInt(q.correct_answer) || 0
+        }));
+        
+        console.log('📊 Questions fetched for course:', data.questions.length);
+        console.log('🎯 Debug info:', data.debug);
+        console.log('📝 Sample question data:', data.questions[0]);
+        
+        // Log visual questions specifically
+        const visualQuestions = parsedQuestions.filter((q: Question) => q.type === 'hotspot' || q.type === 'matching' || q.requires_video_overlay);
+        console.log('👁️ Visual questions found:', visualQuestions.length);
+        if (visualQuestions.length > 0) {
+          console.log('🖼️ First visual question:', visualQuestions[0]);
+        }
+        
+        setQuestions(parsedQuestions);
+      } else {
+        console.error('Failed to fetch questions:', data.error);
+      }
+    } catch (err) {
+      console.error('Error fetching questions:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const initializePlayer = (retryCount = 0) => {
+    console.log(`🎯 initializePlayer called (attempt ${retryCount + 1})`, {
+      hasYT: !!window.YT,
+      hasPlayer: !!(window.YT && window.YT.Player),
+      videoId: videoId,
+      domReady: document.readyState,
+      elementExists: !!document.getElementById('youtube-player')
+    });
+
     if (!window.YT || !window.YT.Player || !videoId) {
-      console.log('YouTube API not ready yet, retrying...');
-      setTimeout(initializePlayer, 100);
+      console.warn('⚠️ YouTube API not ready or no video ID:', {
+        hasYT: !!window.YT,
+        hasPlayer: !!(window.YT && window.YT.Player),
+        videoId: videoId
+      });
       return;
     }
 
     // Check if the target element exists
     const targetElement = document.getElementById('youtube-player');
     if (!targetElement) {
-      console.log('YouTube player element not found, retrying...');
-      setTimeout(initializePlayer, 100);
-      return;
+      console.warn(`⚠️ YouTube player target element not found (attempt ${retryCount + 1})`);
+      console.log('🔍 DOM elements check:', {
+        bodyChildren: document.body.children.length,
+        hasYouTubePlayer: !!document.getElementById('youtube-player'),
+        allElementsWithId: Array.from(document.querySelectorAll('[id]')).map(el => el.id)
+      });
+      
+      // Retry up to 5 times with increasing delays
+      if (retryCount < 5) {
+        setTimeout(() => {
+          initializePlayer(retryCount + 1);
+        }, 200 * (retryCount + 1)); // 200ms, 400ms, 600ms, 800ms, 1000ms
+        return;
+      } else {
+        console.error('❌ YouTube player target element not found after 5 attempts');
+        setError('Video player container not found after multiple attempts');
+        return;
+      }
     }
 
     try {
-      console.log('Initializing YouTube player with video ID:', videoId);
-      
-      const newPlayer = new window.YT.Player('youtube-player', {
-        videoId: videoId,
-        playerVars: {
-          autoplay: 0,
-          controls: 1,
-          disablekb: 0,
-          enablejsapi: 1,
-          modestbranding: 1,
-          playsinline: 1,
-          rel: 0,
-        },
-        events: {
-          onReady: (event: any) => {
-            console.log('Player ready');
-            setPlayer(event.target);
-            playerRef.current = event.target;
-            setIsVideoReady(true);
-            startTimeTracking();
-          },
-          onStateChange: (event: any) => {
-            if (event.data === window.YT.PlayerState.PLAYING) {
-              startTimeTracking();
-            } else if (event.data === window.YT.PlayerState.PAUSED) {
-              stopTimeTracking();
-            }
-          },
-          onError: (event: any) => {
-            console.error('YouTube player error:', event.data);
-            // Handle different error types
-            switch (event.data) {
-              case 2:
-                console.error('Invalid video ID');
-                setError('Invalid video ID. Please check the YouTube URL.');
-                break;
-              case 5:
-                console.error('Video not supported in HTML5 player');
-                setError('Video format not supported. Please try a different video.');
-                break;
-              case 100:
-                console.error('Video not found or private');
-                setError('Video not found or is private. Please check the YouTube URL.');
-                break;
-              case 101:
-              case 150:
-                console.error('Video cannot be embedded');
-                setError('This video cannot be embedded. Please try a different video.');
-                break;
-              default:
-                console.error('Unknown YouTube player error');
-                setError('Unable to load video. Please try again later.');
-            }
-          },
-        },
+      console.log('🚀 Initializing YouTube player for video:', videoId);
+      console.log('🎯 Target element found:', {
+        id: targetElement.id,
+        className: targetElement.className,
+        clientWidth: targetElement.clientWidth,
+        clientHeight: targetElement.clientHeight,
+        style: targetElement.getAttribute('style')
       });
+
+    const newPlayer = new window.YT.Player('youtube-player', {
+      videoId: videoId,
+        width: '100%',
+        height: '100%',
+      playerVars: {
+        autoplay: 0,
+        controls: 1,
+        disablekb: 0,
+        enablejsapi: 1,
+        modestbranding: 1,
+        playsinline: 1,
+        rel: 0,
+          origin: window.location.origin
+      },
+      events: {
+        onReady: (event: any) => {
+            console.log('✅ YouTube player ready');
+          setPlayer(event.target);
+          playerRef.current = event.target;
+          setIsVideoReady(true);
+          startTimeTracking();
+        },
+        onStateChange: (event: any) => {
+            console.log('🎬 Player state changed:', event.data);
+          if (event.data === window.YT.PlayerState.PLAYING) {
+            startTimeTracking();
+          } else if (event.data === window.YT.PlayerState.PAUSED) {
+            stopTimeTracking();
+          }
+        },
+          onError: (event: any) => {
+            console.error('❌ YouTube player error:', event.data);
+            const errorMessages = {
+              2: 'Invalid video ID',
+              5: 'HTML5 player error',
+              100: 'Video not found or private',
+              101: 'Video not allowed to be embedded',
+              150: 'Video not allowed to be embedded'
+            };
+            const errorMessage = errorMessages[event.data as keyof typeof errorMessages] || 'Unknown video error';
+            setError(`Video error: ${errorMessage}`);
+          }
+      },
+    });
     } catch (error) {
-      console.error('Error initializing YouTube player:', error);
-      setError('Failed to initialize video player. Please refresh the page.');
+      console.error('❌ Error initializing YouTube player:', error);
+      setError('Failed to initialize video player');
     }
   };
 
@@ -313,6 +418,9 @@ export default function CoursePage() {
     if (correct) {
       setCorrectAnswers(prev => prev + 1);
     }
+    // Track question results for curriculum card
+    const questionId = `0-${currentQuestionIndex}`; // Using segment 0 since we're flattening
+    setQuestionResults(prev => ({ ...prev, [questionId]: correct }));
   };
 
   const handleContinueVideo = () => {
@@ -344,6 +452,59 @@ export default function CoursePage() {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = Math.floor(seconds % 60);
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  const formatTimestamp = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Convert questions to courseData format for curriculum card
+  const getCourseData = (): CourseData => {
+    if (!course || questions.length === 0) {
+      return {
+        title: course?.title || '',
+        description: course?.description || '',
+        duration: duration > 0 ? formatTime(duration) : 'Variable',
+        videoId: videoId,
+        segments: []
+      };
+    }
+
+    // Group questions into a single segment for simplicity
+    const segment: Segment = {
+      title: "Course Content",
+      timestamp: "00:00",
+      timestampSeconds: 0,
+      concepts: [],
+      questions: questions // Questions are already properly formatted from fetchQuestions
+    };
+
+    return {
+      title: course.title,
+      description: course.description,
+      duration: duration > 0 ? formatTime(duration) : 'Variable',
+      videoId: videoId,
+      segments: [segment]
+    };
+  };
+
+  // Convert answeredQuestions Set<number> to Set<string> format expected by curriculum card
+  const getAnsweredQuestionsForCurriculum = (): Set<string> => {
+    return new Set(Array.from(answeredQuestions).map(index => `0-${index}`));
+  };
+
+  const handleLoginRedirect = () => {
+    // Save progress before redirecting
+    localStorage.setItem('courseProgress', JSON.stringify({
+      courseId: id,
+      currentTime,
+      answeredQuestions: Array.from(answeredQuestions),
+      correctAnswers
+    }));
+    
+    router.push(`/login?returnUrl=/course/${id}`);
   };
 
   const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -468,15 +629,29 @@ export default function CoursePage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="aspect-video bg-muted rounded-lg overflow-hidden relative">
-                {!isVideoReady && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-muted">
+                {!isYTApiLoaded && !error && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-muted z-10">
                     <div className="text-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
                       <p className="text-sm text-muted-foreground">Loading video player...</p>
                     </div>
                   </div>
                 )}
-                <div id="youtube-player" className="w-full h-full" />
+                
+                {/* Fallback iframe if API fails */}
+                {error && videoId && (
+                  <iframe
+                    src={`https://www.youtube.com/embed/${videoId}?controls=1&modestbranding=1&rel=0&enablejsapi=1&origin=${window.location.origin}`}
+                    title="YouTube video player"
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                    className="w-full h-full"
+                  />
+                )}
+                
+                {/* Main YouTube API player */}
+                <div id="youtube-player" className="w-full h-full" style={{ display: error ? 'none' : 'block' }} />
               </div>
               
               {/* Progress Bar */}
@@ -562,6 +737,18 @@ export default function CoursePage() {
               </CardContent>
             </Card>
           )}
+
+          {/* Course Curriculum Card */}
+          <CourseCurriculumCard
+            courseData={getCourseData()}
+            answeredQuestions={getAnsweredQuestionsForCurriculum()}
+            questionResults={questionResults}
+            expandedExplanations={expandedExplanations}
+            setExpandedExplanations={setExpandedExplanations}
+            setShowLoginModal={setShowLoginModal}
+            freeQuestionsLimit={FREE_QUESTIONS_LIMIT}
+            formatTimestamp={formatTimestamp}
+          />
         </div>
       </div>
 
@@ -572,8 +759,55 @@ export default function CoursePage() {
           onAnswer={handleAnswer}
           onContinue={handleContinueVideo}
           isVisible={showQuestion}
+          player={player}
         />
       )}
+
+      {/* Login Modal */}
+      <Dialog open={showLoginModal} onOpenChange={setShowLoginModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Ready to Continue Learning?</DialogTitle>
+            <DialogDescription>
+              You've completed the free preview! Sign up or log in to:
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 my-4">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-500" />
+              <span>Access all course segments</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-500" />
+              <span>Track your complete progress</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-500" />
+              <span>Get personalized recommendations</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-500" />
+              <span>Earn certificates</span>
+            </div>
+          </div>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button 
+              onClick={handleLoginRedirect}
+              className="w-full"
+              style={{ backgroundColor: '#8B5CF6' }}
+            >
+              Sign Up Free
+            </Button>
+            <Button 
+              onClick={handleLoginRedirect}
+              variant="outline"
+              className="w-full"
+            >
+              I Already Have an Account
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
-}
+} 

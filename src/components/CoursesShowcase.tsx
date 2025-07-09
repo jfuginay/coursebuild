@@ -3,7 +3,8 @@ import { useRouter } from 'next/router';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Play, BookOpen, Clock, Users, ExternalLink } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Play, BookOpen, Clock, Users, ExternalLink, Trash2 } from 'lucide-react';
 
 interface Course {
   id: string;
@@ -25,6 +26,7 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
   const [coursesToShow, setCoursesToShow] = useState(limit);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deletingCourseId, setDeletingCourseId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCourses();
@@ -74,6 +76,32 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
 
   const handleCourseClick = (courseId: string) => {
     router.push(`/course/${courseId}`);
+  };
+
+  const handleDeleteCourse = async (courseId: string) => {
+    try {
+      setDeletingCourseId(courseId);
+      
+      const response = await fetch(`/api/course/${courseId}`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Remove the course from the local state
+        setAllCourses(prev => prev.filter(course => course.id !== courseId));
+        setDisplayedCourses(prev => prev.filter(course => course.id !== courseId));
+      } else {
+        setError('Failed to delete course');
+        console.error('Delete error:', data.message);
+      }
+    } catch (err) {
+      setError('Error deleting course');
+      console.error('Error deleting course:', err);
+    } finally {
+      setDeletingCourseId(null);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -167,12 +195,50 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
           return (
             <Card 
               key={course.id} 
-              className="group hover:shadow-lg transition-all duration-300 cursor-pointer"
+              className="group hover:shadow-lg transition-all duration-300 cursor-pointer relative"
               onClick={() => handleCourseClick(course.id)}
             >
+              {/* Delete button in top right corner */}
+              <div className="absolute top-3 right-3 z-10">
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 bg-red-500/10 hover:bg-red-500/20 text-red-600 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => e.stopPropagation()}
+                      disabled={deletingCourseId === course.id}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Course</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to delete "{course.title}"? This will permanently remove the course and all its questions. This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteCourse(course.id);
+                        }}
+                        className="bg-red-600 hover:bg-red-700"
+                        disabled={deletingCourseId === course.id}
+                      >
+                        {deletingCourseId === course.id ? 'Deleting...' : 'Delete Course'}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
-                  <div className="flex-1">
+                  <div className="flex-1 pr-8">
                     <CardTitle className="text-lg line-clamp-2 group-hover:text-primary transition-colors">
                       {course.title}
                     </CardTitle>
@@ -180,7 +246,6 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
                       {course.description}
                     </CardDescription>
                   </div>
-                  <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0 ml-2" />
                 </div>
               </CardHeader>
               
@@ -192,6 +257,37 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
                       src={thumbnailUrl}
                       alt={course.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        // Fallback to smaller resolution thumbnails
+                        const img = e.target as HTMLImageElement;
+                        const currentSrc = img.src;
+                        
+                        if (currentSrc.includes('maxresdefault.jpg')) {
+                          img.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+                        } else if (currentSrc.includes('hqdefault.jpg')) {
+                          img.src = `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`;
+                        } else if (currentSrc.includes('mqdefault.jpg')) {
+                          img.src = `https://img.youtube.com/vi/${videoId}/default.jpg`;
+                        } else {
+                          // All thumbnails failed, hide the image
+                          img.style.display = 'none';
+                          const parentDiv = img.parentElement;
+                          if (parentDiv) {
+                            parentDiv.innerHTML = `
+                              <div class="w-full h-full flex items-center justify-center">
+                                <div class="text-center">
+                                  <div class="h-8 w-8 mx-auto mb-2 opacity-50">
+                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.55-2.55a.999.999 0 011.45.89v6.32a.999.999 0 01-1.45.89L15 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h8a2 2 0 012 2v3z"/>
+                                    </svg>
+                                  </div>
+                                  <p class="text-xs text-muted-foreground">Video Thumbnail</p>
+                                </div>
+                              </div>
+                            `;
+                          }
+                        }
+                      }}
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">

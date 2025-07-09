@@ -16,18 +16,15 @@
     "supabase:deploy": "npx supabase functions deploy",
     "supabase:deploy:gemini": "npx supabase functions deploy gemini-quiz-service",
     "supabase:deploy:enhanced": "npx supabase functions deploy enhanced-quiz-service",
-    "supabase:deploy:visual": "npx supabase functions deploy visual-frame-service",
-    "supabase:deploy:frame-capture": "npx supabase functions deploy frame-capture-service",
-    "supabase:deploy:all": "npm run supabase:deploy:gemini && npm run supabase:deploy:enhanced && npm run supabase:deploy:visual && npm run supabase:deploy:frame-capture",
+
+    "supabase:deploy:all": "npm run supabase:deploy:gemini && npm run supabase:deploy:enhanced",
     "supabase:logs": "npx supabase functions logs",
     "supabase:logs:gemini": "npx supabase functions logs gemini-quiz-service",
     "supabase:logs:enhanced": "npx supabase functions logs enhanced-quiz-service",
-    "supabase:logs:visual": "npx supabase functions logs visual-frame-service",
-    "supabase:logs:frame-capture": "npx supabase functions logs frame-capture-service",
+
     "test:enhanced-quiz": "curl -X POST http://localhost:3000/api/test-enhanced-quiz",
-    "test:frame-capture": "curl -X POST http://localhost:3000/api/test-frame-capture",
-    "demo:frame-capture": "curl -X POST http://localhost:3000/api/demo-frame-capture | jq '.'",
-    "demo:frame-capture:simple": "curl -X POST http://localhost:3000/api/demo-frame-capture",
+
+
     "demo:targeted-visual": "curl -X POST http://localhost:3000/api/demo-targeted-visual | jq '.'",
     "demo:targeted-visual:workflow": "curl -X POST http://localhost:3000/api/demo-targeted-visual | jq '.approach.workflow'",
     "demo:targeted-visual:performance": "curl -X POST http://localhost:3000/api/demo-targeted-visual | jq '.performance_comparison'",

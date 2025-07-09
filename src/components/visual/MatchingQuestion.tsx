@@ -41,44 +41,82 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [draggedItem, setDraggedItem] = useState<MatchingItem | null>(null);
   const [draggedFromSide, setDraggedFromSide] = useState<'left' | 'right' | null>(null);
+  const [selectedItem, setSelectedItem] = useState<{item: MatchingItem, side: 'left' | 'right'} | null>(null);
 
-  const handleDragStart = (item: MatchingItem, side: 'left' | 'right') => {
+  const handleDragStart = (e: React.DragEvent, item: MatchingItem, side: 'left' | 'right') => {
     if (disabled || isSubmitted) return;
     
     setDraggedItem(item);
     setDraggedFromSide(side);
+    
+    // Set drag data
+    e.dataTransfer.setData('text/plain', JSON.stringify({ item, side }));
+    e.dataTransfer.effectAllowed = 'move';
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
   };
 
-  const handleDrop = (targetItem: MatchingItem, targetSide: 'left' | 'right') => {
+  const handleDrop = (e: React.DragEvent, targetItem: MatchingItem, targetSide: 'left' | 'right') => {
+    e.preventDefault();
+    
     if (!draggedItem || !draggedFromSide || targetSide === draggedFromSide || disabled || isSubmitted) {
+      setDraggedItem(null);
+      setDraggedFromSide(null);
       return;
     }
 
+    createMatch(draggedItem, draggedFromSide, targetItem, targetSide);
+    setDraggedItem(null);
+    setDraggedFromSide(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedItem(null);
+    setDraggedFromSide(null);
+  };
+
+  const handleClick = (item: MatchingItem, side: 'left' | 'right') => {
+    if (disabled || isSubmitted) return;
+
+    if (!selectedItem) {
+      // First click - select item
+      setSelectedItem({ item, side });
+    } else if (selectedItem.item.id === item.id && selectedItem.side === side) {
+      // Clicking same item - deselect
+      setSelectedItem(null);
+    } else if (selectedItem.side === side) {
+      // Clicking different item on same side - change selection
+      setSelectedItem({ item, side });
+    } else {
+      // Clicking item on different side - create match
+      createMatch(selectedItem.item, selectedItem.side, item, side);
+      setSelectedItem(null);
+    }
+  };
+
+  const createMatch = (sourceItem: MatchingItem, sourceSide: 'left' | 'right', targetItem: MatchingItem, targetSide: 'left' | 'right') => {
     const newMatches = { ...userMatches };
     
-    if (draggedFromSide === 'left' && targetSide === 'right') {
+    if (sourceSide === 'left' && targetSide === 'right') {
       // Remove any existing match for this left item
       Object.keys(newMatches).forEach(key => {
-        if (newMatches[key] === draggedItem.id) {
+        if (newMatches[key] === sourceItem.id) {
           delete newMatches[key];
         }
       });
-      // Add new match
-      newMatches[targetItem.id] = draggedItem.id;
-    } else if (draggedFromSide === 'right' && targetSide === 'left') {
+      // Add new match: right item ID -> left item ID
+      newMatches[targetItem.id] = sourceItem.id;
+    } else if (sourceSide === 'right' && targetSide === 'left') {
       // Remove any existing match for this right item
-      delete newMatches[draggedItem.id];
-      // Add new match
-      newMatches[draggedItem.id] = targetItem.id;
+      delete newMatches[sourceItem.id];
+      // Add new match: right item ID -> left item ID
+      newMatches[sourceItem.id] = targetItem.id;
     }
 
     setUserMatches(newMatches);
-    setDraggedItem(null);
-    setDraggedFromSide(null);
   };
 
   const handleSubmit = () => {
@@ -100,10 +138,25 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
   };
 
   const getItemStyle = (item: MatchingItem, side: 'left' | 'right'): string => {
-    let baseClass = "p-3 border-2 rounded-lg cursor-move transition-all duration-200 min-h-[80px] flex items-center justify-center text-center";
+    let baseClass = "p-3 border-2 rounded-lg cursor-pointer transition-all duration-200 min-h-[80px] flex items-center justify-center text-center";
     
     if (disabled || isSubmitted) {
       baseClass += " cursor-default";
+    }
+
+    // Add drag state styling
+    if (draggedItem?.id === item.id) {
+      baseClass += " opacity-50 scale-95";
+    }
+
+    // Add selected state styling (for click-to-match)
+    if (selectedItem?.item.id === item.id && selectedItem?.side === side) {
+      baseClass += " border-purple-500 bg-purple-100 text-purple-800 shadow-lg";
+    }
+
+    // Add drop zone styling
+    if (draggedItem && draggedFromSide && draggedFromSide !== side) {
+      baseClass += " border-dashed border-blue-400 bg-blue-50/50";
     }
 
     if (showAnswer || isSubmitted) {
@@ -195,7 +248,7 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
         </div>
         <CardTitle>{question}</CardTitle>
         <CardDescription>
-          Drag items from the left column to match them with the correct items on the right.
+          Drag items from the left column to match them with the correct items on the right, or click to select and match items.
         </CardDescription>
       </CardHeader>
       
@@ -212,9 +265,11 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
                 key={item.id}
                 className={`relative ${getItemStyle(item, 'left')}`}
                 draggable={!disabled && !isSubmitted}
-                onDragStart={() => handleDragStart(item, 'left')}
+                onDragStart={(e) => handleDragStart(e, item, 'left')}
                 onDragOver={handleDragOver}
-                onDrop={() => handleDrop(item, 'left')}
+                onDrop={(e) => handleDrop(e, item, 'left')}
+                onDragEnd={handleDragEnd}
+                onClick={() => handleClick(item, 'left')}
               >
                 {renderItem(item)}
                 {getMatchIndicator(item, 'left')}
@@ -233,9 +288,11 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
                 key={item.id}
                 className={`relative ${getItemStyle(item, 'right')}`}
                 draggable={!disabled && !isSubmitted}
-                onDragStart={() => handleDragStart(item, 'right')}
+                onDragStart={(e) => handleDragStart(e, item, 'right')}
                 onDragOver={handleDragOver}
-                onDrop={() => handleDrop(item, 'right')}
+                onDrop={(e) => handleDrop(e, item, 'right')}
+                onDragEnd={handleDragEnd}
+                onClick={() => handleClick(item, 'right')}
               >
                 {renderItem(item)}
                 {getMatchIndicator(item, 'right')}
@@ -266,7 +323,7 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
 
         {/* Answer State */}
         {(showAnswer || isSubmitted) && (
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+          <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
             <div className="flex items-start gap-3">
               <div className="flex-shrink-0 mt-0.5">
                 {Object.keys(userMatches).length === pairs.length && 
@@ -277,23 +334,23 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
                 )}
               </div>
               <div>
-                <p className="font-medium text-sm mb-2">
+                <p className="font-medium text-sm mb-2 text-gray-900">
                   {Object.keys(userMatches).length === pairs.length && 
                    pairs.every(pair => userMatches[pair.right.id] === pair.left.id)
                     ? 'All matches correct!' 
                     : 'Some matches are incorrect'}
                 </p>
-                <p className="text-sm text-gray-700 mb-3">{explanation}</p>
+                <p className="text-sm text-gray-800 mb-3">{explanation}</p>
                 
                 {/* Show correct answers */}
                 <div className="text-sm">
-                  <p className="font-medium text-gray-700 mb-2">Correct matches:</p>
+                  <p className="font-medium text-gray-900 mb-2">Correct matches:</p>
                   <div className="space-y-1">
                     {pairs.map((pair) => (
-                      <div key={pair.id} className="flex items-center gap-2 text-xs">
-                        <span className="font-medium">{pair.left.content}</span>
-                        <span className="text-gray-500">→</span>
-                        <span>{pair.right.content}</span>
+                      <div key={pair.id} className="flex items-center gap-2 text-xs text-gray-800">
+                        <span className="font-medium text-gray-900">{pair.left.content}</span>
+                        <span className="text-gray-600">→</span>
+                        <span className="text-gray-800">{pair.right.content}</span>
                       </div>
                     ))}
                   </div>
@@ -305,11 +362,16 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
 
         {/* Instructions */}
         {!isSubmitted && !showAnswer && (
-          <div className="mt-6 text-sm text-gray-600 bg-purple-50 p-3 rounded-lg">
-            <div className="flex items-center gap-2">
+          <div className="mt-6 text-sm text-gray-700 bg-purple-50 p-3 rounded-lg border border-purple-200">
+            <div className="flex items-center gap-2 mb-2">
               <Shuffle className="w-4 h-4 text-purple-600" />
-              <span>Drag and drop items between columns to create matches. Submit when all items are paired.</span>
+              <span className="font-medium text-gray-900">How to match:</span>
             </div>
+            <ul className="space-y-1 text-xs text-gray-800">
+              <li>• <strong className="text-gray-900">Drag & Drop:</strong> Drag items between columns to create matches</li>
+              <li>• <strong className="text-gray-900">Click to Match:</strong> Click an item to select it (purple border), then click an item in the other column to match</li>
+              <li>• Submit when all items are paired</li>
+            </ul>
           </div>
         )}
       </CardContent>

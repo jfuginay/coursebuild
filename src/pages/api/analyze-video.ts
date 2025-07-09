@@ -138,7 +138,7 @@ function transformResponseToExpectedFormat(edgeResponse: any): any {
           correct_answer: typeof q.correct_answer === 'string' ? parseInt(q.correct_answer) || 0 : (q.correct_answer || 0),
           explanation: q.explanation || 'No explanation provided',
           visual_context: q.visual_context
-        };
+    };
         break;
     }
     
