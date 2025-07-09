@@ -100,7 +100,8 @@ export default function Home() {
           pathname: '/create',
           query: {
             data: JSON.stringify(result.data),
-            youtubeUrl: data.youtubeUrl
+            youtubeUrl: data.youtubeUrl,
+            courseId: result.course_id
           }
         });
       } else {
