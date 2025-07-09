@@ -787,6 +787,8 @@ export default function CoursePreviewPage() {
           onContinue={handleContinue}
           isVisible={showQuestion}
           player={player}
+          courseId={id as string}
+          segmentIndex={currentSegmentIndex}
         />
       )}
 
