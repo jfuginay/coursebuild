@@ -49,6 +49,7 @@ const Header = () => {
                 <DropdownMenuItem onClick={() => router.push('/profiles')}>
                   <User className="mr-2 h-4 w-4" />
                   Profile
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => router.push("/dashboard")}>
                   <BarChart3 className="mr-2 h-4 w-4" />
                   Dashboard
