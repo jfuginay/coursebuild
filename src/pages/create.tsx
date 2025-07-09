@@ -431,7 +431,7 @@ export default function Create() {
       }
 
       const data = await response.json();
-      setSuggestions(data.suggestions.topics || []);
+      setSuggestions(data.topics || []);
     } catch (error) {
       console.error('Error loading suggestions:', error);
       setSuggestionsError('Failed to load course suggestions. Please try again.');
@@ -753,64 +753,20 @@ export default function Create() {
                                   </div>
                                   
                                   {questionStatus === 'pending' && (
-                                    <div className="flex items-center gap-2">
-                                      {hasValidId ? (
-                                        <>
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => handleAcceptQuestion(questionId)}
-                                            disabled={isProcessing}
-                                            className="h-8 px-4 text-xs bg-emerald-50 border-emerald-300 hover:bg-emerald-100 text-emerald-700 hover:border-emerald-400 transition-colors duration-200 font-medium"
-                                          >
-                                            {isProcessing ? (
-                                              <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                                            ) : (
-                                              <Check className="h-3 w-3 mr-1" />
-                                            )}
-                                            Accept
-                                          </Button>
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => handleRejectQuestion(questionId)}
-                                            disabled={isProcessing}
-                                            className="h-8 px-4 text-xs bg-red-50 border-red-300 hover:bg-red-100 text-red-700 hover:border-red-400 transition-colors duration-200 font-medium"
-                                          >
-                                            {isProcessing ? (
-                                              <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                                            ) : (
-                                              <X className="h-3 w-3 mr-1" />
-                                            )}
-                                            Reject
-                                          </Button>
-                                        </>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => hasValidId ? handleRejectQuestion(questionId) : handleLocalReject(segmentIndex, questionIndex)}
+                                      disabled={isProcessing}
+                                      className="h-8 px-4 text-xs bg-red-50 border-red-300 hover:bg-red-100 text-red-700 hover:border-red-400 transition-colors duration-200 font-medium"
+                                    >
+                                      {isProcessing ? (
+                                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
                                       ) : (
-                                        <div className="flex items-center gap-2">
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            disabled
-                                            className="h-8 px-4 text-xs bg-gray-50 border-gray-300 text-gray-400 cursor-not-allowed"
-                                          >
-                                            <Check className="h-3 w-3 mr-1" />
-                                            Accept
-                                          </Button>
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => handleLocalReject(segmentIndex, questionIndex)}
-                                            className="h-8 px-4 text-xs bg-red-50 border-red-300 hover:bg-red-100 text-red-700 hover:border-red-400 transition-colors duration-200 font-medium"
-                                          >
-                                            <X className="h-3 w-3 mr-1" />
-                                            Remove
-                                          </Button>
-                                          <Badge variant="secondary" className="text-xs">
-                                            Not saved
-                                          </Badge>
-                                        </div>
+                                        <X className="h-3 w-3 mr-1" />
                                       )}
-                                    </div>
+                                      Remove
+                                    </Button>
                                   )}
                               </div>
                               <p className="text-sm mb-2">{question.question}</p>
