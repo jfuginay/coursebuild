@@ -20,13 +20,19 @@ interface CoursesShowcaseProps {
 
 export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
   const router = useRouter();
-  const [courses, setCourses] = useState<Course[]>([]);
+  const [allCourses, setAllCourses] = useState<Course[]>([]);
+  const [displayedCourses, setDisplayedCourses] = useState<Course[]>([]);
+  const [coursesToShow, setCoursesToShow] = useState(limit);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCourses();
   }, []);
+
+  useEffect(() => {
+    setDisplayedCourses(allCourses.slice(0, coursesToShow));
+  }, [allCourses, coursesToShow]);
 
   const fetchCourses = async () => {
     try {
@@ -35,7 +41,7 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
       const data = await response.json();
 
       if (data.success) {
-        setCourses(data.courses.slice(0, limit));
+        setAllCourses(data.courses);
       } else {
         setError('Failed to fetch courses');
       }
@@ -45,6 +51,10 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleShowMore = () => {
+    setCoursesToShow(prev => prev + 6);
   };
 
   const extractVideoId = (url: string): string => {
@@ -63,7 +73,7 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
   };
 
   const handleCourseClick = (courseId: string) => {
-    router.push(`/course/${courseId}`);
+    router.push(`/course/${courseId}/preview`);
   };
 
   const formatDate = (dateString: string) => {
@@ -121,7 +131,7 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
     );
   }
 
-  if (courses.length === 0) {
+  if (allCourses.length === 0) {
     return (
       <div className="w-full max-w-6xl mx-auto space-y-8">
         <div className="text-center space-y-4">
@@ -143,12 +153,12 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
           Featured Courses
         </h2>
         <p className="text-lg text-muted-foreground">
-          Explore AI-generated courses from the community
+          Explore Community Created Courses
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {courses.map((course) => {
+        {displayedCourses.map((course) => {
           const videoId = extractVideoId(course.youtube_url);
           const thumbnailUrl = videoId 
             ? `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`
@@ -232,10 +242,10 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
         })}
       </div>
 
-      {courses.length >= limit && (
+      {displayedCourses.length < allCourses.length && (
         <div className="text-center">
-          <Button variant="outline" size="lg">
-            View All Courses
+          <Button variant="outline" size="lg" onClick={handleShowMore}>
+            Show More Courses
             <ExternalLink className="ml-2 h-4 w-4" />
           </Button>
         </div>

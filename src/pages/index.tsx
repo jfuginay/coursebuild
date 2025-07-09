@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
+import Head from 'next/head';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -62,12 +63,13 @@ export default function Home() {
     register,
     handleSubmit,
     formState: { errors },
-    reset
+    reset,
+    watch
   } = useForm<CourseGenerationFormData>({
     resolver: zodResolver(courseGenerationSchema)
   });
 
-  const handleGenerateCourse = async (data: CourseGenerationFormData) => {
+  const generateCourse = async (data: CourseGenerationFormData, useEnhanced: boolean = false) => {
     setIsLoading(true);
     setError(null);
 
@@ -79,6 +81,7 @@ export default function Home() {
         },
         body: JSON.stringify({
           youtubeUrl: data.youtubeUrl,
+          useEnhanced: useEnhanced,
         }),
       });
 
@@ -90,7 +93,7 @@ export default function Home() {
       const result: ApiResponse = await response.json();
       
       if (result.success) {
-        toast.success('Course generated successfully!');
+        toast.success(`Course generated successfully${useEnhanced ? ' (PRO)' : ''}!`);
         reset();
         
         // Navigate to create page with course data
@@ -98,7 +101,8 @@ export default function Home() {
           pathname: '/create',
           query: {
             data: JSON.stringify(result.data),
-            youtubeUrl: data.youtubeUrl
+            youtubeUrl: data.youtubeUrl,
+            courseId: result.course_id
           }
         });
       } else {
@@ -113,9 +117,16 @@ export default function Home() {
     }
   };
 
+  const handleGenerateCourse = (data: CourseGenerationFormData) => generateCourse(data, false);
+  const handleGenerateCoursePro = (data: CourseGenerationFormData) => generateCourse(data, true);
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
-      <Header />
+    <>
+      <Head>
+        <title>CourseBuilder - Transform YouTube Videos into Interactive Courses</title>
+      </Head>
+      <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+        <Header />
       
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto space-y-8">
@@ -160,24 +171,48 @@ export default function Home() {
                   )}
                 </div>
 
-                <Button 
-                  type="submit" 
-                  className="w-full" 
-                  disabled={isLoading}
-                  size="lg"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating Course...
-                    </>
-                  ) : (
-                    <>
-                      <BookOpen className="mr-2 h-4 w-4" />
-                      Generate Course
-                    </>
-                  )}
-                </Button>
+                <div className="flex gap-3">
+                  <Button 
+                    type="button"
+                    onClick={handleSubmit(handleGenerateCourse)}
+                    className="flex-1" 
+                    disabled={isLoading}
+                    size="lg"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Generating Course...
+                      </>
+                    ) : (
+                      <>
+                        <BookOpen className="mr-2 h-4 w-4" />
+                        Generate Course
+                      </>
+                    )}
+                  </Button>
+
+                  <Button 
+                    type="button"
+                    onClick={handleSubmit(handleGenerateCoursePro)}
+                    className="flex-1" 
+                    disabled={isLoading}
+                    size="lg"
+                    variant="outline"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Generating Course...
+                      </>
+                    ) : (
+                      <>
+                        <BookOpen className="mr-2 h-4 w-4" />
+                        Generate Course (PRO)
+                      </>
+                    )}
+                  </Button>
+                </div>
               </form>
             </CardContent>
           </Card>
@@ -198,5 +233,6 @@ export default function Home() {
         </div>
       </div>
     </div>
+    </>
   );
 }

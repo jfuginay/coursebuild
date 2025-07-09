@@ -1,10 +1,10 @@
-# CourseForge AI
+# CourseBuilder
 
-CourseForge AI is an innovative platform that transforms YouTube videos into comprehensive, interactive online courses. Think of it as "Cursor for Course Creators" - an AI-powered tool that automatically generates structured learning experiences from video content.
+CourseBuilder is an innovative platform that transforms YouTube videos into comprehensive, interactive online courses. Think of it as "Cursor for Course Creators" - an AI-powered tool that automatically generates structured learning experiences from video content.
 
 ## 🎯 Project Overview
 
-CourseForge AI leverages advanced AI technologies to:
+CourseBuilder leverages advanced AI technologies to:
 - Automatically generate structured courses from YouTube video content
 - Create interactive learning experiences with AI-powered features
 - Enable seamless course creation and consumption workflows
