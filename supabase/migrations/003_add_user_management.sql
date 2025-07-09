@@ -1,8 +1,8 @@
 -- Migration: Add comprehensive user management system
 -- This adds user profiles, course enrollments, and progress tracking
 
--- 1. Create user_profiles table for additional user data
-CREATE TABLE IF NOT EXISTS user_profiles (
+-- 1. Create profiles table for additional user data (standard Supabase pattern)
+CREATE TABLE IF NOT EXISTS profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     email TEXT NOT NULL,
     display_name TEXT,
@@ -91,8 +91,8 @@ CREATE TABLE IF NOT EXISTS user_sessions (
 );
 
 -- 7. Add indexes for performance
-CREATE INDEX IF NOT EXISTS idx_user_profiles_email ON user_profiles(email);
-CREATE INDEX IF NOT EXISTS idx_user_profiles_subscription_tier ON user_profiles(subscription_tier);
+CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);
+CREATE INDEX IF NOT EXISTS idx_profiles_subscription_tier ON profiles(subscription_tier);
 CREATE INDEX IF NOT EXISTS idx_user_enrollments_user_id ON user_course_enrollments(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_enrollments_course_id ON user_course_enrollments(course_id);
 CREATE INDEX IF NOT EXISTS idx_user_enrollments_enrollment_type ON user_course_enrollments(enrollment_type);
@@ -107,28 +107,28 @@ CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_course_id ON user_sessions(course_id);
 
 -- 8. Create updated_at triggers
-CREATE TRIGGER update_user_profiles_updated_at BEFORE UPDATE
-    ON user_profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE
+    ON profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_user_course_progress_updated_at BEFORE UPDATE
     ON user_course_progress FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- 9. Enable Row Level Security (RLS)
-ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_course_enrollments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_question_attempts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_course_progress ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_achievements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_sessions ENABLE ROW LEVEL SECURITY;
 
--- 10. Create RLS policies for user_profiles
-CREATE POLICY "Users can view own profile" ON user_profiles
+-- 10. Create RLS policies for profiles
+CREATE POLICY "Users can view own profile" ON profiles
     FOR SELECT USING (auth.uid() = id);
 
-CREATE POLICY "Users can update own profile" ON user_profiles
+CREATE POLICY "Users can update own profile" ON profiles
     FOR UPDATE USING (auth.uid() = id);
 
-CREATE POLICY "Users can insert own profile" ON user_profiles
+CREATE POLICY "Users can insert own profile" ON profiles
     FOR INSERT WITH CHECK (auth.uid() = id);
 
 -- 11. Create RLS policies for user_course_enrollments
@@ -179,7 +179,7 @@ CREATE POLICY "Users can update own sessions" ON user_sessions
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-    INSERT INTO public.user_profiles (id, email, display_name)
+    INSERT INTO public.profiles (id, email, display_name)
     VALUES (NEW.id, NEW.email, COALESCE(NEW.raw_user_meta_data->>'display_name', split_part(NEW.email, '@', 1)));
     RETURN NEW;
 END;
@@ -263,21 +263,21 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- 20. Create view for user dashboard stats
 CREATE OR REPLACE VIEW user_dashboard_stats AS
 SELECT 
-    up.id as user_id,
-    up.email,
-    up.display_name,
-    up.subscription_tier,
+    p.id as user_id,
+    p.email,
+    p.display_name,
+    p.subscription_tier,
     COUNT(DISTINCT uce.course_id) as courses_enrolled,
     COUNT(DISTINCT CASE WHEN uce.completion_percentage >= 80 THEN uce.course_id END) as courses_completed,
     COALESCE(SUM(uqa.is_correct::INTEGER), 0) as total_correct_answers,
     COUNT(DISTINCT uqa.question_id) as total_questions_attempted,
     COALESCE(SUM(ua.points_awarded), 0) as total_points,
     COUNT(ua.id) as total_achievements
-FROM user_profiles up
-LEFT JOIN user_course_enrollments uce ON up.id = uce.user_id
-LEFT JOIN user_question_attempts uqa ON up.id = uqa.user_id
-LEFT JOIN user_achievements ua ON up.id = ua.user_id
-GROUP BY up.id, up.email, up.display_name, up.subscription_tier;
+FROM profiles p
+LEFT JOIN user_course_enrollments uce ON p.id = uce.user_id
+LEFT JOIN user_question_attempts uqa ON p.id = uqa.user_id
+LEFT JOIN user_achievements ua ON p.id = ua.user_id
+GROUP BY p.id, p.email, p.display_name, p.subscription_tier;
 
 -- 21. Grant necessary permissions
 GRANT USAGE ON SCHEMA public TO authenticated;

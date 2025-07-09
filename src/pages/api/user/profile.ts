@@ -27,7 +27,7 @@ export default async function handler(
     if (req.method === 'GET') {
       // Get user profile
       const { data: profile, error: profileError } = await supabase
-        .from('user_profiles')
+        .from('profiles')
         .select('*')
         .eq('id', user.id)
         .single();
@@ -53,7 +53,7 @@ export default async function handler(
       if (preferences !== undefined) updateData.preferences = preferences;
 
       const { data: updatedProfile, error: updateError } = await supabase
-        .from('user_profiles')
+        .from('profiles')
         .update(updateData)
         .eq('id', user.id)
         .select()
