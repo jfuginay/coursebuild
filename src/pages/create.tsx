@@ -134,6 +134,16 @@ export default function Create() {
     [courseId]
   );
 
+  // Helper function to generate title from first concept
+  const generateTitleFromConcepts = (courseData: CourseData): string => {
+    if (courseData.segments.length > 0 && courseData.segments[0].concepts.length > 0) {
+      const firstConcept = courseData.segments[0].concepts[0];
+      // Capitalize first letter and make it a proper title
+      return firstConcept.charAt(0).toUpperCase() + firstConcept.slice(1);
+    }
+    return courseData.title; // Fallback to original title if no concepts found
+  };
+
   useEffect(() => {
     // Try to get data from sessionStorage first (fallback for feature branch compatibility)
     const storedData = sessionStorage.getItem('courseData');
@@ -142,6 +152,12 @@ export default function Create() {
     if (storedData && storedUrl) {
       try {
         const parsedData = JSON.parse(storedData);
+        
+        // Replace default title with first concept if it's the default
+        if (parsedData.title === 'Video Content Analyzed Correctly') {
+          parsedData.title = generateTitleFromConcepts(parsedData);
+        }
+        
         setCourseData(parsedData);
         setYoutubeUrl(storedUrl);
         setVideoId(extractVideoId(storedUrl));
@@ -164,6 +180,12 @@ export default function Create() {
     if (router.query.data && router.query.youtubeUrl) {
       try {
         const parsedData = JSON.parse(router.query.data as string);
+        
+        // Replace default title with first concept if it's the default
+        if (parsedData.title === 'Video Content Analyzed Correctly') {
+          parsedData.title = generateTitleFromConcepts(parsedData);
+        }
+        
         setCourseData(parsedData);
         setYoutubeUrl(router.query.youtubeUrl as string);
         setVideoId(extractVideoId(router.query.youtubeUrl as string));
@@ -952,12 +974,14 @@ export default function Create() {
 
           {/* Action Buttons */}
           <div className="flex justify-center gap-4">
-            <Button size="lg" className="px-8">
+            <Button 
+              size="lg" 
+              className="px-8"
+              onClick={() => router.push(`/course/${courseId}`)}
+              disabled={!courseId}
+            >
               <BookOpen className="mr-2 h-4 w-4" />
-              Start Learning
-            </Button>
-            <Button variant="outline" size="lg" className="px-8">
-              Export Course
+              View Course
             </Button>
           </div>
         </div>
