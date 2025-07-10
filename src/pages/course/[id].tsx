@@ -11,6 +11,7 @@ import Header from '@/components/Header';
 import QuestionOverlay from '@/components/QuestionOverlay';
 import CourseCurriculumCard from '@/components/CourseCurriculumCard';
 import VideoProgressBar from '@/components/VideoProgressBar';
+import TranscriptDisplay from '@/components/TranscriptDisplay';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -703,7 +704,7 @@ export default function CoursePage() {
       setCurrentQuestionIndex(questionIndex);
       setShowQuestion(true);
       questionStartTime.current = Date.now(); // Track when question was shown
-      // Don't pause video since question is now inline
+      playerRef.current?.pauseVideo(); // Auto-pause video when question appears
       
       // Track enrollment when user first interacts with a question (fire and forget)
       if (id && typeof id === 'string') {
@@ -742,7 +743,7 @@ export default function CoursePage() {
   const handleContinueVideo = () => {
     setAnsweredQuestions(prev => new Set(prev).add(currentQuestionIndex));
     setShowQuestion(false);
-    // No need to resume video since it wasn't paused
+    playerRef.current?.playVideo(); // Resume video when continuing
   };
 
   const handleVideoSeek = async (seekTime: number) => {
@@ -1009,6 +1010,11 @@ export default function CoursePage() {
               <div className="flex items-center gap-2">
                 <CheckCircle className="h-4 w-4" />
                 {correctAnswers}/{questions.length} Correct
+                {answeredQuestions.size > 0 && (
+                  <span className="text-primary font-medium">
+                    ({Math.round((correctAnswers / answeredQuestions.size) * 100)}%)
+                  </span>
+                )}
               </div>
               {duration > 0 && (
                 <div className="flex items-center gap-2">
@@ -1110,56 +1116,25 @@ export default function CoursePage() {
             </CardContent>
           </Card>
 
-          {/* Progress Summary or Question */}
-          {questions.length > 0 && (
-            <>
-              {showQuestion && questions[currentQuestionIndex] ? (
-                <QuestionOverlay
-                  question={questions[currentQuestionIndex]}
-                  onAnswer={handleAnswer}
-                  onContinue={handleContinueVideo}
-                  isVisible={showQuestion}
-                  player={player}
-                  courseId={id as string}
-                  segmentIndex={0}
-                  isInline={true}
-                />
-              ) : (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Learning Progress</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                      <div>
-                        <div className="text-2xl font-bold text-primary">
-                          {answeredQuestions.size}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          Questions Answered
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-2xl font-bold text-green-600">
-                          {correctAnswers}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          Correct Answers
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-2xl font-bold text-blue-600">
-                          {answeredQuestions.size > 0 ? Math.round((correctAnswers / answeredQuestions.size) * 100) : 0}%
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          Accuracy
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </>
+          {/* Question or Transcript Display */}
+          {showQuestion && questions[currentQuestionIndex] ? (
+            <QuestionOverlay
+              question={questions[currentQuestionIndex]}
+              onAnswer={handleAnswer}
+              onContinue={handleContinueVideo}
+              isVisible={showQuestion}
+              player={player}
+              courseId={id as string}
+              segmentIndex={0}
+              isInline={true}
+            />
+          ) : (
+            <TranscriptDisplay
+              courseId={id as string}
+              currentTime={currentTime}
+              onSeek={handleVideoSeek}
+              formatTimestamp={formatTime}
+            />
           )}
 
           {/* Course Curriculum Card */}
