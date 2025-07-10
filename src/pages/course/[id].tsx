@@ -703,7 +703,7 @@ export default function CoursePage() {
       setCurrentQuestionIndex(questionIndex);
       setShowQuestion(true);
       questionStartTime.current = Date.now(); // Track when question was shown
-      playerRef.current?.pauseVideo();
+      // Don't pause video since question is now inline
       
       // Track enrollment when user first interacts with a question (fire and forget)
       if (id && typeof id === 'string') {
@@ -742,7 +742,7 @@ export default function CoursePage() {
   const handleContinueVideo = () => {
     setAnsweredQuestions(prev => new Set(prev).add(currentQuestionIndex));
     setShowQuestion(false);
-    playerRef.current?.playVideo();
+    // No need to resume video since it wasn't paused
   };
 
   const handleVideoSeek = async (seekTime: number) => {
@@ -1110,41 +1110,56 @@ export default function CoursePage() {
             </CardContent>
           </Card>
 
-          {/* Progress Summary */}
+          {/* Progress Summary or Question */}
           {questions.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Learning Progress</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                  <div>
-                    <div className="text-2xl font-bold text-primary">
-                      {answeredQuestions.size}
+            <>
+              {showQuestion && questions[currentQuestionIndex] ? (
+                <QuestionOverlay
+                  question={questions[currentQuestionIndex]}
+                  onAnswer={handleAnswer}
+                  onContinue={handleContinueVideo}
+                  isVisible={showQuestion}
+                  player={player}
+                  courseId={id as string}
+                  segmentIndex={0}
+                  isInline={true}
+                />
+              ) : (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Learning Progress</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                      <div>
+                        <div className="text-2xl font-bold text-primary">
+                          {answeredQuestions.size}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Questions Answered
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-green-600">
+                          {correctAnswers}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Correct Answers
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-blue-600">
+                          {answeredQuestions.size > 0 ? Math.round((correctAnswers / answeredQuestions.size) * 100) : 0}%
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Accuracy
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      Questions Answered
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-green-600">
-                      {correctAnswers}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      Correct Answers
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-blue-600">
-                      {answeredQuestions.size > 0 ? Math.round((correctAnswers / answeredQuestions.size) * 100) : 0}%
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      Accuracy
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
+              )}
+            </>
           )}
 
           {/* Course Curriculum Card */}
@@ -1161,16 +1176,7 @@ export default function CoursePage() {
         </div>
       </div>
 
-      {/* Question Overlay */}
-      {showQuestion && questions[currentQuestionIndex] && (
-        <QuestionOverlay
-          question={questions[currentQuestionIndex]}
-          onAnswer={handleAnswer}
-          onContinue={handleContinueVideo}
-          isVisible={showQuestion}
-          player={player}
-        />
-      )}
+
 
       {/* Login Modal */}
       <Dialog open={showLoginModal} onOpenChange={setShowLoginModal}>
