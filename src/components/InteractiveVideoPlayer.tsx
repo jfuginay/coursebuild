@@ -102,13 +102,7 @@ const InteractiveVideoPlayer: React.FC<InteractiveVideoPlayerProps> = ({
         
         {/* Progress Bar */}
         {isVideoReady && duration > 0 && (
-          <div className="space-y-3 px-2">
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>{formatTime(currentTime)}</span>
-              <span>{formatTime(duration)}</span>
-            </div>
-            
-            {/* Interactive Progress Bar */}
+          <div className="px-2">
             <VideoProgressBar
               currentTime={currentTime}
               duration={duration}
