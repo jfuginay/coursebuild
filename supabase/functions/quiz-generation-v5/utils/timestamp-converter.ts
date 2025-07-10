@@ -39,30 +39,6 @@ export const convertBase60ToSeconds = (base60Timestamp: number): number => {
 };
 
 /**
- * Convert seconds to base-60 timestamp format
- * Examples:
- * - 59 → 59
- * - 60 → 100 (1:00)
- * - 90 → 130 (1:30)
- * - 120 → 200 (2:00)
- * - 165 → 245 (2:45)
- * - 90.5 → 130.5 (1:30.5)
- */
-export const convertSecondsToBase60 = (seconds: number): number => {
-  if (seconds < 60) {
-    // Under 60 seconds, no conversion needed
-    return seconds;
-  }
-  
-  // Extract minutes and remaining seconds
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  
-  // Convert to base-60 format: minutes * 100 + seconds
-  return minutes * 100 + remainingSeconds;
-};
-
-/**
  * Format seconds for display as HH:MM:SS or MM:SS
  */
 export const formatSecondsForDisplay = (seconds: number): string => {

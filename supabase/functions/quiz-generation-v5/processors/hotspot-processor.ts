@@ -13,7 +13,6 @@ declare const Deno: {
 };
 
 import { QuestionPlan, HotspotQuestion, QuestionGenerationError } from '../types/interfaces.ts';
-import { convertSecondsToBase60 } from '../utils/timestamp-converter.ts';
 
 // =============================================================================
 // Simplified Hotspot Generation Function
@@ -124,11 +123,8 @@ const generateBoundingBoxes = async (
       const startOffset = Math.max(0, frameTimestamp - 0.5);
       const endOffset = frameTimestamp;
       
-      // Convert to base-60 for Gemini
-      const startOffsetBase60 = convertSecondsToBase60(startOffset);
-      const endOffsetBase60 = convertSecondsToBase60(endOffset);
       
-      console.log(`📹 Analyzing video segment: ${startOffset}s to ${endOffset}s (base-60: ${startOffsetBase60} to ${endOffsetBase60})`);
+      console.log(`📹 Analyzing video segment: ${startOffset}s to ${endOffset}s `);
       
       const objectDetectionPrompt = `
 You are creating a visual hotspot question for educational purposes. Generate appropriate question text, explanation, and bounding boxes for all visible objects in this frame.
@@ -187,8 +183,8 @@ Guidelines for bounding boxes:
                   fileUri: youtubeUrl
                 },
                 videoMetadata: {
-                  startOffset: `${startOffsetBase60}s`,
-                  endOffset: `${endOffsetBase60}s`
+                  startOffset: `${startOffset}s`,
+                  endOffset: `${endOffset}s`
                 }
               },
               {
