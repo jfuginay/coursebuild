@@ -13,6 +13,7 @@ import CourseCurriculumCard from '@/components/CourseCurriculumCard';
 import VideoProgressBar from '@/components/VideoProgressBar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 
 interface Course {
   id: string;
@@ -112,6 +113,8 @@ export default function CoursePage() {
   const [isLoadingNextCourse, setIsLoadingNextCourse] = useState(false);
   const [nextCourseApiCalled, setNextCourseApiCalled] = useState(false); // Track if API was called
   const [isEnrolled, setIsEnrolled] = useState(false); // Track enrollment status
+  const [autoGenerationTriggered, setAutoGenerationTriggered] = useState(false); // Track if auto-generation was triggered
+  const [nextCourseModalShown, setNextCourseModalShown] = useState(false); // Track if modal has been shown
 
   // Free questions limit
   const FREE_QUESTIONS_LIMIT = 2;
@@ -221,6 +224,36 @@ export default function CoursePage() {
       }
     }
   }, [questions, duration, isVideoReady]);
+
+  // Auto-generate next course when user reaches halfway point
+  useEffect(() => {
+    if (
+      duration > 0 && 
+      currentTime >= duration / 2 && 
+      !autoGenerationTriggered &&
+      !nextCourse && 
+      !isLoadingNextCourse && 
+      !nextCourseApiCalled
+    ) {
+      console.log('🚀 Auto-triggering next course generation at halfway point');
+      setAutoGenerationTriggered(true);
+      fetchNextCourse();
+    }
+  }, [currentTime, duration, autoGenerationTriggered, nextCourse, isLoadingNextCourse, nextCourseApiCalled]);
+
+  // Show next course modal 3 seconds before video ends
+  useEffect(() => {
+    if (
+      duration > 0 && 
+      currentTime >= duration - 3 && 
+      !nextCourseModalShown &&
+      !showNextCourseModal
+    ) {
+      console.log('⏰ Showing next course modal 3 seconds before video ends');
+      setNextCourseModalShown(true);
+      setShowNextCourseModal(true);
+    }
+  }, [currentTime, duration, nextCourseModalShown, showNextCourseModal]);
 
   const fetchCourse = async () => {
     try {
@@ -605,21 +638,18 @@ export default function CoursePage() {
             startTimeTracking();
           } else if (event.data === window.YT.PlayerState.PAUSED) {
             stopTimeTracking();
-          } else if (event.data === window.YT.PlayerState.ENDED || event.data === 0) {
-            console.log('🏁 Video ended - handling next course logic');
-            stopTimeTracking();
-            
-            // Always show modal first
+                  } else if (event.data === window.YT.PlayerState.ENDED || event.data === 0) {
+          console.log('🏁 Video ended - stopping time tracking');
+          stopTimeTracking();
+          
+          // Modal should already be shown 3 seconds before the end
+          // This is just a fallback in case the modal wasn't shown for some reason
+          if (!nextCourseModalShown) {
+            console.log('⚠️ Fallback: Showing next course modal at video end');
+            setNextCourseModalShown(true);
             setShowNextCourseModal(true);
-            
-            // If nextCourse hasn't been fetched yet and we're not already loading/called, fetch it now
-            
-            console.log('🔄 Modal shown, next course state:', { 
-              nextCourse: !!nextCourse, 
-              isLoadingNextCourse: isLoadingNextCourse,
-              nextCourseApiCalled: nextCourseApiCalled
-            });
           }
+        }
         },
           onError: (event: any) => {
             console.error('❌ YouTube player error:', event.data);

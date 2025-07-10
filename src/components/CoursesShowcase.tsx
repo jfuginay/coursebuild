@@ -242,9 +242,6 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
                     <CardTitle className="text-lg line-clamp-2 group-hover:text-primary transition-colors">
                       {course.title}
                     </CardTitle>
-                    <CardDescription className="line-clamp-2 mt-1">
-                      {course.description}
-                    </CardDescription>
                   </div>
                 </div>
               </CardHeader>
@@ -305,17 +302,13 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
                 <div className="space-y-2">
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
                     <div className="flex items-center gap-1">
-                      <BookOpen className="h-3 w-3" />
-                      <span>AI Generated</span>
-                    </div>
-                    <div className="flex items-center gap-1">
                       <Clock className="h-3 w-3" />
                       <span>{formatDate(course.created_at)}</span>
                     </div>
                   </div>
                   
                   <Badge variant="secondary" className="text-xs">
-                    Interactive Course
+                    AI Enhanced Course
                   </Badge>
                 </div>
 
