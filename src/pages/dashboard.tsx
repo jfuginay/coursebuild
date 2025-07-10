@@ -19,7 +19,10 @@ import {
   Calendar,
   User,
   Settings,
-  ExternalLink
+  ExternalLink,
+  GraduationCap,
+  BarChart3,
+  Mail
 } from 'lucide-react';
 import Header from '@/components/Header';
 import { useRouter } from 'next/router';
@@ -30,6 +33,7 @@ interface DashboardData {
     email: string;
     display_name?: string;
     subscription_tier: string;
+    created_at?: string;
   };
   stats: {
     coursesEnrolled: number;
@@ -190,53 +194,77 @@ export default function DashboardPage() {
           </div>
 
           {/* Stats Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             <Card>
-              <CardContent className="p-6">
+              <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Courses Enrolled</p>
-                    <p className="text-2xl font-bold">{stats.coursesEnrolled}</p>
+                    <p className="text-xs font-medium text-muted-foreground">Enrolled</p>
+                    <p className="text-xl font-bold">{stats.coursesEnrolled}</p>
                   </div>
-                  <BookOpen className="h-5 w-5 text-blue-600" />
+                  <BookOpen className="h-4 w-4 text-blue-600" />
                 </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardContent className="p-6">
+              <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Courses Completed</p>
-                    <p className="text-2xl font-bold">{stats.coursesCompleted}</p>
+                    <p className="text-xs font-medium text-muted-foreground">Completed</p>
+                    <p className="text-xl font-bold">{stats.coursesCompleted}</p>
                   </div>
-                  <Trophy className="h-5 w-5 text-green-600" />
+                  <Trophy className="h-4 w-4 text-green-600" />
                 </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardContent className="p-6">
+              <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Current Streak</p>
-                    <p className={`text-2xl font-bold ${getStreakColor(stats.currentStreak)}`}>
+                    <p className="text-xs font-medium text-muted-foreground">Questions</p>
+                    <p className="text-xl font-bold">{stats.totalQuestionsAttempted}</p>
+                  </div>
+                  <BarChart3 className="h-4 w-4 text-indigo-600" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Accuracy</p>
+                    <p className="text-xl font-bold">{stats.accuracyRate}%</p>
+                  </div>
+                  <TrendingUp className="h-4 w-4 text-purple-600" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Streak</p>
+                    <p className={`text-xl font-bold ${getStreakColor(stats.currentStreak)}`}>
                       {stats.currentStreak}
                     </p>
                   </div>
-                  <Target className="h-5 w-5 text-orange-600" />
+                  <Target className="h-4 w-4 text-orange-600" />
                 </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardContent className="p-6">
+              <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Accuracy Rate</p>
-                    <p className="text-2xl font-bold">{stats.accuracyRate}%</p>
+                    <p className="text-xs font-medium text-muted-foreground">Points</p>
+                    <p className="text-xl font-bold">{stats.totalPoints}</p>
                   </div>
-                  <TrendingUp className="h-5 w-5 text-purple-600" />
+                  <Award className="h-4 w-4 text-yellow-600" />
                 </div>
               </CardContent>
             </Card>
@@ -244,8 +272,9 @@ export default function DashboardPage() {
 
           {/* Main Content Tabs */}
           <Tabs defaultValue="overview" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="profile">Profile</TabsTrigger>
               <TabsTrigger value="courses">My Courses</TabsTrigger>
               <TabsTrigger value="achievements">Achievements</TabsTrigger>
               <TabsTrigger value="activity">Recent Activity</TabsTrigger>
@@ -316,6 +345,174 @@ export default function DashboardPage() {
                     )}
                   </CardContent>
                 </Card>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="profile" className="space-y-6">
+              <div className="space-y-6">
+                {/* Profile Header */}
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-start gap-6">
+                      <div className="h-20 w-20 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-2xl font-bold">
+                        {userData.display_name ? userData.display_name.charAt(0).toUpperCase() : userData.email.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 space-y-2">
+                        <div>
+                          <h2 className="text-2xl font-bold">
+                            {userData.display_name || userData.email.split('@')[0]}
+                          </h2>
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Mail className="h-4 w-4" />
+                            <span>{userData.email}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <Badge 
+                            variant={userData.subscription_tier === 'premium' ? 'default' : 'secondary'}
+                            className="capitalize"
+                          >
+                            {userData.subscription_tier} Plan
+                          </Badge>
+                          <div className="text-sm text-muted-foreground">
+                            Member since {formatDate(userData.created_at || new Date().toISOString())}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Detailed Statistics */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <BookOpen className="h-4 w-4 text-blue-600" />
+                        Learning Stats
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Courses Enrolled</span>
+                        <span className="font-medium">{stats.coursesEnrolled}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Courses Completed</span>
+                        <span className="font-medium">{stats.coursesCompleted}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Questions Answered</span>
+                        <span className="font-medium">{stats.totalQuestionsAttempted}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Correct Answers</span>
+                        <span className="font-medium">{stats.totalCorrectAnswers}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Target className="h-4 w-4 text-orange-600" />
+                        Performance
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Accuracy Rate</span>
+                        <span className="font-medium">{stats.accuracyRate}%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Current Streak</span>
+                        <span className={`font-medium ${getStreakColor(stats.currentStreak)}`}>
+                          {stats.currentStreak}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Best Streak</span>
+                        <span className="font-medium">{stats.longestStreak}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">This Week</span>
+                        <span className="font-medium">{stats.weeklyQuestions} questions</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Award className="h-4 w-4 text-purple-600" />
+                        Achievements
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Total Points</span>
+                        <span className="font-medium">{stats.totalPoints}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Achievements</span>
+                        <span className="font-medium">{stats.totalAchievements}</span>
+                      </div>
+                      <div className="pt-2">
+                        <Progress value={Math.min((stats.totalPoints / 1000) * 100, 100)} className="h-2" />
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {stats.totalPoints}/1000 points to next level
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Course Progress Summary */}
+                {enrollments.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <BarChart3 className="h-5 w-5" />
+                        Course Progress Summary
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {enrollments.slice(0, 5).map((enrollment) => (
+                          <div key={enrollment.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                            <div className="flex-1">
+                              <h4 className="font-medium text-sm">{enrollment.courses.title}</h4>
+                              <p className="text-xs text-muted-foreground">
+                                Started {formatDate(enrollment.enrolled_at)}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <div className="text-right">
+                                <div className="text-sm font-medium">
+                                  {Math.round(enrollment.progress_percentage || 0)}%
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {enrollment.is_completed ? 'Completed' : 'In Progress'}
+                                </div>
+                              </div>
+                              <Progress 
+                                value={enrollment.progress_percentage || 0} 
+                                className="h-2 w-24" 
+                              />
+                            </div>
+                          </div>
+                        ))}
+                        {enrollments.length > 5 && (
+                          <div className="text-center pt-2">
+                            <Button variant="outline" size="sm" onClick={() => router.push('#courses')}>
+                              View All {enrollments.length} Courses
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             </TabsContent>
 
