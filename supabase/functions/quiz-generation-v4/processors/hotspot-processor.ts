@@ -6,6 +6,12 @@
  * Question planning is now handled in Stage 1.
  */
 
+declare const Deno: {
+  env: {
+    get(key: string): string | undefined;
+  };
+};
+
 import { QuestionPlan, HotspotQuestion, QuestionGenerationError } from '../types/interfaces.ts';
 
 // =============================================================================
@@ -46,16 +52,16 @@ export const generateHotspotQuestion = async (
     // Generate bounding boxes using the proven enhanced-quiz-service approach
     const boundingBoxes = await generateBoundingBoxes(youtubeUrl, plan, frameTimestamp);
     
-    // Create the hotspot question with pre-planned data + generated bounding boxes
+    // Create the hotspot question with pre-planned data + generated content and bounding boxes
     const hotspotQuestion: HotspotQuestion = {
       question_id: plan.question_id,
       timestamp: plan.timestamp,
       type: 'hotspot',
-      question: createHotspotQuestionText(plan),
+      question: boundingBoxes.question,
       target_objects: plan.target_objects,
       frame_timestamp: frameTimestamp,
       question_context: plan.question_context,
-      explanation: createHotspotExplanation(plan),
+      explanation: boundingBoxes.explanation,
       bloom_level: plan.bloom_level,
       educational_rationale: plan.educational_rationale,
       visual_learning_objective: plan.visual_learning_objective,
@@ -63,14 +69,14 @@ export const generateHotspotQuestion = async (
         expected_distractors: extractExpectedDistractors(plan),
         why_distractors_matter: "These alternatives test understanding versus mere recognition"
       },
-      bounding_boxes: boundingBoxes
+      bounding_boxes: boundingBoxes.elements
     };
     
     console.log(`✅ Hotspot generated successfully: ${plan.question_id}`);
     console.log(`   🎯 Question: ${hotspotQuestion.question.substring(0, 60)}...`);
     console.log(`   📦 Target Objects: ${plan.target_objects.join(', ')}`);
     console.log(`   🎬 Frame Timestamp: ${frameTimestamp}s`);
-    console.log(`   📍 Bounding Boxes: ${boundingBoxes.length} options generated`);
+    console.log(`   📍 Bounding Boxes: ${boundingBoxes.elements.length} options generated`);
     
     return hotspotQuestion;
     
@@ -92,7 +98,7 @@ const generateBoundingBoxes = async (
   youtubeUrl: string,
   plan: QuestionPlan,
   frameTimestamp: number
-): Promise<any[]> => {
+): Promise<{question: string, explanation: string, elements: any[]}> => {
   const maxRetries = 3;
   const baseDelay = 1000; // 1 second base delay
   
@@ -112,27 +118,39 @@ const generateBoundingBoxes = async (
       const endOffset = frameTimestamp + 0.5;
       
       const objectDetectionPrompt = `
-CRITICAL: Return bounding boxes for ALL visible objects in this frame to create a multiple-choice hotspot question. MINIMUM 3-5 bounding boxes required.
+You are creating a visual hotspot question for educational purposes. Generate appropriate question text, explanation, and bounding boxes for all visible objects in this frame.
 
-QUESTION: "${createHotspotQuestionText(plan)}"
-CORRECT ANSWER: ${plan.target_objects?.join(', ')}
-CONTEXT: ${plan.question_context}
+LEARNING OBJECTIVE: ${plan.learning_objective}
+VISUAL LEARNING OBJECTIVE: ${plan.visual_learning_objective}
+QUESTION CONTEXT: ${plan.question_context}
+KEY CONCEPTS: ${plan.key_concepts.join(', ')}
+BLOOM LEVEL: ${plan.bloom_level}
 
 Requirements:
-1. Find and mark the CORRECT answer object(s): ${plan.target_objects?.join(', ')}
-2. Find 2-4 DISTRACTOR objects that are visible but NOT the correct answer
-3. Include plausible alternatives that could confuse someone who doesn't understand the concept
-4. Each object should be clearly distinguishable and clickable
-5. Provide unique descriptive labels for each object
+1. Generate clear, educational question text that asks students to identify a target object
+2. Generate a comprehensive explanation that explains why identifying this object is important
+3. Find and mark all other visible objects in the frame with minimal overlap with the target object (minimum 3-5 bounding boxes)
+4. Mark the target object as correct answers
+5. Choose educational distractors that test understanding
 
-Guidelines:
-- ALWAYS return 3-5 bounding boxes minimum for interactive selection
-- Mark is_correct_answer=true ONLY for: ${plan.target_objects?.join(', ')}
-- Mark is_correct_answer=false for all distractor objects
+Guidelines for question text:
+- Be specific about what to identify
+- Connect to the learning objective
+- Use appropriate academic language for the ${plan.bloom_level} level
+
+Guidelines for explanation:
+- Explain why identifying this object matters
+- Connect to broader concepts: ${plan.key_concepts.join(', ')}
+- Reinforce the visual learning objective
+- Be educational and informative
+
+Guidelines for bounding boxes:
+- ALWAYS return at least two bounding boxes minimum for interactive selection
+- Mark is_correct_answer=true ONLY for: the target object
+- Mark is_correct_answer=false for all other objects
 - Choose distractors that test understanding, not random objects
-- Ensure all objects are clearly visible and distinct
-
-Example good distractors for code elements: similar syntax, adjacent variables, related but different values.
+- Each object should be clearly distinguishable
+- Provide unique descriptive labels for each object
 `;
 
       console.log(`📹 Analyzing video segment: ${startOffset}s to ${endOffset}s`);
@@ -160,39 +178,53 @@ Example good distractors for code elements: similar syntax, adjacent variables, 
           temperature: 0.1, // Low temperature for consistent object detection
           topK: 1,
           topP: 0.8,
-          maxOutputTokens: 2048,
+          maxOutputTokens: 8192,
           responseMimeType: "application/json",
           responseSchema: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                box_2d: {
-                  type: "array",
-                  items: { type: "integer" },
-                  description: "Bounding box coordinates in [y_min, x_min, y_max, x_max] format, normalized to 0-1000"
-                },
-                label: {
-                  type: "string",
-                  description: "Descriptive label for the detected object"
-                },
-                is_correct_answer: {
-                  type: "boolean",
-                  description: "Whether this object is what the question is asking for"
-                },
-                confidence_score: {
-                  type: "number",
-                  description: "Confidence score between 0.0 and 1.0"
-                }
+            type: "object",
+            properties: {
+              question: {
+                type: "string",
+                description: "Clear, educational question text asking students to identify the target object"
               },
-              required: ["box_2d", "label", "is_correct_answer"]
-            }
+              explanation: {
+                type: "string",
+                description: "Comprehensive explanation of why identifying this object is educationally important"
+              },
+              bounding_boxes: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    box_2d: {
+                      type: "array",
+                      items: { type: "integer" },
+                      description: "Bounding box coordinates in [y_min, x_min, y_max, x_max] format, normalized to 0-1000"
+                    },
+                    label: {
+                      type: "string",
+                      description: "Descriptive label for the detected object"
+                    },
+                    is_correct_answer: {
+                      type: "boolean",
+                      description: "Whether this the targetobject that the question is asking for"
+                    },
+                    confidence_score: {
+                      type: "number",
+                      description: "Confidence score between 0.0 and 1.0"
+                    }
+                  },
+                  required: ["box_2d", "label", "is_correct_answer"]
+                }
+              }
+            },
+            required: ["question", "explanation", "bounding_boxes"]
           }
         }
       };
     
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -248,37 +280,41 @@ Example good distractors for code elements: similar syntax, adjacent variables, 
         throw new Error('No bounding box response from Gemini Vision API after all retries');
       }
 
-      // Parse structured bounding box results with enhanced error handling
-      let detectionResults;
+      // Parse structured hotspot response with enhanced error handling
+      let hotspotResult;
       try {
-        console.log(`📝 Parsing bounding box response (${text.length} chars)`);
-        detectionResults = JSON.parse(text);
+        console.log(`📝 Parsing hotspot response (${text.length} chars)`);
+        hotspotResult = JSON.parse(text);
         
-        if (!Array.isArray(detectionResults)) {
-          throw new Error('Expected array of bounding boxes');
+        if (!hotspotResult || typeof hotspotResult !== 'object') {
+          throw new Error('Expected object with question, explanation, and bounding_boxes');
         }
         
-        console.log(`✅ Successfully parsed ${detectionResults.length} bounding box candidates`);
+        if (!hotspotResult.question || !hotspotResult.explanation || !Array.isArray(hotspotResult.bounding_boxes)) {
+          throw new Error('Missing required fields: question, explanation, or bounding_boxes');
+        }
+        
+        console.log(`✅ Successfully parsed hotspot response with ${hotspotResult.bounding_boxes.length} bounding box candidates`);
       } catch (parseError) {
-        console.error(`❌ Failed to parse bounding box results (attempt ${attempt}):`, parseError);
+        console.error(`❌ Failed to parse hotspot results (attempt ${attempt}):`, parseError);
         console.log('📄 Raw response length:', text.length);
         console.log('📄 Response start:', text.substring(0, 200));
         console.log('📄 Response end:', text.substring(Math.max(0, text.length - 200)));
         
         // Try fallback JSON extraction
         try {
-          console.log('🔧 Attempting fallback JSON extraction for bounding boxes...');
-          const jsonMatch = text.match(/\[[\s\S]*\]/);
+          console.log('🔧 Attempting fallback JSON extraction for hotspot...');
+          const jsonMatch = text.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
-            detectionResults = JSON.parse(jsonMatch[0]);
-            console.log('✅ Fallback bounding box extraction successful');
+            hotspotResult = JSON.parse(jsonMatch[0]);
+            console.log('✅ Fallback hotspot extraction successful');
           } else {
-            console.log('❌ No JSON array found in response');
+            console.log('❌ No JSON object found in response');
             if (attempt < maxRetries) {
               console.log(`⚠️ Parse failed on attempt ${attempt}, retrying...`);
               continue;
             }
-            throw new Error('No bounding boxes detected in video frame');
+            throw new Error('No hotspot question generated');
           }
         } catch (fallbackError) {
           console.error(`❌ Fallback extraction failed (attempt ${attempt}):`, fallbackError);
@@ -286,12 +322,12 @@ Example good distractors for code elements: similar syntax, adjacent variables, 
             console.log(`⚠️ Fallback failed on attempt ${attempt}, retrying...`);
             continue;
           }
-          throw new Error('Failed to detect objects in video frame after all retries');
+          throw new Error('Failed to generate hotspot question after all retries');
         }
       }
 
       // Convert to normalized format (same as enhanced-quiz-service)
-      const normalizedElements = detectionResults.map((bbox: any, index: number) => {
+      const normalizedElements = hotspotResult.bounding_boxes.map((bbox: any, index: number) => {
         if (!bbox.box_2d || bbox.box_2d.length !== 4) {
           console.warn(`⚠️ Invalid bounding box format at index ${index}:`, bbox);
           return null;
@@ -359,10 +395,25 @@ Example good distractors for code elements: similar syntax, adjacent variables, 
         }
       }
 
+      // Final validation: Check if we still have no correct answers after adjustment attempts
+      const finalCorrectAnswers = normalizedElements.filter((el: any) => el.is_correct_answer);
+      if (finalCorrectAnswers.length === 0) {
+        console.error(`❌ HOTSPOT QUESTION DISCARDED: No correct answer detected in video frame`);
+        console.error(`   🎯 Target objects: ${plan.target_objects?.join(', ')}`);
+        console.error(`   📦 Detected objects: ${normalizedElements.map((el: any) => el.label).join(', ')}`);
+        console.error(`   🎬 Frame timestamp: ${frameTimestamp}s (${startOffset}s - ${endOffset}s)`);
+        console.error(`   📝 Question context: ${plan.question_context}`);
+        throw new Error(`Correct answer object(s) '${plan.target_objects?.join(', ')}' not detected in video frame. The target objects are not visible or recognizable at timestamp ${frameTimestamp}s. Hotspot question discarded.`);
+      }
+
       console.log(`✅ Generated ${normalizedElements.length} bounding boxes successfully on attempt ${attempt}`);
       console.log(`📦 Elements: ${normalizedElements.map((el: any) => `${el.label}(${el.is_correct_answer ? 'CORRECT' : 'distractor'})`).join(', ')}`);
       
-      return normalizedElements;
+      return {
+        question: hotspotResult.question,
+        explanation: hotspotResult.explanation,
+        elements: normalizedElements
+      };
       
     } catch (error: unknown) {
       console.error(`❌ Error generating bounding boxes (attempt ${attempt}/${maxRetries}):`, error);
@@ -384,15 +435,6 @@ Example good distractors for code elements: similar syntax, adjacent variables, 
 // =============================================================================
 // Helper Functions for Question Creation
 // =============================================================================
-
-const createHotspotQuestionText = (plan: QuestionPlan): string => {
-  const baseQuestion = `Identify the ${plan.target_objects?.join(' and ') || 'target element'} in this ${plan.question_context || 'code example'}.`;
-  return baseQuestion;
-};
-
-const createHotspotExplanation = (plan: QuestionPlan): string => {
-  return `${plan.educational_rationale} By visually identifying the ${plan.target_objects?.join(' and ') || 'target element'}, students develop both visual parsing skills and conceptual understanding of ${plan.key_concepts.join(', ')}.`;
-};
 
 const extractExpectedDistractors = (plan: QuestionPlan): string[] => {
   // Extract potential distractors from planning notes or key concepts

@@ -7,6 +7,7 @@
   },
   "compilerOptions": {
     "allowJs": true,
+    "allowImportingTsExtensions": true,
     "lib": ["deno.ns", "deno.unstable", "dom"],
     "strict": true
   }

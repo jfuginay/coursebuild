@@ -18,6 +18,7 @@ export interface CourseAnalysisRequest {
   enable_visual_questions?: boolean;
   enable_quality_verification?: boolean; // Toggle to enable/disable Stage 3 verification (default: false)
   question_distribution?: QuestionTypeDistribution;
+  session_id?: string; // For progress tracking
 }
 
 export interface QuestionTypeDistribution {

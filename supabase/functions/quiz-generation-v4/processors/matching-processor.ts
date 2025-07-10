@@ -80,6 +80,7 @@ Respond with a JSON object in this exact format:
 \`\`\`
 
 ## QUALITY STANDARDS
+- MAKE SURE THERE ARE NO DUPLICATE ENTRIES THAT APPEAR IN BOTH LEFT AND RIGHT COLUMNS
 - Pairs represent meaningful educational relationships, not trivial associations
 - Left and right columns form coherent, parallel categories
 - Requires genuine understanding of WHY items connect

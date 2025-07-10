@@ -5,6 +5,8 @@
  * Stage 1: Question Planning (simplified)
  * Stage 2: Type-Specific Question Generation (MCQ, True/False, Hotspot, Matching, Sequencing)
  * Stage 3: AI-Powered Quality Verification (no hardcoded heuristics)
+ * 
+ * NEW: Real-time progress tracking with detailed question-level insights
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -30,6 +32,9 @@ import { generateSequencingQuestion } from './processors/sequencing-processor.ts
 
 // Import quality verification (optional)
 import { verifyQuestionsBatch } from './processors/quality-verifier.ts';
+
+// Import progress tracking
+import { createProgressTracker, ProgressTracker, withProgressTracking } from './utils/progress-tracker.ts';
 
 // =============================================================================
 // CORS Configuration
@@ -62,38 +67,132 @@ const executeWorkflowStage = async <T>(stageName: string, stageFunction: () => P
 };
 
 // =============================================================================
-// Stage 2: Question Generation Router
+// Stage 2: Question Generation Router with Progress Tracking
 // =============================================================================
 
-const generateQuestionByType = async (plan: QuestionPlan, youtubeUrl: string): Promise<GeneratedQuestion> => {
+const generateQuestionByType = async (
+  plan: QuestionPlan, 
+  youtubeUrl: string, 
+  tracker: ProgressTracker
+): Promise<GeneratedQuestion> => {
+  const startTime = Date.now();
+  
   console.log(`🎯 Generating ${plan.question_type} question: ${plan.question_id}`);
+  
+  // Track question start
+  await tracker.startQuestionGeneration(
+    plan.question_id,
+    plan.question_type,
+    `Generating ${plan.question_type} question: ${plan.learning_objective}`,
+    'determining-provider'
+  );
+  
+  try {
+    let question: GeneratedQuestion;
   
   switch (plan.question_type) {
     case 'multiple-choice':
-      return await generateMCQQuestion(plan);
+        await tracker.updateQuestionProgress({
+          question_id: plan.question_id,
+          question_type: plan.question_type,
+          status: 'generating',
+          progress: 0.3,
+          reasoning: 'Using OpenAI for multiple-choice question with misconception-based distractors',
+          provider_used: 'openai'
+        });
+        question = await generateMCQQuestion(plan);
+        break;
       
     case 'true-false':
-      return await generateTrueFalseQuestion(plan);
+        await tracker.updateQuestionProgress({
+          question_id: plan.question_id,
+          question_type: plan.question_type,
+          status: 'generating',
+          progress: 0.3,
+          reasoning: 'Using OpenAI for true-false question focusing on concept clarification',
+          provider_used: 'openai'
+        });
+        question = await generateTrueFalseQuestion(plan);
+        break;
       
     case 'hotspot':
-      return await generateHotspotQuestion(plan, youtubeUrl);
+        await tracker.updateQuestionProgress({
+          question_id: plan.question_id,
+          question_type: plan.question_type,
+          status: 'generating',
+          progress: 0.2,
+          reasoning: 'Using Gemini Vision API for hotspot question with bounding box detection',
+          provider_used: 'gemini-vision'
+        });
+        question = await generateHotspotQuestion(plan, youtubeUrl);
+        break;
       
     case 'matching':
-      return await generateMatchingQuestion(plan);
+        await tracker.updateQuestionProgress({
+          question_id: plan.question_id,
+          question_type: plan.question_type,
+          status: 'generating',
+          progress: 0.3,
+          reasoning: 'Using OpenAI for matching question with conceptual relationship mapping',
+          provider_used: 'openai'
+        });
+        question = await generateMatchingQuestion(plan);
+        break;
       
     case 'sequencing':
-      return await generateSequencingQuestion(plan);
+        await tracker.updateQuestionProgress({
+          question_id: plan.question_id,
+          question_type: plan.question_type,
+          status: 'generating',
+          progress: 0.3,
+          reasoning: 'Using OpenAI for sequencing question testing process understanding',
+          provider_used: 'openai'
+        });
+        question = await generateSequencingQuestion(plan);
+        break;
       
     default:
       throw new Error(`Unsupported question type: ${plan.question_type}`);
+    }
+    
+    const processingTime = Date.now() - startTime;
+    
+    // Track successful completion
+    await tracker.completeQuestion(
+      plan.question_id,
+      plan.question_type,
+      `Successfully generated ${plan.question_type} question with ${plan.key_concepts.length} key concepts`,
+      question.type === 'hotspot' ? 'gemini-vision' : 'openai',
+      processingTime
+    );
+    
+    return question;
+    
+  } catch (error: unknown) {
+    const processingTime = Date.now() - startTime;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    // Track failure
+    await tracker.failQuestion(
+      plan.question_id,
+      plan.question_type,
+      errorMessage,
+      plan.question_type === 'hotspot' ? 'gemini-vision' : 'openai'
+    );
+    
+    throw error;
   }
 };
 
 // =============================================================================
-// Stage 2: Batch Generation with Error Handling
+// Stage 2: Batch Generation with Enhanced Progress Tracking
 // =============================================================================
 
-const generateQuestionsFromPlans = async (plans: QuestionPlan[], youtubeUrl: string): Promise<{
+const generateQuestionsFromPlans = async (
+  plans: QuestionPlan[], 
+  youtubeUrl: string,
+  tracker: ProgressTracker
+): Promise<{
   generated_questions: GeneratedQuestion[];
   generation_metadata: {
     successful_generations: number;
@@ -114,11 +213,32 @@ const generateQuestionsFromPlans = async (plans: QuestionPlan[], youtubeUrl: str
   
   console.log(`🔄 Starting Stage 2: Generating ${plans.length} questions SIMULTANEOUSLY`);
   
+  // Update overall stage progress
+  await tracker.updateStageProgress(
+    'generation', 
+    0.1, 
+    `Starting generation of ${plans.length} questions`,
+    { 
+      total_questions: plans.length,
+      question_types: plans.map(p => p.question_type)
+    }
+  );
+  
   // Generate all questions concurrently using Promise.allSettled()
-  const questionPromises = plans.map(async (plan) => {
+  const questionPromises = plans.map(async (plan, index) => {
     try {
       console.log(`🚀 Starting generation for ${plan.question_type}: ${plan.question_id}`);
-      const question = await generateQuestionByType(plan, youtubeUrl);
+      
+      // Update progress as each question starts
+      const progressPercent = 0.1 + (index / plans.length) * 0.7; // 10% to 80% of stage
+      await tracker.updateStageProgress(
+        'generation',
+        progressPercent,
+        `Generating question ${index + 1}/${plans.length}: ${plan.question_type}`,
+        { current_question: plan.question_id }
+      );
+      
+      const question = await generateQuestionByType(plan, youtubeUrl, tracker);
       console.log(`✅ Generated ${plan.question_type}: ${plan.question_id}`);
       return { success: true, question, plan };
     } catch (error: unknown) {
@@ -133,6 +253,8 @@ const generateQuestionsFromPlans = async (plans: QuestionPlan[], youtubeUrl: str
   
   // Wait for all question generation promises to complete
   console.log(`⏳ Waiting for all ${plans.length} question generations to complete...`);
+  await tracker.updateStageProgress('generation', 0.8, 'Waiting for all questions to complete');
+  
   const results = await Promise.allSettled(questionPromises);
   
   // Process the results
@@ -171,6 +293,18 @@ const generateQuestionsFromPlans = async (plans: QuestionPlan[], youtubeUrl: str
   const endTime = Date.now();
   const generationTimeMs = endTime - startTime;
   
+  // Final stage progress update
+  await tracker.updateStageProgress(
+    'generation',
+    0.95,
+    `Generated ${generatedQuestions.length}/${plans.length} questions successfully`,
+    {
+      successful_questions: generatedQuestions.length,
+      failed_questions: errors.length,
+      type_breakdown: typeBreakdown
+    }
+  );
+  
   console.log(`✅ Stage 2 Complete: ${generatedQuestions.length}/${plans.length} questions generated CONCURRENTLY`);
   console.log(`   ⏱️ Generation Time: ${generationTimeMs}ms (${Math.round(generationTimeMs / plans.length)}ms avg per question)`);
   console.log(`   📊 Type Breakdown: ${JSON.stringify(typeBreakdown)}`);
@@ -182,6 +316,13 @@ const generateQuestionsFromPlans = async (plans: QuestionPlan[], youtubeUrl: str
     console.log(`   📋 Success by type:`);
     Object.entries(typeBreakdown).forEach(([type, count]) => {
       console.log(`      ${type}: ${count}`);
+    });
+  }
+  
+  if (errors.length > 0) {
+    console.log(`   ❌ Failed questions:`);
+    errors.forEach(error => {
+      console.log(`      ${error.question_id}: ${error.error_message}`);
     });
   }
   
@@ -462,9 +603,13 @@ const executeQuizGenerationPipeline = async (
     console.log(`\n🔧 STAGE 2: Question Generation`);
     const stage2StartTime = Date.now();
     
+    // Create a progress tracker with proper parameters
+    const sessionId = request.session_id || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const generationTracker = createProgressTracker(supabaseClient, request.course_id, sessionId);
+    
     const generationResult = await executeWorkflowStage(
       'generation',
-      () => generateQuestionsFromPlans(questionPlans, request.youtube_url)
+      () => generateQuestionsFromPlans(questionPlans, request.youtube_url, generationTracker)
     );
     
     stageTimings.generation = Date.now() - stage2StartTime;
@@ -683,7 +828,8 @@ serve(async (req: Request) => {
         enable_quality_verification = false,
         question_types,
         difficulty_level,
-        target_audience
+        target_audience,
+        session_id
       } = body;
 
       if (!course_id || !youtube_url) {
@@ -698,7 +844,8 @@ serve(async (req: Request) => {
         enable_quality_verification,
         question_types,
         difficulty_level,
-        target_audience
+        target_audience,
+        session_id
       };
 
       // Execute the quiz generation pipeline
