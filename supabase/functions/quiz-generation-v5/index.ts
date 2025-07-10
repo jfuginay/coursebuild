@@ -1,12 +1,12 @@
 /**
- * Quiz Generation Pipeline v4.0 - Complete Implementation
+ * Quiz Generation Pipeline v5.0 - Complete Implementation
  * 
  * Three-stage pipeline with type-specific processors and Gemini-powered quality verification:
- * Stage 1: Question Planning (simplified)
+ * Stage 1: Question Planning with Full Video Transcription
  * Stage 2: Type-Specific Question Generation (MCQ, True/False, Hotspot, Matching, Sequencing)
  * Stage 3: AI-Powered Quality Verification (no hardcoded heuristics)
  * 
- * NEW: Real-time progress tracking with detailed question-level insights
+ * NEW: Full video transcript generation and storage
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -35,6 +35,10 @@ import { verifyQuestionsBatch } from './processors/quality-verifier.ts';
 
 // Import progress tracking
 import { createProgressTracker, ProgressTracker, withProgressTracking } from './utils/progress-tracker.ts';
+
+// Import transcript utilities
+import { createQuestionContext } from './utils/transcript-utils.ts';
+import type { VideoTranscript } from './types/interfaces.ts';
 
 // =============================================================================
 // CORS Configuration
@@ -73,11 +77,19 @@ const executeWorkflowStage = async <T>(stageName: string, stageFunction: () => P
 const generateQuestionByType = async (
   plan: QuestionPlan, 
   youtubeUrl: string, 
-  tracker: ProgressTracker
+  tracker: ProgressTracker,
+  transcript?: VideoTranscript
 ): Promise<GeneratedQuestion> => {
   const startTime = Date.now();
   
   console.log(`🎯 Generating ${plan.question_type} question: ${plan.question_id}`);
+  
+  // Extract transcript context for this question
+  const transcriptContext = transcript ? createQuestionContext(transcript, plan.timestamp) : null;
+  if (transcriptContext) {
+    console.log(`   📄 Using transcript context: ${transcriptContext.segments.length} segments`);
+    console.log(`   🔑 Nearby concepts: ${transcriptContext.nearbyConcepts.join(', ')}`);
+  }
   
   // Track question start
   await tracker.startQuestionGeneration(
@@ -100,7 +112,7 @@ const generateQuestionByType = async (
           reasoning: 'Using OpenAI for multiple-choice question with misconception-based distractors',
           provider_used: 'openai'
         });
-        question = await generateMCQQuestion(plan);
+        question = await generateMCQQuestion(plan, transcriptContext);
         break;
       
     case 'true-false':
@@ -112,7 +124,7 @@ const generateQuestionByType = async (
           reasoning: 'Using OpenAI for true-false question focusing on concept clarification',
           provider_used: 'openai'
         });
-        question = await generateTrueFalseQuestion(plan);
+        question = await generateTrueFalseQuestion(plan, transcriptContext);
         break;
       
     case 'hotspot':
@@ -124,7 +136,7 @@ const generateQuestionByType = async (
           reasoning: 'Using Gemini Vision API for hotspot question with bounding box detection',
           provider_used: 'gemini-vision'
         });
-        question = await generateHotspotQuestion(plan, youtubeUrl);
+        question = await generateHotspotQuestion(plan, youtubeUrl, transcriptContext);
         break;
       
     case 'matching':
@@ -136,7 +148,7 @@ const generateQuestionByType = async (
           reasoning: 'Using OpenAI for matching question with conceptual relationship mapping',
           provider_used: 'openai'
         });
-        question = await generateMatchingQuestion(plan);
+        question = await generateMatchingQuestion(plan, transcriptContext);
         break;
       
     case 'sequencing':
@@ -148,7 +160,7 @@ const generateQuestionByType = async (
           reasoning: 'Using OpenAI for sequencing question testing process understanding',
           provider_used: 'openai'
         });
-        question = await generateSequencingQuestion(plan);
+        question = await generateSequencingQuestion(plan, transcriptContext);
         break;
       
     default:
@@ -191,7 +203,8 @@ const generateQuestionByType = async (
 const generateQuestionsFromPlans = async (
   plans: QuestionPlan[], 
   youtubeUrl: string,
-  tracker: ProgressTracker
+  tracker: ProgressTracker,
+  transcript?: VideoTranscript
 ): Promise<{
   generated_questions: GeneratedQuestion[];
   generation_metadata: {
@@ -212,6 +225,9 @@ const generateQuestionsFromPlans = async (
   const typeBreakdown: Record<string, number> = {};
   
   console.log(`🔄 Starting Stage 2: Generating ${plans.length} questions SIMULTANEOUSLY`);
+  if (transcript) {
+    console.log(`   📄 Using video transcript with ${transcript.full_transcript.length} segments`);
+  }
   
   // Update overall stage progress
   await tracker.updateStageProgress(
@@ -238,7 +254,7 @@ const generateQuestionsFromPlans = async (
         { current_question: plan.question_id }
       );
       
-      const question = await generateQuestionByType(plan, youtubeUrl, tracker);
+      const question = await generateQuestionByType(plan, youtubeUrl, tracker, transcript);
       console.log(`✅ Generated ${plan.question_type}: ${plan.question_id}`);
       return { success: true, question, plan };
     } catch (error: unknown) {
@@ -557,7 +573,7 @@ const executeQuizGenerationPipeline = async (
   const stageTimings: Record<string, number> = {};
   let errorCount = 0;
   
-  console.log(`🚀 Starting Quiz Generation Pipeline v4.0 for course: ${request.course_id}`);
+      console.log(`🚀 Starting Quiz Generation Pipeline v5.0 for course: ${request.course_id}`);
   console.log(`   📺 YouTube URL: ${request.youtube_url}`);
   console.log(`   📊 Max Questions: ${request.max_questions || 10}`);
   console.log(`   🎯 Difficulty: ${request.difficulty_level || 'intermediate'}`);
@@ -587,7 +603,7 @@ const executeQuizGenerationPipeline = async (
     console.log(`\n📋 STAGE 1: Question Planning`);
     const stage1StartTime = Date.now();
     
-    const questionPlans = await executeWorkflowStage(
+    const planningResult = await executeWorkflowStage(
       'planning',
       () => generateQuestionPlans(
         request.youtube_url,
@@ -597,9 +613,14 @@ const executeQuizGenerationPipeline = async (
       )
     );
     
+    const { plans: questionPlans, transcript: planningTranscript } = planningResult;
+    
     stageTimings.planning = Date.now() - stage1StartTime;
     
     console.log(`✅ Stage 1 Complete: ${questionPlans.length} questions planned`);
+    if (planningTranscript) {
+      console.log(`   📄 Transcript generated: ${planningTranscript.full_transcript.length} segments`);
+    }
     
     // STAGE 2: QUESTION GENERATION
     console.log(`\n🔧 STAGE 2: Question Generation`);
@@ -609,9 +630,31 @@ const executeQuizGenerationPipeline = async (
     const sessionId = request.session_id || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const generationTracker = createProgressTracker(supabaseClient, request.course_id, sessionId);
     
+    // Use transcript from stage 1 or fetch from database as fallback
+    let transcript: VideoTranscript | undefined = planningTranscript;
+    
+    if (!transcript) {
+      // Fallback: fetch transcript from database if not available from planning
+      const { data: transcriptData, error: transcriptError } = await supabaseClient
+        .from('video_transcripts')
+        .select('*')
+        .eq('course_id', request.course_id)
+        .eq('video_url', request.youtube_url)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (!transcriptError && transcriptData) {
+        transcript = transcriptData;
+        console.log(`✅ Transcript fetched from database: ${transcript.full_transcript.length} segments`);
+      } else {
+        console.warn(`⚠️ No transcript found in database for course ${request.course_id}`);
+      }
+    }
+
     const generationResult = await executeWorkflowStage(
       'generation',
-      () => generateQuestionsFromPlans(questionPlans, request.youtube_url, generationTracker)
+      () => generateQuestionsFromPlans(questionPlans, request.youtube_url, generationTracker, transcript)
     );
     
     stageTimings.generation = Date.now() - stage2StartTime;
@@ -804,8 +847,8 @@ serve(async (req: Request) => {
       return new Response(JSON.stringify({ 
         status: 'healthy', 
         timestamp: new Date().toISOString(),
-        version: '4.0',
-        features: ['quiz-generation', 'provider-switching', 'llm-interface']
+        version: '5.0',
+        features: ['quiz-generation', 'provider-switching', 'llm-interface', 'transcript-generation']
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });

@@ -47,12 +47,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         onConflict: 'course_id,session_id'
       });
 
-    // Call the quiz generation v4.0 pipeline
-    console.log('🔄 Calling Quiz Generation v4.0 pipeline...');
+    // Call the quiz generation v5.0 pipeline
+    console.log('🔄 Calling Quiz Generation v5.0 pipeline...');
     
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
     const apiKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const quizGenerationUrl = `${supabaseUrl}/functions/v1/quiz-generation-v4`;
+    const quizGenerationUrl = `${supabaseUrl}/functions/v1/quiz-generation-v5`;
+
 
     // Update progress: Moving to planning stage
     await supabase

@@ -13,6 +13,7 @@ declare const Deno: {
 };
 
 import { QuestionPlan, HotspotQuestion, QuestionGenerationError } from '../types/interfaces.ts';
+import { convertSecondsToBase60 } from '../utils/timestamp-converter.ts';
 
 // =============================================================================
 // Simplified Hotspot Generation Function
@@ -20,13 +21,18 @@ import { QuestionPlan, HotspotQuestion, QuestionGenerationError } from '../types
 
 export const generateHotspotQuestion = async (
   plan: QuestionPlan, 
-  youtubeUrl: string
+  youtubeUrl: string,
+  transcriptContext?: any
 ): Promise<HotspotQuestion> => {
   try {
     console.log(`🎯 Generating Hotspot Bounding Boxes: ${plan.question_id}`);
     console.log(`   📚 Learning Objective: ${plan.learning_objective}`);
     console.log(`   🎯 Target Objects: ${plan.target_objects?.join(', ') || 'Not specified'}`);
     console.log(`   🎬 Frame Timestamp: ${plan.frame_timestamp || plan.timestamp}s`);
+    
+    if (transcriptContext && transcriptContext.visualContext) {
+      console.log(`   👁️ Visual Context from Transcript: ${transcriptContext.visualContext.substring(0, 100)}...`);
+    }
     
     // Add small random delay to prevent rate limiting when processing multiple hotspot questions
     const delay = Math.random() * 1000 + 500; // 500-1500ms random delay
@@ -50,7 +56,7 @@ export const generateHotspotQuestion = async (
     const frameTimestamp = plan.frame_timestamp || plan.timestamp;
     
     // Generate bounding boxes using the proven enhanced-quiz-service approach
-    const boundingBoxes = await generateBoundingBoxes(youtubeUrl, plan, frameTimestamp);
+    const boundingBoxes = await generateBoundingBoxes(youtubeUrl, plan, frameTimestamp, transcriptContext);
     
     // Create the hotspot question with pre-planned data + generated content and bounding boxes
     const hotspotQuestion: HotspotQuestion = {
@@ -97,7 +103,8 @@ export const generateHotspotQuestion = async (
 const generateBoundingBoxes = async (
   youtubeUrl: string,
   plan: QuestionPlan,
-  frameTimestamp: number
+  frameTimestamp: number,
+  transcriptContext?: any
 ): Promise<{question: string, explanation: string, elements: any[]}> => {
   const maxRetries = 3;
   const baseDelay = 1000; // 1 second base delay
@@ -117,6 +124,12 @@ const generateBoundingBoxes = async (
       const startOffset = Math.max(0, frameTimestamp - 0.5);
       const endOffset = frameTimestamp;
       
+      // Convert to base-60 for Gemini
+      const startOffsetBase60 = convertSecondsToBase60(startOffset);
+      const endOffsetBase60 = convertSecondsToBase60(endOffset);
+      
+      console.log(`📹 Analyzing video segment: ${startOffset}s to ${endOffset}s (base-60: ${startOffsetBase60} to ${endOffsetBase60})`);
+      
       const objectDetectionPrompt = `
 You are creating a visual hotspot question for educational purposes. Generate appropriate question text, explanation, and bounding boxes for all visible objects in this frame.
 
@@ -125,6 +138,17 @@ VISUAL LEARNING OBJECTIVE: ${plan.visual_learning_objective}
 QUESTION CONTEXT: ${plan.question_context}
 KEY CONCEPTS: ${plan.key_concepts.join(', ')}
 BLOOM LEVEL: ${plan.bloom_level}
+
+${transcriptContext ? `
+TRANSCRIPT CONTEXT:
+Visual Description at Timestamp: ${transcriptContext.visualContext || 'Not available'}
+Content being discussed: ${transcriptContext.formattedContext}
+
+Use this transcript context to:
+- Understand what's actually visible in the frame based on the visual description
+- Create questions that align with what's being discussed at this moment
+- Make the question more contextually relevant to the lesson
+` : ''}
 
 Requirements:
 1. Generate clear, educational question text that asks students to identify a target object
@@ -154,8 +178,6 @@ Guidelines for bounding boxes:
 - Provide unique descriptive labels for each object
 `;
 
-      console.log(`📹 Analyzing video segment: ${startOffset}s to ${endOffset}s`);
-
       const geminiRequest = {
         contents: [
           {
@@ -165,8 +187,8 @@ Guidelines for bounding boxes:
                   fileUri: youtubeUrl
                 },
                 videoMetadata: {
-                  startOffset: `${startOffset}s`,
-                  endOffset: `${endOffset}s`
+                  startOffset: `${startOffsetBase60}s`,
+                  endOffset: `${endOffsetBase60}s`
                 }
               },
               {
@@ -464,7 +486,7 @@ const extractExpectedDistractors = (plan: QuestionPlan): string[] => {
 
 export const hotspotProcessorConfig = {
   questionType: 'hotspot',
-  processorName: 'Simplified Hotspot Processor v4.1',
+  processorName: 'Simplified Hotspot Processor v5.0',
   stage: 2,
   requiresVideoAnalysis: true,
   supports: {

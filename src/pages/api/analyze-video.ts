@@ -540,8 +540,9 @@ export default async function handler(
       console.log('⏭️ Cache disabled, proceeding with fresh generation');
     }
 
-    // Step 3: Call quiz-generation-v4 service (replacing enhanced-quiz-service)
-    const serviceName = 'quiz-generation-v4';
+    // Step 3: Call quiz-generation-v5 service (replacing enhanced-quiz-service)
+    const serviceName = 'quiz-generation-v5';
+
     const edgeResponse = await fetch(
       `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/${serviceName}`,
       {
