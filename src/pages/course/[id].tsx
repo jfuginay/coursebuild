@@ -12,6 +12,7 @@ import QuestionOverlay from '@/components/QuestionOverlay';
 import CourseCurriculumCard from '@/components/CourseCurriculumCard';
 import VideoProgressBar from '@/components/VideoProgressBar';
 import TranscriptDisplay from '@/components/TranscriptDisplay';
+import InteractiveVideoPlayer from '@/components/InteractiveVideoPlayer';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -1026,95 +1027,23 @@ export default function CoursePage() {
           </div>
 
           {/* Video Player */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Play className="h-5 w-5" />
-                Interactive Video Course
-              </CardTitle>
-              <CardDescription>
-                Watch the video and answer questions as they appear
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="aspect-video bg-muted rounded-lg overflow-hidden relative">
-                {!isYTApiLoaded && !error && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-muted z-10">
-                    <div className="text-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
-                      <p className="text-sm text-muted-foreground">Loading video player...</p>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Fallback iframe if API fails */}
-                {error && videoId && (
-                  <iframe
-                    src={`https://www.youtube.com/embed/${videoId}?controls=1&modestbranding=1&rel=0&enablejsapi=1&origin=${window.location.origin}`}
-                    title="YouTube video player"
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
-                    className="w-full h-full"
-                  />
-                )}
-                
-                {/* Main YouTube API player */}
-                <div id="youtube-player" className="w-full h-full" style={{ display: error ? 'none' : 'block' }} />
-              </div>
-              
-              {/* Progress Bar */}
-              {isVideoReady && duration > 0 && (
-                <div className="space-y-3 px-2">
-                  <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>{formatTime(currentTime)}</span>
-                    <span>{formatTime(duration)}</span>
-                  </div>
-                  
-                  {/* Interactive Progress Bar */}
-                  <VideoProgressBar
-                    currentTime={currentTime}
-                    duration={duration}
-                    onSeek={handleVideoSeek}
-                    questions={questions.map((question, index) => ({
-                      ...question,
-                      id: `0-${index}` // Simple ID for single segment structure
-                    }))}
-                    answeredQuestions={new Set(
-                      Array.from(answeredQuestions).map(index => `0-${index}`)
-                    )}
-                    formatTimestamp={formatTime}
-                    className=""
-                  />
-                </div>
-              )}
-
-              {/* External Links */}
-              <div className="flex justify-center gap-3">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => window.open(course.youtube_url, '_blank')}
-                >
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Watch on YouTube
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={fetchNextCourse}
-                  disabled={isLoadingNextCourse || !!nextCourse || nextCourseApiCalled}
-                >
-                  {isLoadingNextCourse ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
-                  ) : (
-                    <BookOpen className="mr-2 h-4 w-4" />
-                  )}
-                  {nextCourse ? 'Next Course Ready' : isLoadingNextCourse ? 'Generating...' : nextCourseApiCalled ? 'Generating...' : 'Generate Next Course'}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <InteractiveVideoPlayer
+            videoId={videoId}
+            youtubeUrl={course.youtube_url}
+            isYTApiLoaded={isYTApiLoaded}
+            error={error}
+            isVideoReady={isVideoReady}
+            currentTime={currentTime}
+            duration={duration}
+            questions={questions}
+            answeredQuestions={answeredQuestions}
+            onVideoSeek={handleVideoSeek}
+            formatTime={formatTime}
+            onFetchNextCourse={fetchNextCourse}
+            isLoadingNextCourse={isLoadingNextCourse}
+            nextCourse={nextCourse}
+            nextCourseApiCalled={nextCourseApiCalled}
+          />
 
           {/* Question or Transcript Display */}
           {showQuestion && questions[currentQuestionIndex] ? (
