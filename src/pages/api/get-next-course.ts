@@ -18,11 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { currentCourseId, videoUrl, wrongQuestions } = req.body;
-
-    if (!currentCourseId || typeof currentCourseId !== 'string') {
-      return res.status(400).json({ error: 'Course ID is required' });
-    }
+    const { videoUrl } = req.body;
 
     if (!videoUrl || typeof videoUrl !== 'string') {
       return res.status(400).json({ error: 'Video URL is required' });
@@ -30,16 +26,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Call the Supabase edge function
     console.log('Calling course-suggestions edge function with:', {
-      videoUrl: videoUrl,
-      courseId: currentCourseId,
-      wrongQuestions: wrongQuestions?.length || 0
+      videoUrl: videoUrl
     });
 
     const { data: suggestionsData, error: suggestionsError } = await supabase.functions.invoke('course-suggestions', {
       body: {
-        videoUrl: videoUrl,
-        courseId: currentCourseId,
-        wrongQuestions: wrongQuestions || []
+        videoUrl: videoUrl
       }
     });
 
@@ -53,9 +45,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(500).json({ error: 'Invalid suggestions response' });
     }
 
-    // Get the first topic and its first video
+    // Get the first topic and its video
     const firstTopic = suggestionsData.topics[0];
-    if (!firstTopic || !firstTopic.video1) {
+    if (!firstTopic || !firstTopic.video) {
       return res.status(500).json({ error: 'No valid suggestions found' });
     }
 
@@ -74,7 +66,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          youtubeUrl: firstTopic.video1,
+          youtubeUrl: firstTopic.video,
           useEnhanced: true,
         }),
       });
@@ -94,6 +86,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         success: true,
         nextCourse: result.data,
         courseId: result.course_id,
+        topic: firstTopic.topic,
         message: 'Next course generated successfully with questions'
       });
     } catch (analyzeError) {
