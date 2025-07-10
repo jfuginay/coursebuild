@@ -115,6 +115,46 @@
   - Code completion questions
   - Visual question frontend completion
 
+## 🚨 Team Feedback Items (January 2025)
+
+### High Priority UX Issues
+- [ ] **High Priority**: Course library sections on homepage (Issue #95)
+  - Create "Your Courses" section
+  - Add "Featured Courses" section
+  - Implement proper course organization
+- [ ] **High Priority**: Visual question continue button accessibility (Issue #96)
+  - Fix "Continue video" button in image selection overlay
+  - Button currently hard to hit/click
+  - Improve touch target size and positioning
+- [ ] **High Priority**: Quiz stats display clarity (Issue #97)
+  - Stats appear random/unclear on course creation screen
+  - Need clearer presentation of generated quiz statistics
+  - Better visual hierarchy for stats display
+
+### Medium Priority Improvements
+- [ ] **Medium Priority**: Course creation success messaging (Issue #98)
+  - Add clear success message: "Your quiz has been generated, it's ready to take"
+  - Improve post-creation user flow and feedback
+- [ ] **Medium Priority**: Active verb rewrites for process descriptions (Issue #99)
+  - Change passive descriptions like "Video Analysis" to active "Video is analyzed"
+  - Apply across all process descriptions and UI text
+  - Make interface language more engaging and clear
+- [ ] **Medium Priority**: Matching question target improvements (Issue #100)
+  - Review and improve matching question targets for clarity
+  - Better visual distinction between match options
+- [ ] **Medium Priority**: Quiz stats randomness fix (Issue #101)
+  - Address random/unclear quiz statistics on creation screen
+  - Ensure stats are meaningful and accurately represent content
+
+### Low Priority Enhancements  
+- [ ] **Low Priority**: How it Works section text reduction (Issue #102)
+  - Too much text in current How it Works section
+  - Condense and simplify explanations
+  - Focus on key value propositions
+- [ ] **Low Priority**: Drag-and-drop between course sections (Issue #103)
+  - Implement drag-and-drop functionality between course library sections
+  - Allow users to organize courses between "Your Courses" and other sections
+
 ### Medium Priority
 - [ ] **Medium Priority**: Learning Paths
   - Group related courses into paths
