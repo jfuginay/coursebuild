@@ -39,17 +39,19 @@ export function useAnalytics() {
     });
 
     // Track with PostHog for detailed analytics
-    posthog.capture('course_rated', {
-      course_id: event.courseId,
-      rating: event.rating,
-      rating_context: event.context,
-      time_to_rate_ms: event.timeToRate,
-      engagement_score: event.engagementScore,
-      platform: event.platform,
-      $set: {
-        last_rating_date: new Date().toISOString()
-      }
-    });
+    if (posthog.__loaded) {
+      posthog.capture('course_rated', {
+        course_id: event.courseId,
+        rating: event.rating,
+        rating_context: event.context,
+        time_to_rate_ms: event.timeToRate,
+        engagement_score: event.engagementScore,
+        platform: event.platform,
+        $set: {
+          last_rating_date: new Date().toISOString()
+        }
+      });
+    }
 
     console.log('📊 Rating tracked:', event);
   }, []);
@@ -63,13 +65,15 @@ export function useAnalytics() {
     });
 
     // Track with PostHog
-    posthog.capture('filter_applied', {
-      filter_type: event.filterType,
-      filter_value: event.filterValue,
-      results_count: event.resultsCount,
-      previous_filters: event.previousFilters,
-      session_id: posthog.get_session_id()
-    });
+    if (posthog.__loaded) {
+      posthog.capture('filter_applied', {
+        filter_type: event.filterType,
+        filter_value: event.filterValue,
+        results_count: event.resultsCount,
+        previous_filters: event.previousFilters,
+        session_id: posthog.get_session_id()
+      });
+    }
 
     console.log('🔍 Filter tracked:', event);
   }, []);
@@ -84,13 +88,15 @@ export function useAnalytics() {
     });
 
     // Track with PostHog
-    posthog.capture(`course_${event.action}`, {
-      course_id: event.courseId,
-      duration_seconds: event.duration,
-      questions_answered: event.questionsAnswered,
-      completion_percentage: event.completionPercentage,
-      timestamp: Date.now()
-    });
+    if (posthog.__loaded) {
+      posthog.capture(`course_${event.action}`, {
+        course_id: event.courseId,
+        duration_seconds: event.duration,
+        questions_answered: event.questionsAnswered,
+        completion_percentage: event.completionPercentage,
+        timestamp: Date.now()
+      });
+    }
 
     console.log('🎓 Course interaction tracked:', event);
   }, []);
@@ -101,11 +107,13 @@ export function useAnalytics() {
       trigger
     });
 
-    posthog.capture('rating_modal_shown', {
-      course_id: courseId,
-      trigger_type: trigger,
-      timestamp: Date.now()
-    });
+    if (posthog.__loaded) {
+      posthog.capture('rating_modal_shown', {
+        course_id: courseId,
+        trigger_type: trigger,
+        timestamp: Date.now()
+      });
+    }
   }, []);
 
   const trackRatingModalDismissed = useCallback((courseId: string, reason: 'timeout' | 'manual' | 'completed') => {
@@ -114,11 +122,13 @@ export function useAnalytics() {
       reason
     });
 
-    posthog.capture('rating_modal_dismissed', {
-      course_id: courseId,
-      dismiss_reason: reason,
-      timestamp: Date.now()
-    });
+    if (posthog.__loaded) {
+      posthog.capture('rating_modal_dismissed', {
+        course_id: courseId,
+        dismiss_reason: reason,
+        timestamp: Date.now()
+      });
+    }
   }, []);
 
   const trackEngagement = useCallback((courseId: string, event: {
@@ -126,13 +136,15 @@ export function useAnalytics() {
     value?: number;
     duration?: number;
   }) => {
-    posthog.capture('course_engagement', {
-      course_id: courseId,
-      engagement_type: event.type,
-      engagement_value: event.value,
-      engagement_duration: event.duration,
-      timestamp: Date.now()
-    });
+    if (posthog.__loaded) {
+      posthog.capture('course_engagement', {
+        course_id: courseId,
+        engagement_type: event.type,
+        engagement_value: event.value,
+        engagement_duration: event.duration,
+        timestamp: Date.now()
+      });
+    }
   }, []);
 
   // Helper to detect platform

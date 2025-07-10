@@ -17,31 +17,50 @@ export default async function handler(
   const { ids } = req.query;
 
   try {
-    let query = supabase
-      .from('courses')
-      .select(`
-        id, title, description, youtube_url, created_at, published,
-        course_rating_stats!inner(
-          average_rating,
-          total_ratings
-        )
-      `)
-      .eq('published', true) // Only fetch published courses
-      .order('created_at', { ascending: false });
+    // First try to fetch courses with rating stats
+    let coursesData;
+    let error;
+    
+    try {
+      const result = await supabase
+        .from('courses')
+        .select(`
+          id, title, description, youtube_url, created_at, published,
+          course_rating_stats(
+            average_rating,
+            total_ratings
+          )
+        `)
+        .eq('published', true)
+        .order('created_at', { ascending: false });
+      
+      coursesData = result.data;
+      error = result.error;
+    } catch (ratingError) {
+      console.log('Rating stats table not available, fetching courses without ratings');
+      // Fallback to basic course query if rating stats table doesn't exist
+      const result = await supabase
+        .from('courses')
+        .select('id, title, description, youtube_url, created_at, published')
+        .eq('published', true)
+        .order('created_at', { ascending: false });
+      
+      coursesData = result.data;
+      error = result.error;
+    }
 
-    // If IDs are provided, filter by those IDs
+    // Filter by IDs if provided
     if (ids && typeof ids === 'string') {
       const courseIds = ids.split(',').map(id => id.trim()).filter(id => id);
       
       if (courseIds.length === 0) {
-        return res.status(200).json({ courses: [] });
+        return res.status(200).json({ success: true, courses: [] });
       }
 
-      query = query.in('id', courseIds);
+      if (coursesData) {
+        coursesData = coursesData.filter(course => courseIds.includes(course.id));
+      }
     }
-
-    // Execute the query
-    const { data: coursesData, error } = await query;
 
     if (error) {
       console.error('Error fetching courses:', error);
