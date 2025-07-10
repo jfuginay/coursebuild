@@ -89,26 +89,26 @@
 ## 📋 Upcoming Features & Enhancements
 
 ### High Priority
-- [ ] **Complete Visual Quiz Frontend Integration** 🚨 URGENT
+- [ ] **High Priority**: Complete Visual Quiz Frontend Integration
   - Fix visual question type detection in frontend
   - Ensure QuestionOverlay routes to HotspotQuestion/MatchingQuestion components
   - Test hotspot and matching question interactions
   - Verify bounding box rendering and click detection
   
-- [ ] **User Authentication System** (Issue #15)
+- [ ] **High Priority**: User Authentication System (Issue #15)
   - User registration and login
   - Course progress persistence per user
   - Personal course library
   - Social login integration (Google, GitHub)
   
-- [ ] **Course Management Dashboard** (Issue #16)
+- [ ] **High Priority**: Course Management Dashboard (Issue #16)
   - Edit existing courses
   - Add/remove/edit questions
   - Publish/unpublish courses
   - Course analytics
   - Bulk operations for questions
 
-- [ ] **Enhanced Question Types** (Issue #17)
+- [ ] **High Priority**: Enhanced Question Types (Issue #17)
   - Fill-in-the-blank questions
   - Ordering/sequencing questions
   - Drag-and-drop interactions
@@ -116,41 +116,41 @@
   - Visual question frontend completion
 
 ### Medium Priority
-- [ ] **Learning Paths**
- - Group related courses into paths
- - Prerequisites and recommended order
- - Completion certificates
+- [ ] **Medium Priority**: Learning Paths
+  - Group related courses into paths
+  - Prerequisites and recommended order
+  - Completion certificates
 
-- [ ] **Social Features**
- - Course ratings and reviews
- - Discussion forums per course
- - Share progress on social media
+- [ ] **Medium Priority**: Social Features
+  - Course ratings and reviews
+  - Discussion forums per course
+  - Share progress on social media
 
-- [ ] **Mobile Optimization**
- - Responsive video player controls
- - Touch-friendly quiz interface
- - Progressive web app features
+- [ ] **Medium Priority**: Mobile Optimization
+  - Responsive video player controls
+  - Touch-friendly quiz interface
+  - Progressive web app features
 
-- [ ] **Export/Import**
- - Export courses as PDF/markdown
- - Import questions from CSV/JSON
- - SCORM compliance for LMS integration
+- [ ] **Medium Priority**: Export/Import
+  - Export courses as PDF/markdown
+  - Import questions from CSV/JSON
+  - SCORM compliance for LMS integration
 
 ### Low Priority
-- [ ] **Advanced Analytics**
- - Detailed learning analytics
- - Question difficulty analysis
- - Time spent per segment tracking
+- [ ] **Low Priority**: Advanced Analytics
+  - Detailed learning analytics
+  - Question difficulty analysis
+  - Time spent per segment tracking
 
-- [ ] **AI Improvements**
- - Support for multiple languages
- - Custom difficulty levels
- - Adaptive questioning based on performance
+- [ ] **Low Priority**: AI Improvements
+  - Support for multiple languages
+  - Custom difficulty levels
+  - Adaptive questioning based on performance
 
-- [ ] **Gamification**
- - Points and badges system
- - Leaderboards
- - Achievement unlocks
+- [ ] **Low Priority**: Gamification
+  - Points and badges system
+  - Leaderboards
+  - Achievement unlocks
 
 ## 🔐 Security & Performance
 - [ ] Implement rate limiting on API endpoints

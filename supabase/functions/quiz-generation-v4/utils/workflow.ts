@@ -127,26 +127,101 @@ export const visualGenerationNode = async (state: QuizGenerationState): Promise<
       return {};
     }
     
-    // For now, placeholder for visual question generation
-    // TODO: Implement enhanced hotspot, visual matching, and sequencing
-    console.log(`⚠️ Visual generation not fully implemented yet - ${state.visual_questions.length} questions deferred`);
+    console.log(`🎯 Processing ${state.visual_questions.length} visual questions...`);
+    
+    // Import visual processors
+    const { generateHotspotQuestion } = await import('../processors/hotspot-processor.ts');
+    const { generateMatchingQuestion } = await import('../processors/matching-processor.ts');
+    const { generateSequencingQuestion } = await import('../processors/sequencing-processor.ts');
+    
+    const generatedQuestions: GeneratedQuestion[] = [];
+    const failedQuestions: Array<{ plan: QuestionPlan; error: string; stage: 'generation' }> = [];
+    
+    // Process each visual question based on its type
+    for (const plan of state.visual_questions) {
+      try {
+        console.log(`🔄 Processing visual question: ${plan.question_id} (${plan.question_type})`);
+        
+        let generatedQuestion: GeneratedQuestion;
+        
+        switch (plan.question_type) {
+          case 'hotspot':
+            console.log(`🎯 Generating hotspot question: ${plan.question_id}`);
+            const hotspotQuestion = await generateHotspotQuestion(plan, state.youtube_url);
+            generatedQuestion = {
+              ...hotspotQuestion,
+              provider_used: 'gemini-vision',
+              generation_time: Date.now(),
+              content_quality_score: 85 // Visual questions typically have good engagement
+            };
+            break;
+            
+          case 'matching':
+            console.log(`🔗 Generating matching question: ${plan.question_id}`);
+            const matchingQuestion = await generateMatchingQuestion(plan);
+            generatedQuestion = {
+              ...matchingQuestion,
+              provider_used: 'openai', // Matching uses text-based LLM
+              generation_time: Date.now(),
+              content_quality_score: 80
+            };
+            break;
+            
+          case 'sequencing':
+            console.log(`📋 Generating sequencing question: ${plan.question_id}`);
+            const sequencingQuestion = await generateSequencingQuestion(plan);
+            generatedQuestion = {
+              ...sequencingQuestion,
+              provider_used: 'openai', // Sequencing uses text-based LLM
+              generation_time: Date.now(),
+              content_quality_score: 80
+            };
+            break;
+            
+          default:
+            console.warn(`⚠️ Unknown visual question type: ${plan.question_type} for ${plan.question_id}`);
+            throw new Error(`Unsupported visual question type: ${plan.question_type}`);
+        }
+        
+        generatedQuestions.push(generatedQuestion);
+        console.log(`✅ Successfully generated visual question: ${plan.question_id}`);
+        
+      } catch (error) {
+        console.error(`❌ Failed to generate visual question ${plan.question_id}:`, error);
+        failedQuestions.push({
+          plan,
+          error: error instanceof Error ? error.message : String(error),
+          stage: 'generation' as const
+        });
+      }
+    }
+    
+    console.log(`📊 Visual generation complete: ${generatedQuestions.length} successful, ${failedQuestions.length} failed`);
     
     return {
-      warnings: [
+      generated_questions: [
+        ...(state.generated_questions || []),
+        ...generatedQuestions
+      ],
+      failed_questions: [
+        ...(state.failed_questions || []),
+        ...failedQuestions
+      ],
+      warnings: failedQuestions.length > 0 ? [
         ...(state.warnings || []),
-        `Visual generation deferred: ${state.visual_questions.length} questions not processed`
-      ]
+        `${failedQuestions.length} visual questions failed to generate`
+      ] : state.warnings
     };
     
   } catch (error) {
     console.error('❌ Visual Generation Node failed:', error);
     return {
-      errors: [...(state.errors || []), `Visual generation failed: ${error.message}`],
+      errors: [...(state.errors || []), `Visual generation failed: ${error instanceof Error ? error.message : String(error)}`],
       failed_questions: [
         ...(state.failed_questions || []),
         ...state.visual_questions.map(plan => ({
           plan,
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
           stage: 'generation' as const
         }))
       ]
