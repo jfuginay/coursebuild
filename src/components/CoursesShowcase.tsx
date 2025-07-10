@@ -72,7 +72,21 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
   const applyRatingFilter = () => {
     let filtered = [...allCourses];
     
+    // Debug: Log all courses with their rating data
+    console.log('🔍 Rating Filter Debug:', {
+      totalCourses: allCourses.length,
+      currentFilter: ratingFilter,
+      coursesWithRatings: allCourses.filter(c => c.averageRating && c.averageRating > 0).length,
+      allCoursesData: allCourses.map(c => ({
+        id: c.id,
+        title: c.title,
+        averageRating: c.averageRating,
+        totalRatings: c.totalRatings
+      }))
+    });
+    
     if (ratingFilter === '5') {
+      // For "5 Stars" filter, show courses with 4.5+ rating (rounded to 5 stars)
       filtered = filtered.filter(course => (course.averageRating || 0) >= 4.5);
     } else if (ratingFilter === '4+') {
       filtered = filtered.filter(course => (course.averageRating || 0) >= 4.0);
@@ -81,6 +95,17 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
     } else if (ratingFilter === '2+') {
       filtered = filtered.filter(course => (course.averageRating || 0) >= 2.0);
     }
+    
+    console.log('📊 Filter Results:', {
+      filter: ratingFilter,
+      originalCount: allCourses.length,
+      filteredCount: filtered.length,
+      filteredCourses: filtered.map(c => ({
+        title: c.title,
+        averageRating: c.averageRating,
+        totalRatings: c.totalRatings
+      }))
+    });
     
     setFilteredCourses(filtered);
     setCoursesToShow(limit); // Reset pagination when filter changes
@@ -101,6 +126,14 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
     } else if (value === '2+') {
       resultsCount = allCourses.filter(course => (course.averageRating || 0) >= 2.0).length;
     }
+    
+    // Additional debug logging
+    console.log('🎯 Rating Filter Change:', {
+      newFilter: value,
+      totalCourses: allCourses.length,
+      expectedResults: resultsCount,
+      coursesWithRatings: allCourses.filter(c => c.averageRating && c.averageRating > 0).length
+    });
     
     // Track filter usage with error handling
     try {
