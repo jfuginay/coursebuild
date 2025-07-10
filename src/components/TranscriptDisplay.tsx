@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -36,6 +36,8 @@ export default function TranscriptDisplay({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(-1);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchTranscript();
@@ -43,7 +45,14 @@ export default function TranscriptDisplay({
 
   useEffect(() => {
     if (segments.length > 0) {
+      const previousIndex = currentSegmentIndex;
       findCurrentSegment();
+      
+      // Trigger transition effect when segment changes
+      if (previousIndex !== currentSegmentIndex && currentSegmentIndex !== -1) {
+        setIsTransitioning(true);
+        setTimeout(() => setIsTransitioning(false), 300);
+      }
     }
   }, [currentTime, segments]);
 
@@ -103,77 +112,102 @@ export default function TranscriptDisplay({
     }
   };
 
-  const getDisplaySegments = () => {
+  const getVisibleSegments = () => {
     if (currentSegmentIndex === -1 || segments.length === 0) {
-      return {
-        previous: null,
-        current: null,
-        next: null
-      };
+      return [];
     }
 
-    return {
-      previous: currentSegmentIndex > 0 ? segments[currentSegmentIndex - 1] : null,
-      current: segments[currentSegmentIndex],
-      next: currentSegmentIndex < segments.length - 1 ? segments[currentSegmentIndex + 1] : null
-    };
+    // Get a range of segments around the current one
+    const visibleRange = 2; // Show 2 segments before and after
+    const startIdx = Math.max(0, currentSegmentIndex - visibleRange);
+    const endIdx = Math.min(segments.length - 1, currentSegmentIndex + visibleRange);
+    
+    const visibleSegments = [];
+    for (let i = startIdx; i <= endIdx; i++) {
+      visibleSegments.push({
+        segment: segments[i],
+        index: i,
+        relativePosition: i - currentSegmentIndex
+      });
+    }
+    
+    return visibleSegments;
   };
 
-  const renderSegment = (segment: TranscriptSegment | null, type: 'previous' | 'current' | 'next') => {
-    if (!segment) return null;
-
+  const renderSegment = (
+    segment: TranscriptSegment, 
+    index: number, 
+    relativePosition: number
+  ) => {
     const startTime = parseFloat(segment.timestamp);
-    const endTime = parseFloat(segment.end_timestamp);
-    const isCurrent = type === 'current';
+    const isCurrent = relativePosition === 0;
     const isSalient = segment.is_salient_event === 'true';
-
+    
+    // Calculate opacity and scale based on distance from current
+    const distance = Math.abs(relativePosition);
+    const opacity = isCurrent ? 1 : Math.max(0.3, 1 - (distance * 0.3));
+    const scale = isCurrent ? 1 : Math.max(0.85, 1 - (distance * 0.075));
+    const blur = isCurrent ? 0 : distance * 0.5;
+    
     return (
       <div
         key={`${segment.transcript_id}-${segment.timestamp}`}
         className={cn(
-          "p-3 rounded-lg border transition-all duration-200 cursor-pointer hover:bg-muted/50",
-          isCurrent 
-            ? "bg-primary/10 border-primary shadow-sm" 
-            : "bg-background border-border",
-          type === 'previous' && "opacity-70",
-          type === 'next' && "opacity-70"
+          "absolute w-full px-2 transition-all duration-300 ease-out cursor-pointer",
+          isTransitioning && "duration-500",
         )}
+        style={{
+          opacity,
+          transform: `translateY(${relativePosition * 90}px) scale(${scale})`,
+          filter: `blur(${blur}px)`,
+          zIndex: 10 - distance,
+        }}
         onClick={() => handleSegmentClick(segment.timestamp)}
       >
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <div className="flex items-center gap-2">
+        <div className={cn(
+          "p-4 rounded-xl border-2 transition-all duration-300",
+          "bg-gradient-to-b",
+          isCurrent 
+            ? "from-background to-background/95 border-primary shadow-lg shadow-primary/20" 
+            : "from-muted/30 to-muted/10 border-border/50 hover:border-border",
+        )}>
+          <div className="flex items-center justify-between mb-2">
             <Badge 
-              variant={isCurrent ? "default" : "secondary"}
-              className="text-xs"
+              variant={isCurrent ? "default" : "outline"}
+              className={cn(
+                "text-xs transition-all",
+                isCurrent && "scale-110"
+              )}
             >
+              <Clock className="h-3 w-3 mr-1" />
               {formatTimestamp(startTime)}
             </Badge>
             {isSalient && (
-              <Badge variant="outline" className="text-xs">
+              <Badge variant="secondary" className="text-xs">
                 <Eye className="h-3 w-3 mr-1" />
                 {segment.event_type || 'Event'}
               </Badge>
             )}
           </div>
-          <div className="text-xs text-muted-foreground">
-            {type === 'previous' && '← Previous'}
-            {type === 'current' && '● Current'}
-            {type === 'next' && '→ Next'}
-          </div>
-        </div>
-        
-        <p className={cn(
-          "text-sm leading-relaxed",
-          isCurrent ? "font-medium" : "text-muted-foreground"
-        )}>
-          {segment.text}
-        </p>
-        
-        {segment.visual_description && (
-          <p className="text-xs text-muted-foreground mt-2 italic">
-            📹 {segment.visual_description}
+          
+          <p className={cn(
+            "text-sm leading-relaxed transition-all",
+            isCurrent 
+              ? "text-foreground font-medium" 
+              : "text-muted-foreground"
+          )}>
+            {segment.text}
           </p>
-        )}
+          
+          {segment.visual_description && (
+            <p className={cn(
+              "text-xs mt-2 italic transition-all",
+              isCurrent ? "text-muted-foreground" : "text-muted-foreground/70"
+            )}>
+              📹 {segment.visual_description}
+            </p>
+          )}
+        </div>
       </div>
     );
   };
@@ -243,28 +277,54 @@ export default function TranscriptDisplay({
     );
   }
 
-  const displaySegments = getDisplaySegments();
+  const visibleSegments = getVisibleSegments();
 
   return (
-    <Card className={className}>
-      <CardHeader>
+    <Card className={cn("overflow-hidden", className)}>
+      <CardHeader className="pb-3">
         <CardTitle className="text-lg flex items-center gap-2">
           <FileText className="h-5 w-5" />
           Transcript
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-xs">
           Click on any segment to jump to that time
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {displaySegments.previous && renderSegment(displaySegments.previous, 'previous')}
-        {displaySegments.current && renderSegment(displaySegments.current, 'current')}
-        {displaySegments.next && renderSegment(displaySegments.next, 'next')}
+      <CardContent className="relative px-4 pb-6">
+        {/* Slot machine container */}
+        <div 
+          ref={containerRef}
+          className="relative h-[400px] overflow-hidden"
+        >
+          {/* Gradient overlays for fade effect */}
+          <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-background to-transparent z-20 pointer-events-none" />
+          <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background to-transparent z-20 pointer-events-none" />
+          
+          {/* Centered highlight line */}
+          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[1px] bg-primary/20 z-0" />
+          
+          {/* Transcript segments carousel */}
+          <div className="relative h-full flex flex-col items-center justify-center">
+            {visibleSegments.length > 0 ? (
+              visibleSegments.map(({ segment, index, relativePosition }) => 
+                renderSegment(segment, index, relativePosition)
+              )
+            ) : (
+              <div className="text-center text-muted-foreground">
+                <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No transcript segment for current time</p>
+              </div>
+            )}
+          </div>
+          
+        </div>
         
-        {!displaySegments.current && (
-          <div className="text-center text-muted-foreground py-8">
-            <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">No transcript segment for current time</p>
+        {/* Navigation hint */}
+        {segments.length > 0 && currentSegmentIndex !== -1 && (
+          <div className="mt-4 text-center">
+            <p className="text-xs text-muted-foreground">
+              Segment {currentSegmentIndex + 1} of {segments.length}
+            </p>
           </div>
         )}
       </CardContent>

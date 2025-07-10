@@ -75,7 +75,21 @@
 
 ### Active Issues 🔄
 
+- [ ] **Critical Priority**: Authentication bypass in course completion flow
+  - Unauthenticated users can complete entire courses without login
+  - Expected: Login modal after first 2 questions, video progression blocked
+  - Actual: Users can complete course and reach certificate generation
+  - Results in 404 error (DEPLOYMENT_NOT_FOUND) on certificate page
+  - Production URL affected: coursebuild.org
+  - Error code: `clei:2sllt-1752164360069-46741f262689`
+
 ### Tracked Issues
+- [ ] **High Priority**: Missing transcripts for some courses
+  - Some courses show "No transcript available for this course"
+  - Affects videos that have been successfully created with questions
+  - Example: Course "Interactive course with 4 visual questions generated using Quiz Generation Pipeline v4.0"
+  - Transcript API returns no data despite video having clear segments
+  - Need to investigate transcript generation/storage pipeline
 - [ ] **Medium Priority**: API rate limiting with Gemini API (Issue #13)
 - [ ] **Medium Priority**: Handle edge cases for videos without clear segments (Issue #14)
 - [ ] **Medium Priority**: Mobile optimization (Issue #18)
