@@ -541,25 +541,13 @@ export default function Home() {
                     <div className="flex gap-3">
                       <Button 
                         type="button"
-                        onClick={handleSubmit(handleGenerateCourse)}
+                        onClick={handleSubmit(handleGenerateCoursePro)}
                         className="flex-1" 
                         disabled={isLoading}
                         size="lg"
                       >
                         <BookOpen className="mr-2 h-4 w-4" />
                         Generate Course
-                      </Button>
-
-                      <Button 
-                        type="button"
-                        onClick={handleSubmit(handleGenerateCoursePro)}
-                        className="flex-1" 
-                        disabled={isLoading}
-                        size="lg"
-                        variant="outline"
-                      >
-                        <BookOpen className="mr-2 h-4 w-4" />
-                        Generate Course (PRO)
                       </Button>
                     </div>
                   </form>
