@@ -197,7 +197,7 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>CourseForge AI - Transform YouTube Videos into Interactive Courses</title>
+        <title>CourseBuilder - Transform YouTube Videos into Interactive Courses</title>
         <meta name="description" content="Transform any YouTube video into an interactive, structured course with AI-powered analysis, timestamps, and quiz questions" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
@@ -228,7 +228,7 @@ export default function Home() {
                 variants={fadeInUp}
                 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6 bg-gradient-to-r from-primary via-primary to-primary/80 bg-clip-text text-transparent"
               >
-                CourseForge AI
+                CourseBuilder
               </motion.h1>
 
               <motion.p 
