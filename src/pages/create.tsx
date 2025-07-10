@@ -144,8 +144,9 @@ export default function Create() {
 
   // Helper function to generate title from first concept
   const generateTitleFromConcepts = (courseData: CourseData): string => {
-    if (courseData.segments.length > 0 && courseData.segments[0].concepts.length > 0) {
-      const firstConcept = courseData.segments[0].concepts[0];
+    const segmentWithConcepts = courseData.segments.find(segment => segment.concepts.length > 0);
+    if (segmentWithConcepts) {
+      const firstConcept = segmentWithConcepts.concepts[0];
       // Capitalize first letter and make it a proper title
       return firstConcept.charAt(0).toUpperCase() + firstConcept.slice(1);
     }
@@ -160,11 +161,7 @@ export default function Create() {
     if (storedData && storedUrl) {
       try {
         const parsedData = JSON.parse(storedData);
-        
-        // Replace default title with first concept if it's the default
-        if (parsedData.title === 'Video Content Analyzed Correctly') {
-          parsedData.title = generateTitleFromConcepts(parsedData);
-        }
+        parsedData.title = generateTitleFromConcepts(parsedData);
         
         setCourseData(parsedData);
         setYoutubeUrl(storedUrl);
@@ -188,11 +185,8 @@ export default function Create() {
     if (router.query.data && router.query.youtubeUrl) {
       try {
         const parsedData = JSON.parse(router.query.data as string);
-        
-        // Replace default title with first concept if it's the default
-        if (parsedData.title === 'Video Content Analyzed Correctly') {
-          parsedData.title = generateTitleFromConcepts(parsedData);
-        }
+        parsedData.title = generateTitleFromConcepts(parsedData);
+
         
         setCourseData(parsedData);
         setYoutubeUrl(router.query.youtubeUrl as string);

@@ -1,134 +1,126 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { GoogleGenerativeAI } from 'https://esm.sh/@google/generative-ai@0.19.0';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-serve(async (req) => {
-  // Handle CORS preflight requests
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
+};
+serve(async (req)=>{
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', {
+      headers: corsHeaders
+    });
   }
-
   try {
-    const { videoUrl, courseId, wrongQuestions } = await req.json()
-
+    const { videoUrl } = await req.json();
+    console.log('📥 Received request with videoUrl:', videoUrl);
     if (!videoUrl) {
-      return new Response(
-        JSON.stringify({ error: 'Video URL is required' }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      return new Response(JSON.stringify({
+        error: 'Video URL is required'
+      }), {
+        status: 400,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
         }
-      )
+      });
     }
-      const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
-    if (!GEMINI_API_KEY) {
-      return new Response(
-        JSON.stringify({ error: 'Gemini API key not configured' }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+    const SERPAPI_KEY = Deno.env.get('SERPAPI_API_KEY');
+    if (!GEMINI_API_KEY || !SERPAPI_KEY) {
+      console.error('❌ Missing API keys');
+      return new Response(JSON.stringify({
+        error: 'Missing required API keys'
+      }), {
+        status: 500,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
         }
-      )
+      });
     }
+    console.log('🔑 Gemini and SerpAPI keys loaded');
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.5-flash'
+    });
+    const prompt = `You are an expert educational guide.
 
-    // Build context about wrong answers
-    let wrongAnswersContext = '';
-    if (wrongQuestions && wrongQuestions.length > 0) {
-      wrongAnswersContext = `\n\nThe user struggled with these concepts in the previous course:\n${wrongQuestions.map(q => `- ${q.question}`).join('\n')}`;
-    }
+Your task is to watch and analyze the following YouTube video:
+${videoUrl}
 
-    const prompt = `Given this video ${videoUrl} and considering the user's learning progress${wrongAnswersContext}, suggest 2 relevant next step topics that would help them improve their understanding. Each topic should have 2 YouTube video recommendations.
+Step 1: Determine the main topic being taught. Keep it concise — no more than 4–8 words.
 
-Return as structured JSON format exactly matching this structure:
+Step 2: Suggest 2 logical next-step learning topics.
+
+Return JSON in this format ONLY:
 {
-  "topics": [
-    {
-      "nextStep": "Advanced continuity techniques for film editing",
-      "video1": "https://www.youtube.com/watch?v=MbUSMaWDBGU",
-      "video2": "https://www.youtube.com/watch?v=U6B4COAnizc"
-    },
-    {
-      "nextStep": "Introduction to continuation-passing style (CPS) in programming",
-      "video1": "https://www.youtube.com/watch?v=2GfFlfToBCo",
-      "video2": "https://www.youtube.com/watch?v=WT7oxiiFYt8"
-    }
-  ]
-}
-
-Make sure the suggested topics are relevant to the original video content and address any knowledge gaps indicated by the user's wrong answers.`
-
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.7,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 1024,
-        },
-      }),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.status}`)
-    }
-
-    const data = await response.json()
-    
-    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-      throw new Error('Invalid response from Gemini API')
-    }
-
-    const textContent = data.candidates[0].content.parts[0].text
-
-    // Try to parse the JSON from the response
-    let suggestions
-    try {
-      // Extract JSON from the response text
-      const jsonMatch = textContent.match(/\{[\s\S]*\}/)
-      if (jsonMatch) {
-        suggestions = JSON.parse(jsonMatch[0])
-      } else {
-        throw new Error('No JSON found in response')
-      }
-    } catch (parseError) {
-      console.error('Error parsing Gemini response:', parseError)
-      throw new Error('Failed to parse suggestions from Gemini response')
-    }
-
-    // Validate the structure
-    if (!suggestions.topics || !Array.isArray(suggestions.topics)) {
-      throw new Error('Invalid suggestions structure')
-    }
-
-    return new Response(
-      JSON.stringify({ suggestions }),
+  "mainTopic": "Short summary",
+  "nextSteps": ["Topic 1", "Topic 2"]
+};`;
+    console.log('🧠 Sending prompt to Gemini...');
+    const result = await model.generateContent([
       {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        text: prompt
+      },
+      {
+        fileData: {
+          fileUri: videoUrl,
+          mimeType: 'video/*'
+        }
       }
-    )
-
+    ]);
+    const response = await result.response;
+    const textContent = await response.text();
+    console.log('📥 Gemini response:', textContent);
+    const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('No JSON found in Gemini response');
+    const geminiData = JSON.parse(jsonMatch[0]);
+    console.log('✅ Parsed Gemini response:', geminiData);
+    if (!geminiData.nextSteps || !Array.isArray(geminiData.nextSteps)) {
+      throw new Error('Invalid Gemini output structure');
+    }
+    const topicsWithVideos = [];
+    for (const topic of geminiData.nextSteps){
+      console.log('🔍 Querying SerpAPI for topic:', topic);
+      const query = encodeURIComponent(topic);
+      const serpApiUrl = `https://serpapi.com/search.json?engine=youtube&search_query=${query}&api_key=${SERPAPI_KEY}`;
+      const serpResponse = await fetch(serpApiUrl);
+      const serpJson = await serpResponse.json();
+      const videoResults = serpJson.video_results || [];
+      console.log(`📊 Found ${videoResults.length} videos for topic: ${topic}`);
+      const video = videoResults.find((v)=>{
+        if (!v.length || v.link == videoUrl) return false;
+        const [min, sec] = v.length.split(':').map(Number);
+        return min * 60 + sec >= 150; // 2 min 30 sec
+      });
+      if (video) {
+        topicsWithVideos.push({
+          topic,
+          video: video.link
+        });
+        break; // Stop after the first valid topic + video
+      }
+    }
+    console.log('✅ Final topic suggestion with video:', topicsWithVideos);
+    return new Response(JSON.stringify({
+      topics: topicsWithVideos
+    }), {
+      status: 200,
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      }
+    });
   } catch (error) {
-    console.error('Error generating course suggestions:', error)
-    return new Response(
-      JSON.stringify({ error: error.message || 'Failed to generate course suggestions' }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    console.error('❌ Error:', error);
+    return new Response(JSON.stringify({
+      error: error.message
+    }), {
+      status: 500,
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
       }
-    )
+    });
   }
-}) 
+});
