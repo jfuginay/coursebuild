@@ -17,57 +17,43 @@ export default async function handler(
   const { ids } = req.query;
 
   try {
-    // First try to fetch courses with rating stats
-    let coursesData;
-    let error;
+    console.log('🚀 Starting courses API request');
     
-    try {
-      const result = await supabase
-        .from('courses')
-        .select(`
-          id, title, description, youtube_url, created_at, published,
-          course_rating_stats(
-            average_rating,
-            total_ratings
-          )
-        `)
-        .eq('published', true)
-        .order('created_at', { ascending: false });
-      
-      coursesData = result.data;
-      error = result.error;
-    } catch (ratingError) {
-      console.log('Rating stats table not available, fetching courses without ratings');
-      // Fallback to basic course query if rating stats table doesn't exist
-      const result = await supabase
-        .from('courses')
-        .select('id, title, description, youtube_url, created_at, published')
-        .eq('published', true)
-        .order('created_at', { ascending: false });
-      
-      coursesData = result.data;
-      error = result.error;
-    }
+    // Simple, reliable query - just get the basic course data
+    let query = supabase
+      .from('courses')
+      .select('id, title, description, youtube_url, created_at, published')
+      .eq('published', true)
+      .order('created_at', { ascending: false });
 
     // Filter by IDs if provided
     if (ids && typeof ids === 'string') {
       const courseIds = ids.split(',').map(id => id.trim()).filter(id => id);
+      console.log('📋 Filtering by IDs:', courseIds);
       
       if (courseIds.length === 0) {
+        console.log('✅ Empty ID list, returning empty array');
         return res.status(200).json({ success: true, courses: [] });
       }
 
-      if (coursesData) {
-        coursesData = coursesData.filter(course => courseIds.includes(course.id));
-      }
+      query = query.in('id', courseIds);
     }
+
+    console.log('📡 Executing Supabase query...');
+    const { data: coursesData, error } = await query;
 
     if (error) {
-      console.error('Error fetching courses:', error);
-      return res.status(500).json({ error: 'Failed to fetch courses' });
+      console.error('❌ Supabase error:', error);
+      return res.status(500).json({ 
+        error: 'Failed to fetch courses',
+        details: error.message,
+        code: error.code
+      });
     }
 
-    // Transform the data to include rating information
+    console.log(`✅ Successfully fetched ${coursesData?.length || 0} courses`);
+
+    // Always return basic course data with default rating values
     const courses = (coursesData || []).map(course => ({
       id: course.id,
       title: course.title,
@@ -75,10 +61,11 @@ export default async function handler(
       youtube_url: course.youtube_url,
       created_at: course.created_at,
       published: course.published,
-      averageRating: course.course_rating_stats?.[0]?.average_rating || 0,
-      totalRatings: course.course_rating_stats?.[0]?.total_ratings || 0
+      averageRating: 0, // Default to 0 for now
+      totalRatings: 0   // Default to 0 for now
     }));
 
+    console.log('🎯 Returning courses data');
     return res.status(200).json({ 
       success: true,
       courses

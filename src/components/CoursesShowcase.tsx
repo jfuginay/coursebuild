@@ -28,7 +28,8 @@ type RatingFilter = 'all' | '4+' | '3+' | '2+' | '5';
 
 export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
   const router = useRouter();
-  const { trackFilter } = useAnalytics();
+  // Temporarily disable analytics to prevent issues
+  // const { trackFilter } = useAnalytics();
   const [allCourses, setAllCourses] = useState<Course[]>([]);
   const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
   const [displayedCourses, setDisplayedCourses] = useState<Course[]>([]);
@@ -102,13 +103,13 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
       resultsCount = allCourses.filter(course => (course.averageRating || 0) >= 2.0).length;
     }
     
-    // Track filter usage
-    trackFilter({
-      filterType: 'rating',
-      filterValue: value,
-      resultsCount,
-      previousFilters: [previousFilter]
-    });
+    // Temporarily disable filter tracking
+    // trackFilter({
+    //   filterType: 'rating',
+    //   filterValue: value,
+    //   resultsCount,
+    //   previousFilters: [previousFilter]
+    // });
   };
 
   const handleShowMore = () => {
