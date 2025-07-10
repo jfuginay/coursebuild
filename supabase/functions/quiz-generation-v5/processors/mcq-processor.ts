@@ -198,7 +198,7 @@ Based on the transcript segments above, determine the OPTIMAL TIMESTAMP for this
 
 Return an "optimal_timestamp" field (in seconds) in your response that indicates when this question should appear. This should be:
 - After all necessary concepts are explained
-- At the end timestamp of the last relevant explanation
+- After the end timestamp of the last relevant explanation
 - Before the video moves to unrelated topics
 
 Use this transcript context to:
