@@ -43,6 +43,9 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
   const [draggedFromSide, setDraggedFromSide] = useState<'left' | 'right' | null>(null);
   const [selectedItem, setSelectedItem] = useState<{item: MatchingItem, side: 'left' | 'right'} | null>(null);
   const [itemPositions, setItemPositions] = useState<{ [key: string]: { top: number, left: number, width: number, height: number } }>({});
+  const [isDragging, setIsDragging] = useState(false);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [hoveredItem, setHoveredItem] = useState<{item: MatchingItem, side: 'left' | 'right'} | null>(null);
 
   const leftColumnRef = useRef<HTMLDivElement>(null);
   const rightColumnRef = useRef<HTMLDivElement>(null);
@@ -89,43 +92,148 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
     return () => window.removeEventListener('resize', updatePositions);
   }, [leftItems, rightItems, userMatches]);
 
-  const handleDragStart = (e: React.DragEvent, item: MatchingItem, side: 'left' | 'right') => {
+  // Generic drag handlers for both mouse and touch
+  const handleDragStart = (clientX: number, clientY: number, item: MatchingItem, side: 'left' | 'right') => {
     if (disabled || isSubmitted) return;
     
+    console.log('🔄 Drag start on:', item.content, 'from', side);
     setDraggedItem(item);
     setDraggedFromSide(side);
-    
-    // Set drag data
-    e.dataTransfer.setData('text/plain', JSON.stringify({ item, side }));
-    e.dataTransfer.effectAllowed = 'move';
+    setIsDragging(true);
+    setMousePosition({ x: clientX, y: clientY });
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleDrop = (e: React.DragEvent, targetItem: MatchingItem, targetSide: 'left' | 'right') => {
-    e.preventDefault();
+  const handleDragMove = (clientX: number, clientY: number) => {
+    if (!isDragging || !draggedItem || !draggedFromSide) return;
     
-    if (!draggedItem || !draggedFromSide || targetSide === draggedFromSide || disabled || isSubmitted) {
-      setDraggedItem(null);
-      setDraggedFromSide(null);
-      return;
+    setMousePosition({ x: clientX, y: clientY });
+    
+    // Find which item we're currently over
+    const elements = document.querySelectorAll('[data-matching-item]');
+    let foundHover = false;
+    
+    elements.forEach((element) => {
+      const rect = element.getBoundingClientRect();
+      if (clientX >= rect.left && clientX <= rect.right && 
+          clientY >= rect.top && clientY <= rect.bottom) {
+        const itemId = element.getAttribute('data-item-id');
+        const itemSide = element.getAttribute('data-item-side') as 'left' | 'right';
+        
+        // Find the actual item object
+        const item = itemSide === 'left' 
+          ? leftItems.find(i => i.id === itemId)
+          : rightItems.find(i => i.id === itemId);
+        
+        if (item && itemSide !== draggedFromSide) {
+          setHoveredItem({ item, side: itemSide });
+          foundHover = true;
+        }
+      }
+    });
+    
+    if (!foundHover) {
+      setHoveredItem(null);
     }
-
-    createMatch(draggedItem, draggedFromSide, targetItem, targetSide);
-    setDraggedItem(null);
-    setDraggedFromSide(null);
   };
 
   const handleDragEnd = () => {
+    if (!isDragging || !draggedItem || !draggedFromSide) return;
+    
+    console.log('🔄 Drag end - finalizing');
+    
+    // If we're hovering over a valid target, create the match
+    if (hoveredItem && hoveredItem.side !== draggedFromSide) {
+      createMatch(draggedItem, draggedFromSide, hoveredItem.item, hoveredItem.side);
+    }
+    
     setDraggedItem(null);
     setDraggedFromSide(null);
+    setIsDragging(false);
+    setHoveredItem(null);
   };
 
+  // Mouse event handlers
+  const handleMouseDown = (e: React.MouseEvent, item: MatchingItem, side: 'left' | 'right') => {
+    handleDragStart(e.clientX, e.clientY, item, side);
+    e.preventDefault();
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    handleDragMove(e.clientX, e.clientY);
+  };
+
+  const handleMouseUp = (e: React.MouseEvent) => {
+    handleDragEnd();
+  };
+
+  // Touch event handlers
+  const handleTouchStart = (e: React.TouchEvent, item: MatchingItem, side: 'left' | 'right') => {
+    const touch = e.touches[0];
+    handleDragStart(touch.clientX, touch.clientY, item, side);
+    e.preventDefault();
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    handleDragMove(touch.clientX, touch.clientY);
+    e.preventDefault();
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    handleDragEnd();
+    e.preventDefault();
+  };
+
+  // Global mouse and touch event handlers
+  React.useEffect(() => {
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      handleDragMove(e.clientX, e.clientY);
+    };
+
+    const handleGlobalMouseUp = () => {
+      if (isDragging) {
+        handleDragEnd();
+      }
+    };
+
+    const handleGlobalTouchMove = (e: TouchEvent) => {
+      if (isDragging && e.touches[0]) {
+        handleDragMove(e.touches[0].clientX, e.touches[0].clientY);
+        e.preventDefault();
+      }
+    };
+
+    const handleGlobalTouchEnd = () => {
+      if (isDragging) {
+        handleDragEnd();
+      }
+    };
+
+    if (isDragging) {
+      // Mouse events
+      document.addEventListener('mousemove', handleGlobalMouseMove);
+      document.addEventListener('mouseup', handleGlobalMouseUp);
+      
+      // Touch events
+      document.addEventListener('touchmove', handleGlobalTouchMove, { passive: false });
+      document.addEventListener('touchend', handleGlobalTouchEnd);
+      document.addEventListener('touchcancel', handleGlobalTouchEnd);
+    }
+
+    return () => {
+      // Mouse events
+      document.removeEventListener('mousemove', handleGlobalMouseMove);
+      document.removeEventListener('mouseup', handleGlobalMouseUp);
+      
+      // Touch events
+      document.removeEventListener('touchmove', handleGlobalTouchMove);
+      document.removeEventListener('touchend', handleGlobalTouchEnd);
+      document.removeEventListener('touchcancel', handleGlobalTouchEnd);
+    };
+  }, [isDragging, draggedItem, draggedFromSide, hoveredItem]);
+
   const handleClick = (item: MatchingItem, side: 'left' | 'right') => {
-    if (disabled || isSubmitted) return;
+    if (disabled || isSubmitted || isDragging) return;
 
     if (!selectedItem) {
       // First click - select item
@@ -200,25 +308,25 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
   };
 
   const getItemStyle = (item: MatchingItem, side: 'left' | 'right'): string => {
-    let baseClass = "p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 min-h-[80px] flex items-center justify-center text-center relative";
+    let baseClass = "p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 min-h-[80px] flex items-center justify-center text-center relative select-none touch-none";
     
     if (disabled || isSubmitted) {
       baseClass += " cursor-default";
     }
 
     // Add drag state styling
-    if (draggedItem?.id === item.id) {
+    if (draggedItem?.id === item.id && draggedFromSide === side) {
       baseClass += " opacity-50 scale-95 shadow-lg";
     }
 
-    // Add selected state styling (for click-to-match)
-    if (selectedItem?.item.id === item.id && selectedItem?.side === side) {
-      baseClass += " border-purple-500 bg-purple-100 text-purple-800 shadow-lg ring-2 ring-purple-300";
+    // Add hover state when dragging
+    if (hoveredItem?.item.id === item.id && hoveredItem?.side === side && draggedFromSide !== side) {
+      baseClass += " border-blue-500 bg-blue-100 text-blue-800 shadow-lg ring-2 ring-blue-300 scale-105";
     }
 
-    // Add drop zone styling
-    if (draggedItem && draggedFromSide && draggedFromSide !== side) {
-      baseClass += " border-dashed border-blue-400 bg-blue-50/50 transform scale-105";
+    // Add selected state styling (for click-to-match)
+    if (selectedItem?.item.id === item.id && selectedItem?.side === side && !isDragging) {
+      baseClass += " border-purple-500 bg-purple-100 text-purple-800 shadow-lg ring-2 ring-purple-300";
     }
 
     if (showAnswer || isSubmitted) {
@@ -257,7 +365,7 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
         const rightId = side === 'right' ? item.id : matchedRightId!;
         const colorClass = getMatchColor(leftId, rightId);
         baseClass += ` ${colorClass} shadow-md transform scale-105`;
-      } else {
+      } else if (!hoveredItem || hoveredItem.item.id !== item.id) {
         baseClass += " border-gray-300 bg-white text-gray-800 hover:border-blue-400 hover:bg-blue-50 hover:shadow-md";
       }
     }
@@ -450,11 +558,15 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
                 key={item.id}
                   id={`item-${item.id}`}
                   className={getItemStyle(item, 'left')}
-                draggable={!disabled && !isSubmitted}
-                onDragStart={(e) => handleDragStart(e, item, 'left')}
-                onDragOver={handleDragOver}
-                onDrop={(e) => handleDrop(e, item, 'left')}
-                onDragEnd={handleDragEnd}
+                data-matching-item
+                data-item-id={item.id}
+                data-item-side="left"
+                onMouseDown={(e) => handleMouseDown(e, item, 'left')}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onTouchStart={(e) => handleTouchStart(e, item, 'left')}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
                 onClick={() => handleClick(item, 'left')}
               >
                 {renderItem(item)}
@@ -474,11 +586,15 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
                 key={item.id}
                   id={`item-${item.id}`}
                   className={getItemStyle(item, 'right')}
-                draggable={!disabled && !isSubmitted}
-                onDragStart={(e) => handleDragStart(e, item, 'right')}
-                onDragOver={handleDragOver}
-                onDrop={(e) => handleDrop(e, item, 'right')}
-                onDragEnd={handleDragEnd}
+                data-matching-item
+                data-item-id={item.id}
+                data-item-side="right"
+                onMouseDown={(e) => handleMouseDown(e, item, 'right')}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onTouchStart={(e) => handleTouchStart(e, item, 'right')}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
                 onClick={() => handleClick(item, 'right')}
               >
                 {renderItem(item)}
@@ -586,7 +702,7 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
             <ul className="space-y-2 text-sm text-gray-800">
               <li className="flex items-start gap-2">
                 <span className="text-purple-600 font-bold">•</span>
-                <span><strong className="text-gray-900">Drag & Drop:</strong> Drag items between columns to create matches</span>
+                <span><strong className="text-gray-900">Drag & Drop:</strong> Touch and drag on mobile or click and drag on desktop to connect items</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-purple-600 font-bold">•</span>
@@ -604,6 +720,27 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
           </div>
         )}
       </CardContent>
+
+      {/* Ghost element that follows mouse during drag */}
+      {isDragging && draggedItem && (
+        <div
+          className="fixed pointer-events-none z-50"
+          style={{
+            left: mousePosition.x + 10,
+            top: mousePosition.y - 30,
+            transform: 'translateX(-50%)'
+          }}
+        >
+          <div className="p-3 bg-blue-100 border-2 border-blue-500 rounded-lg shadow-lg max-w-xs">
+            <div className="flex items-center gap-2">
+              <Move className="w-4 h-4 text-blue-600" />
+              <span className="text-sm font-medium text-blue-800 truncate">
+                {draggedItem.content}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </Card>
   );
 };

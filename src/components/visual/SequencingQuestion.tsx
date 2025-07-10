@@ -42,23 +42,22 @@ const SequencingQuestion: React.FC<SequencingQuestionProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
-  const handleMouseDown = (e: React.MouseEvent, item: SequencingItem, index: number) => {
+  // Generic start handler for both mouse and touch
+  const handleDragStart = (clientX: number, clientY: number, item: SequencingItem, index: number) => {
     if (disabled || isSubmitted) return;
     
-    console.log('🔄 Mouse down on:', item.content, 'at index:', index);
+    console.log('🔄 Drag start on:', item.content, 'at index:', index);
     setDraggedItem(item);
     setDraggedFromIndex(index);
     setIsDragging(true);
-    setMousePosition({ x: e.clientX, y: e.clientY });
-    
-    // Prevent text selection and other default behaviors
-    e.preventDefault();
+    setMousePosition({ x: clientX, y: clientY });
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  // Generic move handler for both mouse and touch
+  const handleDragMove = (clientX: number, clientY: number) => {
     if (!isDragging || !draggedItem || draggedFromIndex === null) return;
     
-    setMousePosition({ x: e.clientX, y: e.clientY });
+    setMousePosition({ x: clientX, y: clientY });
     
     // Find which item we're currently over
     const elements = document.querySelectorAll('[data-sequencing-item]');
@@ -66,7 +65,7 @@ const SequencingQuestion: React.FC<SequencingQuestionProps> = ({
     
     elements.forEach((element, index) => {
       const rect = element.getBoundingClientRect();
-      if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
+      if (clientY >= rect.top && clientY <= rect.bottom) {
         hoverIndex = index;
       }
     });
@@ -86,65 +85,96 @@ const SequencingQuestion: React.FC<SequencingQuestionProps> = ({
     }
   };
 
-  const handleMouseUp = (e: React.MouseEvent) => {
+  // Generic end handler for both mouse and touch
+  const handleDragEnd = () => {
     if (!isDragging) return;
     
-    console.log('🔄 Mouse up - finalizing drag');
+    console.log('🔄 Drag end - finalizing');
     setDraggedItem(null);
     setDraggedFromIndex(null);
     setIsDragging(false);
   };
 
-  // Global mouse move and up handlers
+  // Mouse event handlers
+  const handleMouseDown = (e: React.MouseEvent, item: SequencingItem, index: number) => {
+    handleDragStart(e.clientX, e.clientY, item, index);
+    e.preventDefault();
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    handleDragMove(e.clientX, e.clientY);
+  };
+
+  const handleMouseUp = (e: React.MouseEvent) => {
+    handleDragEnd();
+  };
+
+  // Touch event handlers
+  const handleTouchStart = (e: React.TouchEvent, item: SequencingItem, index: number) => {
+    const touch = e.touches[0];
+    handleDragStart(touch.clientX, touch.clientY, item, index);
+    // Prevent scrolling while dragging
+    e.preventDefault();
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    handleDragMove(touch.clientX, touch.clientY);
+    // Prevent scrolling while dragging
+    e.preventDefault();
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    handleDragEnd();
+    e.preventDefault();
+  };
+
+  // Global mouse and touch move/end handlers
   React.useEffect(() => {
     const handleGlobalMouseMove = (e: MouseEvent) => {
-      if (!isDragging || !draggedItem || draggedFromIndex === null) return;
-      
-      setMousePosition({ x: e.clientX, y: e.clientY });
-      
-      // Find which item we're currently over
-      const elements = document.querySelectorAll('[data-sequencing-item]');
-      let hoverIndex = -1;
-      
-      elements.forEach((element, index) => {
-        const rect = element.getBoundingClientRect();
-        if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
-          hoverIndex = index;
-        }
-      });
-      
-      // If we're over a different item, reorder immediately
-      if (hoverIndex !== -1 && hoverIndex !== draggedFromIndex) {
-        console.log('🔄 Live reorder: moving from', draggedFromIndex, 'to', hoverIndex);
-        
-        const newOrder = [...userOrder];
-        const [movedItem] = newOrder.splice(draggedFromIndex, 1);
-        newOrder.splice(hoverIndex, 0, movedItem);
-        
-        setUserOrder(newOrder);
-        setDraggedFromIndex(hoverIndex); // Update the current position
-        
-        console.log('🔄 New live order:', newOrder.map(item => item.content));
-      }
+      handleDragMove(e.clientX, e.clientY);
     };
 
     const handleGlobalMouseUp = () => {
       if (isDragging) {
-        console.log('🔄 Global mouse up - finalizing drag');
-        setDraggedItem(null);
-        setDraggedFromIndex(null);
-        setIsDragging(false);
+        handleDragEnd();
+      }
+    };
+
+    const handleGlobalTouchMove = (e: TouchEvent) => {
+      if (isDragging && e.touches[0]) {
+        handleDragMove(e.touches[0].clientX, e.touches[0].clientY);
+        // Prevent scrolling while dragging
+        e.preventDefault();
+      }
+    };
+
+    const handleGlobalTouchEnd = () => {
+      if (isDragging) {
+        handleDragEnd();
       }
     };
 
     if (isDragging) {
+      // Add mouse event listeners
       document.addEventListener('mousemove', handleGlobalMouseMove);
       document.addEventListener('mouseup', handleGlobalMouseUp);
+      
+      // Add touch event listeners
+      document.addEventListener('touchmove', handleGlobalTouchMove, { passive: false });
+      document.addEventListener('touchend', handleGlobalTouchEnd);
+      document.addEventListener('touchcancel', handleGlobalTouchEnd);
     }
 
     return () => {
+      // Remove mouse event listeners
       document.removeEventListener('mousemove', handleGlobalMouseMove);
       document.removeEventListener('mouseup', handleGlobalMouseUp);
+      
+      // Remove touch event listeners
+      document.removeEventListener('touchmove', handleGlobalTouchMove);
+      document.removeEventListener('touchend', handleGlobalTouchEnd);
+      document.removeEventListener('touchcancel', handleGlobalTouchEnd);
     };
   }, [isDragging, draggedItem, draggedFromIndex, userOrder]);
 
@@ -171,12 +201,12 @@ const SequencingQuestion: React.FC<SequencingQuestionProps> = ({
   };
 
   const getItemStyle = (item: SequencingItem, index: number): string => {
-    let baseClass = "p-4 border-2 rounded-lg transition-all duration-200 min-h-[60px] flex items-center justify-between bg-white relative";
+    let baseClass = "p-4 border-2 rounded-lg transition-all duration-200 min-h-[60px] flex items-center justify-between bg-white relative select-none";
     
     if (disabled || isSubmitted) {
       baseClass += " cursor-default";
     } else {
-      baseClass += " cursor-move";
+      baseClass += " cursor-move touch-none";
     }
 
     // Add drag state styling
@@ -250,6 +280,9 @@ const SequencingQuestion: React.FC<SequencingQuestionProps> = ({
                 onMouseDown={(e) => handleMouseDown(e, item, index)}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
+                onTouchStart={(e) => handleTouchStart(e, item, index)}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
               >
                 <div className="flex items-center gap-3 flex-1">
                   <div className="flex items-center gap-2">
@@ -264,13 +297,13 @@ const SequencingQuestion: React.FC<SequencingQuestionProps> = ({
                 <div className="flex items-center gap-2">
                   {getPositionIcon(index)}
                   {!isSubmitted && !showAnswer && (
-                    <div className="flex flex-col gap-1">
+                    <div className="flex gap-2 md:flex-col">
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => moveItem(index, Math.max(0, index - 1))}
                         disabled={index === 0 || disabled}
-                        className="h-6 w-6 p-0"
+                        className="h-8 w-8 md:h-6 md:w-6 p-0"
                       >
                         ↑
                       </Button>
@@ -279,7 +312,7 @@ const SequencingQuestion: React.FC<SequencingQuestionProps> = ({
                         size="sm"
                         onClick={() => moveItem(index, Math.min(userOrder.length - 1, index + 1))}
                         disabled={index === userOrder.length - 1 || disabled}
-                        className="h-6 w-6 p-0"
+                        className="h-8 w-8 md:h-6 md:w-6 p-0"
                       >
                         ↓
                       </Button>
@@ -350,7 +383,7 @@ const SequencingQuestion: React.FC<SequencingQuestionProps> = ({
               <span className="font-medium text-gray-900">How to sequence:</span>
             </div>
             <ul className="space-y-1 text-xs text-gray-800">
-              <li>• <strong className="text-gray-900">Live Drag:</strong> Click and drag items to reorder them in real-time</li>
+              <li>• <strong className="text-gray-900">Drag & Drop:</strong> Touch and drag items on mobile or click and drag on desktop</li>
               <li>• <strong className="text-gray-900">Arrow Buttons:</strong> Use ↑ ↓ buttons to move items up or down</li>
               <li>• Items rearrange instantly as you drag over different positions</li>
               <li>• Submit when the sequence is in correct chronological order</li>
