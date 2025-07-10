@@ -9,11 +9,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Play, BookOpen } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Loader2, Play, BookOpen, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import Header from '@/components/Header';
 import CoursesShowcase from '@/components/CoursesShowcase';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuth } from '@/contexts/AuthContext';
 
 // YouTube URL validation schema
 const courseGenerationSchema = z.object({
@@ -53,14 +55,25 @@ interface ApiResponse {
   success: boolean;
   data: CourseData;
   course_id: string;
+  processing_summary?: {
+    total_questions: number;
+    visual_questions: number;
+    segments_created: number;
+    video_duration: string;
+    cached?: boolean;
+    original_course_id?: string;
+    service_used: string;
+  };
 }
 
 export default function Home() {
   const router = useRouter();
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatingStatus, setGeneratingStatus] = useState<string>('');
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
+  const [useCache, setUseCache] = useState(true);
   const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
   const [tips, setTips] = useState([
     {
@@ -95,19 +108,62 @@ export default function Home() {
     resolver: zodResolver(courseGenerationSchema)
   });
 
-  // Check for URL parameter on load
+  // Check for URL parameters on load
   useEffect(() => {
     if (router.query.url) {
       const urlParam = router.query.url as string;
       // Auto-fill the form with the URL parameter
       reset({ youtubeUrl: urlParam });
     }
-  }, [router.query.url, reset]);
+    
+    // Check for cache parameter
+    if (router.query.cache === 'false') {
+      setUseCache(false);
+    } else if (router.query.cache === 'true') {
+      setUseCache(true);
+    }
+  }, [router.query.url, router.query.cache, reset]);
+
+  // Helper function to track course creation for logged-in users
+  const trackCourseCreation = async (courseId: string, courseData: CourseData, youtubeUrl: string) => {
+    if (!user) return; // Only track for logged-in users
+    
+    try {
+      const response = await fetch('/api/user-course-creations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: user.id,
+          course_id: courseId,
+          youtube_url: youtubeUrl,
+          course_title: courseData.title,
+          course_description: courseData.description,
+        }),
+      });
+
+      if (!response.ok) {
+        console.error('Failed to track course creation:', await response.text());
+      } else {
+        const result = await response.json();
+        console.log('Course creation tracked successfully:', result);
+      }
+    } catch (error) {
+      console.error('Error tracking course creation:', error);
+    }
+  };
 
   const generateCourse = async (data: CourseGenerationFormData, useEnhanced: boolean = false) => {
     setIsLoading(true);
     setError(null);
-    setGeneratingStatus('Analyzing video content...');
+    
+    // Set initial status based on cache setting
+    if (useCache) {
+      setGeneratingStatus('Checking for existing analysis...');
+    } else {
+      setGeneratingStatus('Analyzing video content...');
+    }
     
     // Clear any existing timeouts
     timeoutRefs.current.forEach(timeout => clearTimeout(timeout));
@@ -139,8 +195,15 @@ export default function Home() {
         // Keep default facts if fetch fails
       }
 
-      // Simulate status updates
-      const statusUpdates = [
+      // Simulate status updates based on cache setting
+      const statusUpdates = useCache ? [
+        { delay: 1000, message: 'Searching for cached analysis...' },
+        { delay: 2000, message: 'Extracting video transcript...' },
+        { delay: 4000, message: 'Identifying key concepts...' },
+        { delay: 6000, message: 'Generating interactive questions...' },
+        { delay: 8000, message: 'Creating visual elements...' },
+        { delay: 10000, message: 'Finalizing course structure...' }
+      ] : [
         { delay: 2000, message: 'Extracting video transcript...' },
         { delay: 4000, message: 'Identifying key concepts...' },
         { delay: 6000, message: 'Generating interactive questions...' },
@@ -163,6 +226,7 @@ export default function Home() {
         body: JSON.stringify({
           youtubeUrl: data.youtubeUrl,
           useEnhanced: useEnhanced,
+          useCache: useCache,
         }),
       });
 
@@ -174,8 +238,18 @@ export default function Home() {
       const result: ApiResponse = await response.json();
       
       if (result.success) {
-        toast.success('Course generated successfully!');
+        // Show different toast messages based on cache usage
+        if (result.processing_summary?.cached) {
+          toast.success('Course loaded from cache! ⚡');
+        } else {
+          toast.success('Course generated successfully!');
+        }
         reset();
+        
+        // Track course creation for logged-in users
+        if (result.course_id && result.data) {
+          await trackCourseCreation(result.course_id, result.data, data.youtubeUrl);
+        }
         
         // Try main branch approach first (with courseId)
         if (result.course_id) {
@@ -241,6 +315,9 @@ export default function Home() {
     <>
       <Head>
         <title>CourseBuilder - Transform YouTube Videos into Interactive Courses</title>
+        <meta name="description" content="Transform any YouTube video into an interactive, structured course with AI-powered analysis, timestamps, and quiz questions" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" href="/favicon.ico" />
       </Head>
 
       {/* Show loading screen when generating */}
@@ -252,9 +329,21 @@ export default function Home() {
             <div className="w-full max-w-6xl mx-auto">
               <div className="text-center mb-12">
                 <Loader2 className="h-12 w-12 animate-spin mx-auto mb-6 text-primary" />
-                <h1 className="text-3xl font-bold mb-3">Generating Your Course</h1>
+                <h1 className="text-3xl font-bold mb-3">
+                  {generatingStatus.includes('existing') || generatingStatus.includes('cached') ? 
+                    'Checking Cache' : 'Generating Your Course'}
+                </h1>
                 <p className="text-lg text-muted-foreground mb-2">{generatingStatus}</p>
-                <p className="text-sm text-muted-foreground">This usually takes 15-30 seconds</p>
+                <p className="text-sm text-muted-foreground">
+                  {generatingStatus.includes('existing') || generatingStatus.includes('cached') ? 
+                    'This should be very fast...' : 'This usually takes 15-30 seconds'}
+                </p>
+                {useCache && (
+                  <div className="mt-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                    <Zap className="h-4 w-4 text-blue-500" />
+                    Cache enabled - faster results if video was previously analyzed
+                  </div>
+                )}
               </div>
               
               {/* Fun facts or tips while waiting */}
@@ -431,6 +520,22 @@ export default function Home() {
                           {errors.youtubeUrl.message}
                         </p>
                       )}
+                    </div>
+
+                    <div className="flex items-center space-x-3 py-2">
+                      <Switch
+                        id="use-cache"
+                        checked={useCache}
+                        onCheckedChange={setUseCache}
+                        disabled={isLoading}
+                      />
+                      <Label htmlFor="use-cache" className="flex items-center gap-2 cursor-pointer">
+                        <Zap className="h-4 w-4 text-blue-500" />
+                        Use cached results
+                        <span className="text-sm text-muted-foreground">
+                          (faster if video was previously analyzed)
+                        </span>
+                      </Label>
                     </div>
 
                     <div className="flex gap-3">

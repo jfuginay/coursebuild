@@ -20,6 +20,15 @@ interface CourseData {
     visual_questions_count: number;
     frame_capture_available: boolean;
   };
+  processing_summary?: {
+    total_questions: number;
+    visual_questions: number;
+    segments_created: number;
+    video_duration: string;
+    cached?: boolean;
+    original_course_id?: string;
+    service_used: string;
+  };
   segments: Array<{
     title: string;
     timestamp: string;
@@ -45,9 +54,8 @@ interface CourseData {
 }
 
 interface CourseSuggestion {
-  nextStep: string;
-  video1: string;
-  video2: string;
+  topic: string;
+  video: string;
 }
 
 interface SuggestionsResponse {
@@ -134,6 +142,17 @@ export default function Create() {
     [courseId]
   );
 
+  // Helper function to generate title from first concept
+  const generateTitleFromConcepts = (courseData: CourseData): string => {
+    const segmentWithConcepts = courseData.segments.find(segment => segment.concepts.length > 0);
+    if (segmentWithConcepts) {
+      const firstConcept = segmentWithConcepts.concepts[0];
+      // Capitalize first letter and make it a proper title
+      return firstConcept.charAt(0).toUpperCase() + firstConcept.slice(1);
+    }
+    return courseData.title; // Fallback to original title if no concepts found
+  };
+
   useEffect(() => {
     // Try to get data from sessionStorage first (fallback for feature branch compatibility)
     const storedData = sessionStorage.getItem('courseData');
@@ -142,6 +161,8 @@ export default function Create() {
     if (storedData && storedUrl) {
       try {
         const parsedData = JSON.parse(storedData);
+        parsedData.title = generateTitleFromConcepts(parsedData);
+        
         setCourseData(parsedData);
         setYoutubeUrl(storedUrl);
         setVideoId(extractVideoId(storedUrl));
@@ -164,6 +185,9 @@ export default function Create() {
     if (router.query.data && router.query.youtubeUrl) {
       try {
         const parsedData = JSON.parse(router.query.data as string);
+        parsedData.title = generateTitleFromConcepts(parsedData);
+
+        
         setCourseData(parsedData);
         setYoutubeUrl(router.query.youtubeUrl as string);
         setVideoId(extractVideoId(router.query.youtubeUrl as string));
@@ -484,6 +508,35 @@ export default function Create() {
             Back to Home
           </Button>
 
+          {/* Cache Status Alert */}
+          {courseData.processing_summary?.cached && (
+            <Alert className="mb-6">
+              <AlertDescription className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse" />
+                  This course was generated using cached data from a previous analysis.
+                  <span className="text-sm text-muted-foreground">
+                    (Original: {courseData.processing_summary.original_course_id})
+                  </span>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => {
+                    // Navigate back to home with cache disabled
+                    const currentUrl = new URL(window.location.href);
+                    currentUrl.searchParams.set('url', youtubeUrl);
+                    currentUrl.searchParams.set('cache', 'false');
+                    currentUrl.pathname = '/';
+                    router.push(currentUrl.toString().replace(currentUrl.origin, ''));
+                  }}
+                >
+                  Generate Fresh
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Course Header */}
           <div className="text-center space-y-4">
             <div className="flex items-center justify-center gap-2">
@@ -595,15 +648,19 @@ export default function Create() {
                 </div>
               )}
             </div>
-            
-            {/* Enhanced Features Badge */}
-            {courseData.enhanced_features?.visual_questions_enabled && (
-              <div className="flex justify-center">
-                <Badge variant="outline" className="px-4 py-2 text-blue-600 border-blue-200 bg-blue-50">
-                  ✨ Enhanced with AI Visual Questions • Gemini Vision API • Interactive Elements
-                </Badge>
-              </div>
-            )}
+
+            {/* Action Buttons */}
+            <div className="flex justify-center gap-4">
+              <Button 
+                size="lg" 
+                className="px-8"
+                onClick={() => router.push(`/course/${courseId}`)}
+                disabled={!courseId}
+              >
+                <BookOpen className="mr-2 h-4 w-4" />
+                Preview Course
+              </Button>
+            </div>
           </div>
 
           {/* Main Content Grid */}
@@ -861,16 +918,15 @@ export default function Create() {
                         <Badge variant="outline" className="text-sm">
                           Topic {index + 1}
                         </Badge>
-                        <h3 className="text-lg font-semibold">{suggestion.nextStep}</h3>
+                        <h3 className="text-lg font-semibold">{suggestion.topic}</h3>
                       </div>
                       
-                      <div className="grid md:grid-cols-2 gap-4">
-                        {/* Video 1 */}
+                      <div className="max-w-2xl mx-auto">
                         <div className="space-y-3">
                           <div className="aspect-video">
                             <iframe
-                              src={`https://www.youtube.com/embed/${extractVideoId(suggestion.video1)}`}
-                              title="Suggested video 1"
+                              src={`https://www.youtube.com/embed/${extractVideoId(suggestion.video)}`}
+                              title={`Suggested video for ${suggestion.topic}`}
                               frameBorder="0"
                               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                               allowFullScreen
@@ -881,7 +937,7 @@ export default function Create() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => window.open(suggestion.video1, '_blank')}
+                              onClick={() => window.open(suggestion.video, '_blank')}
                               className="text-xs"
                             >
                               <ExternalLink className="h-3 w-3 mr-1" />
@@ -889,42 +945,10 @@ export default function Create() {
                             </Button>
                             <Button
                               size="sm"
-                              onClick={() => handleSelectVideo(suggestion.video1)}
+                              onClick={() => handleSelectVideo(suggestion.video)}
                               className="bg-purple-600 hover:bg-purple-700"
                             >
-                              Select
-                            </Button>
-                          </div>
-                        </div>
-
-                        {/* Video 2 */}
-                        <div className="space-y-3">
-                          <div className="aspect-video">
-                            <iframe
-                              src={`https://www.youtube.com/embed/${extractVideoId(suggestion.video2)}`}
-                              title="Suggested video 2"
-                              frameBorder="0"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                              allowFullScreen
-                              className="w-full h-full rounded-lg"
-                            />
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => window.open(suggestion.video2, '_blank')}
-                              className="text-xs"
-                            >
-                              <ExternalLink className="h-3 w-3 mr-1" />
-                              Watch on YouTube
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={() => handleSelectVideo(suggestion.video2)}
-                              className="bg-purple-600 hover:bg-purple-700"
-                            >
-                              Select
+                              Select This Video
                             </Button>
                           </div>
                         </div>
@@ -932,8 +956,7 @@ export default function Create() {
                       
                       {index < suggestions.length - 1 && <Separator className="my-6" />}
                     </div>
-                  ))}
-                  
+                  ))} 
                   <div className="pt-4 border-t">
                     <Button
                       variant="outline"
@@ -949,17 +972,6 @@ export default function Create() {
               )}
             </CardContent>
           </Card>
-
-          {/* Action Buttons */}
-          <div className="flex justify-center gap-4">
-            <Button size="lg" className="px-8">
-              <BookOpen className="mr-2 h-4 w-4" />
-              Start Learning
-            </Button>
-            <Button variant="outline" size="lg" className="px-8">
-              Export Course
-            </Button>
-          </div>
         </div>
       </div>
     </div>

@@ -7,6 +7,7 @@ import { CheckCircle, XCircle, Play } from 'lucide-react';
 import VideoOverlayQuestion from '@/components/visual/VideoOverlayQuestion';
 import MatchingQuestion from '@/components/visual/MatchingQuestion';
 import SequencingQuestion from '@/components/visual/SequencingQuestion';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Question {
   id?: string;
@@ -29,10 +30,12 @@ interface Question {
 
 interface QuestionOverlayProps {
   question: Question;
-  onAnswer: (correct: boolean) => void;
+  onAnswer: (correct: boolean, selectedAnswer?: string) => void;
   onContinue: () => void;
   isVisible: boolean;
   player?: any; // YouTube player instance
+  courseId?: string; // For progress tracking
+  segmentIndex?: number; // For progress tracking
 }
 
 export default function QuestionOverlay({ 
@@ -40,12 +43,45 @@ export default function QuestionOverlay({
   onAnswer, 
   onContinue, 
   isVisible,
-  player 
+  player,
+  courseId,
+  segmentIndex 
 }: QuestionOverlayProps) {
+  const { user, supabase } = useAuth();
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [showExplanation, setShowExplanation] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [hasAnswered, setHasAnswered] = useState(false);
+
+  // Define trackProgress function before it's used
+  const trackProgress = async (questionAnswered: boolean, isCorrect: boolean) => {
+    if (!user || !supabase || !courseId || segmentIndex === undefined) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      await fetch('/api/user/progress', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          courseId,
+          segmentIndex,
+          segmentTitle: `Segment ${segmentIndex + 1}`,
+          questionId: question.id,
+          selectedAnswer: selectedAnswer,
+          isCorrect,
+          timeSpent: Math.floor((Date.now() - Date.now()) / 1000), // Could track start time
+          explanationViewed: showExplanation
+        })
+      });
+    } catch (error) {
+      console.error('Failed to track progress:', error);
+    }
+  };
 
   if (!isVisible) return null;
 
@@ -113,10 +149,12 @@ export default function QuestionOverlay({
               }))}
               explanation={question.explanation}
               player={player}
-              onAnswer={(isCorrect) => {
-                onAnswer(isCorrect);
+              onAnswer={async (isCorrect, selectedBox) => {
+                const selectedAnswer = selectedBox ? `${selectedBox.label || 'Element'} (${selectedBox.x}, ${selectedBox.y})` : 'hotspot-interaction';
+                onAnswer(isCorrect, selectedAnswer);
                 setHasAnswered(true);
                 setShowExplanation(true);
+                await trackProgress(true, isCorrect);
               }}
               showAnswer={hasAnswered}
               disabled={hasAnswered}
@@ -162,11 +200,13 @@ export default function QuestionOverlay({
               }
             }))}
             explanation={question.explanation}
-            onAnswer={(isCorrect) => {
+            onAnswer={async (isCorrect, userMatches) => {
               console.log('🎯 Matching question answered:', { isCorrect, questionId: question.id });
-              onAnswer(isCorrect);
+              const selectedAnswer = userMatches ? JSON.stringify(userMatches) : 'matching-answer';
+              onAnswer(isCorrect, selectedAnswer);
               setHasAnswered(true);
               setShowExplanation(true);
+              await trackProgress(true, isCorrect);
             }}
             showAnswer={hasAnswered}
             disabled={hasAnswered}
@@ -199,11 +239,13 @@ export default function QuestionOverlay({
             question={question.question}
             items={question.sequence_items}
             explanation={question.explanation}
-            onAnswer={(isCorrect) => {
+            onAnswer={async (isCorrect, userOrder) => {
               console.log('🎯 Sequencing question answered:', { isCorrect, questionId: question.id });
-              onAnswer(isCorrect);
+              const selectedAnswer = userOrder ? userOrder.join(' → ') : 'sequencing-answer';
+              onAnswer(isCorrect, selectedAnswer);
               setHasAnswered(true);
               setShowExplanation(true);
+              await trackProgress(true, isCorrect);
             }}
             showAnswer={hasAnswered}
             disabled={hasAnswered}
@@ -252,7 +294,7 @@ export default function QuestionOverlay({
     setSelectedAnswer(index);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (selectedAnswer === null) return;
 
     // Handle both formats: correct as index or correct_answer as value
@@ -267,7 +309,10 @@ export default function QuestionOverlay({
     setIsCorrect(correct);
     setShowExplanation(true);
     setHasAnswered(true);
-    onAnswer(correct);
+    await trackProgress(true, correct);
+    // Pass the selected answer text
+    const selectedAnswerText = finalOptions[selectedAnswer] || `Option ${selectedAnswer + 1}`;
+    onAnswer(correct, selectedAnswerText);
   };
 
   const handleContinue = () => {
