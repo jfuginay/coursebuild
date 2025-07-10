@@ -147,7 +147,7 @@ export default function CoursePreviewPage() {
       videoId: courseData.videoId,
       playerVars: {
         autoplay: 0,
-        controls: 1,
+        controls: 0,
         disablekb: 0,
         enablejsapi: 1,
         modestbranding: 1,
