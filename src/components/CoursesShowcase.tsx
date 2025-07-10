@@ -3,8 +3,11 @@ import { useRouter } from 'next/router';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Play, BookOpen, Clock, Users, ExternalLink, Trash2 } from 'lucide-react';
+import { Play, BookOpen, Clock, Users, ExternalLink, Trash2, Filter, Star } from 'lucide-react';
+import { CompactStarRating } from '@/components/StarRating';
+import { useAnalytics } from '@/hooks/useAnalytics';
 
 interface Course {
   id: string;
@@ -13,28 +16,39 @@ interface Course {
   youtube_url: string;
   created_at: string;
   published: boolean;
+  averageRating?: number;
+  totalRatings?: number;
 }
 
 interface CoursesShowcaseProps {
   limit?: number;
 }
 
+type RatingFilter = 'all' | '4+' | '3+' | '2+' | '5';
+
 export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
   const router = useRouter();
+  const { trackFilter } = useAnalytics();
   const [allCourses, setAllCourses] = useState<Course[]>([]);
+  const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
   const [displayedCourses, setDisplayedCourses] = useState<Course[]>([]);
   const [coursesToShow, setCoursesToShow] = useState(limit);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingCourseId, setDeletingCourseId] = useState<string | null>(null);
+  const [ratingFilter, setRatingFilter] = useState<RatingFilter>('all');
 
   useEffect(() => {
     fetchCourses();
   }, []);
 
   useEffect(() => {
-    setDisplayedCourses(allCourses.slice(0, coursesToShow));
-  }, [allCourses, coursesToShow]);
+    setDisplayedCourses(filteredCourses.slice(0, coursesToShow));
+  }, [filteredCourses, coursesToShow]);
+
+  useEffect(() => {
+    applyRatingFilter();
+  }, [allCourses, ratingFilter]);
 
   const fetchCourses = async () => {
     try {
@@ -53,6 +67,48 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const applyRatingFilter = () => {
+    let filtered = [...allCourses];
+    
+    if (ratingFilter === '5') {
+      filtered = filtered.filter(course => (course.averageRating || 0) >= 4.5);
+    } else if (ratingFilter === '4+') {
+      filtered = filtered.filter(course => (course.averageRating || 0) >= 4.0);
+    } else if (ratingFilter === '3+') {
+      filtered = filtered.filter(course => (course.averageRating || 0) >= 3.0);
+    } else if (ratingFilter === '2+') {
+      filtered = filtered.filter(course => (course.averageRating || 0) >= 2.0);
+    }
+    
+    setFilteredCourses(filtered);
+    setCoursesToShow(limit); // Reset pagination when filter changes
+  };
+
+  const handleRatingFilterChange = (value: RatingFilter) => {
+    const previousFilter = ratingFilter;
+    setRatingFilter(value);
+    
+    // Calculate results count for the new filter
+    let resultsCount = allCourses.length;
+    if (value === '5') {
+      resultsCount = allCourses.filter(course => (course.averageRating || 0) >= 4.5).length;
+    } else if (value === '4+') {
+      resultsCount = allCourses.filter(course => (course.averageRating || 0) >= 4.0).length;
+    } else if (value === '3+') {
+      resultsCount = allCourses.filter(course => (course.averageRating || 0) >= 3.0).length;
+    } else if (value === '2+') {
+      resultsCount = allCourses.filter(course => (course.averageRating || 0) >= 2.0).length;
+    }
+    
+    // Track filter usage
+    trackFilter({
+      filterType: 'rating',
+      filterValue: value,
+      resultsCount,
+      previousFilters: [previousFilter]
+    });
   };
 
   const handleShowMore = () => {
@@ -183,6 +239,45 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
         <p className="text-lg text-muted-foreground">
           Explore Community Created Courses
         </p>
+        
+        {/* Rating Filter */}
+        <div className="flex justify-center px-4">
+          <div className="flex items-center gap-2 w-full max-w-xs sm:w-auto">
+            <Filter className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            <Select value={ratingFilter} onValueChange={handleRatingFilterChange}>
+              <SelectTrigger className="w-full sm:w-40 text-sm">
+                <SelectValue placeholder="Filter by rating" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Courses</SelectItem>
+                <SelectItem value="5">
+                  <div className="flex items-center gap-2">
+                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                    <span>5 Stars</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="4+">
+                  <div className="flex items-center gap-2">
+                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                    <span>4+ Stars</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="3+">
+                  <div className="flex items-center gap-2">
+                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                    <span>3+ Stars</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="2+">
+                  <div className="flex items-center gap-2">
+                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                    <span>2+ Stars</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -300,11 +395,24 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
 
                 {/* Course Info */}
                 <div className="space-y-2">
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      <span>{formatDate(course.created_at)}</span>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        <span className="text-xs sm:text-sm">{formatDate(course.created_at)}</span>
+                      </div>
                     </div>
+                    
+                    {/* Rating Display */}
+                    {(course.totalRatings || 0) > 0 && (
+                      <CompactStarRating 
+                        rating={course.averageRating || 0} 
+                        totalRatings={course.totalRatings || 0}
+                        showRatingText={true}
+                        size="xs"
+                        className="self-start sm:self-auto"
+                      />
+                    )}
                   </div>
                   
                   <Badge variant="secondary" className="text-xs">
@@ -331,7 +439,7 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
         })}
       </div>
 
-      {displayedCourses.length < allCourses.length && (
+      {displayedCourses.length < filteredCourses.length && (
         <div className="text-center">
           <Button variant="outline" size="lg" onClick={handleShowMore}>
             Show More Courses

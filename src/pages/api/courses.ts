@@ -19,7 +19,13 @@ export default async function handler(
   try {
     let query = supabase
       .from('courses')
-      .select('id, title, description, youtube_url, created_at, published')
+      .select(`
+        id, title, description, youtube_url, created_at, published,
+        course_rating_stats!inner(
+          average_rating,
+          total_ratings
+        )
+      `)
       .eq('published', true) // Only fetch published courses
       .order('created_at', { ascending: false });
 
@@ -35,16 +41,28 @@ export default async function handler(
     }
 
     // Execute the query
-    const { data: courses, error } = await query;
+    const { data: coursesData, error } = await query;
 
     if (error) {
       console.error('Error fetching courses:', error);
       return res.status(500).json({ error: 'Failed to fetch courses' });
     }
 
+    // Transform the data to include rating information
+    const courses = (coursesData || []).map(course => ({
+      id: course.id,
+      title: course.title,
+      description: course.description,
+      youtube_url: course.youtube_url,
+      created_at: course.created_at,
+      published: course.published,
+      averageRating: course.course_rating_stats?.[0]?.average_rating || 0,
+      totalRatings: course.course_rating_stats?.[0]?.total_ratings || 0
+    }));
+
     return res.status(200).json({ 
       success: true,
-      courses: courses || []
+      courses
     });
 
   } catch (error) {

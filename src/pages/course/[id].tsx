@@ -12,8 +12,10 @@ import QuestionOverlay from '@/components/QuestionOverlay';
 import CourseCurriculumCard from '@/components/CourseCurriculumCard';
 import VideoProgressBar from '@/components/VideoProgressBar';
 import TranscriptDisplay from '@/components/TranscriptDisplay';
+import { RatingModal } from '@/components/StarRating';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAnalytics } from '@/hooks/useAnalytics';
 import { supabase } from '@/lib/supabase';
 
 interface Course {
@@ -91,6 +93,7 @@ export default function CoursePage() {
   const router = useRouter();
   const { id } = router.query;
   const { user, session } = useAuth();
+  const { trackRating, trackCourse, trackRatingModalShown, trackRatingModalDismissed, trackEngagement, getPlatform } = useAnalytics();
   const [course, setCourse] = useState<Course | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -116,6 +119,12 @@ export default function CoursePage() {
   const [isEnrolled, setIsEnrolled] = useState(false); // Track enrollment status
   const [autoGenerationTriggered, setAutoGenerationTriggered] = useState(false); // Track if auto-generation was triggered
   const [nextCourseModalShown, setNextCourseModalShown] = useState(false); // Track if modal has been shown
+  
+  // Rating state
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [hasRated, setHasRated] = useState(false);
+  const [engagementScore, setEngagementScore] = useState(0);
+  const [courseStartTime] = useState(Date.now());
 
   // Free questions limit
   const FREE_QUESTIONS_LIMIT = 2;
@@ -639,18 +648,34 @@ export default function CoursePage() {
             startTimeTracking();
           } else if (event.data === window.YT.PlayerState.PAUSED) {
             stopTimeTracking();
-                  } else if (event.data === window.YT.PlayerState.ENDED || event.data === 0) {
-          console.log('🏁 Video ended - stopping time tracking');
-          stopTimeTracking();
-          
-          // Modal should already be shown 3 seconds before the end
-          // This is just a fallback in case the modal wasn't shown for some reason
-          if (!nextCourseModalShown) {
-            console.log('⚠️ Fallback: Showing next course modal at video end');
-            setNextCourseModalShown(true);
-            setShowNextCourseModal(true);
+            // Track pause engagement
+            trackEngagement(id as string, { type: 'video_paused' });
+          } else if (event.data === window.YT.PlayerState.ENDED || event.data === 0) {
+            console.log('🏁 Video ended - stopping time tracking');
+            stopTimeTracking();
+            
+            // Track course completion
+            if (id && typeof id === 'string') {
+              trackCourse({
+                courseId: id,
+                action: 'complete',
+                duration: Math.round(duration),
+                questionsAnswered: answeredQuestions.size,
+                completionPercentage: 100
+              });
+              
+              // Trigger rating modal on completion
+              triggerRatingModal('completion');
+            }
+            
+            // Modal should already be shown 3 seconds before the end
+            // This is just a fallback in case the modal wasn't shown for some reason
+            if (!nextCourseModalShown) {
+              console.log('⚠️ Fallback: Showing next course modal at video end');
+              setNextCourseModalShown(true);
+              setShowNextCourseModal(true);
+            }
           }
-        }
         },
           onError: (event: any) => {
             console.error('❌ YouTube player error:', event.data);
@@ -718,6 +743,20 @@ export default function CoursePage() {
   const handleAnswer = (correct: boolean, selectedAnswer?: string) => {
     if (correct) {
       setCorrectAnswers(prev => prev + 1);
+      
+      // Track engagement and check for rating trigger
+      setEngagementScore(prev => {
+        const newScore = prev + 10;
+        if (newScore >= 30 && !hasRated && !showRatingModal) {
+          triggerRatingModal('question_success');
+        }
+        return newScore;
+      });
+    }
+    
+    // Track question answered engagement
+    if (id && typeof id === 'string') {
+      trackEngagement(id, { type: 'question_answered', value: correct ? 1 : 0 });
     }
     
     // Track question results for curriculum card
@@ -746,8 +785,81 @@ export default function CoursePage() {
     playerRef.current?.playVideo(); // Resume video when continuing
   };
 
+  // Rating trigger logic
+  const triggerRatingModal = (context: 'completion' | 'question_success' | 'mid_course') => {
+    if (hasRated || showRatingModal) return;
+    
+    console.log(`⭐ Triggering rating modal: ${context}`);
+    setShowRatingModal(true);
+    
+    if (id && typeof id === 'string') {
+      trackRatingModalShown(id, context);
+    }
+  };
+
+  const handleRatingSubmit = async (rating: number) => {
+    if (!id || typeof id !== 'string') return;
+    
+    const timeSpentMinutes = Math.round((Date.now() - courseStartTime) / 60000);
+    const completionPercentage = duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0;
+    
+    try {
+      const response = await fetch(`/api/courses/${id}/rating`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token && { 'Authorization': `Bearer ${session.access_token}` })
+        },
+        body: JSON.stringify({
+          rating,
+          context: completionPercentage >= 90 ? 'completion' : 'mid_course',
+          engagementData: {
+            timeSpentMinutes,
+            questionsAnswered: answeredQuestions.size,
+            completionPercentage
+          }
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Rating submitted:', data);
+        
+        // Track rating analytics
+        trackRating({
+          courseId: id,
+          rating,
+          context: completionPercentage >= 90 ? 'completion' : 'mid_course',
+          timeToRate: Date.now() - courseStartTime,
+          engagementScore,
+          platform: getPlatform()
+        });
+        
+        setHasRated(true);
+        setShowRatingModal(false);
+      } else {
+        console.error('Failed to submit rating');
+      }
+    } catch (error) {
+      console.error('Error submitting rating:', error);
+    }
+  };
+
+  const handleRatingClose = () => {
+    setShowRatingModal(false);
+    
+    if (id && typeof id === 'string') {
+      trackRatingModalDismissed(id, 'manual');
+    }
+  };
+
   const handleVideoSeek = async (seekTime: number) => {
     if (!playerRef.current || !questions) return;
+    
+    // Track video seek engagement
+    if (id && typeof id === 'string') {
+      trackEngagement(id, { type: 'video_seeked', value: seekTime });
+    }
 
     // Find all questions between current time and seek time
     const questionsInRange = questions
@@ -1273,6 +1385,16 @@ export default function CoursePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Rating Modal */}
+      <RatingModal
+        isOpen={showRatingModal}
+        onClose={handleRatingClose}
+        onRate={handleRatingSubmit}
+        courseTitle={course?.title}
+        position="center"
+        autoHide={8000}
+      />
     </div>
   );
 } 

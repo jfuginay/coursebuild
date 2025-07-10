@@ -2,6 +2,7 @@ import type { AppProps } from 'next/app';
 import { useEffect } from 'react';
 import posthog from 'posthog-js';
 import { PostHogProvider } from 'posthog-js/react';
+import { Analytics } from '@vercel/analytics/react';
 import '../styles/globals.css';
 import { ThemeProvider } from '../components/ThemeProvider';
 import { AuthProvider } from '../contexts/AuthContext';
@@ -30,6 +31,7 @@ export default function App({ Component, pageProps }: AppProps) {
           <div className="min-h-screen">
             <Component {...pageProps} />
             <Toaster />
+            <Analytics />
           </div>
         </ThemeProvider>
       </PostHogProvider>
