@@ -648,21 +648,29 @@ export default function CoursePage() {
             startTimeTracking();
           } else if (event.data === window.YT.PlayerState.PAUSED) {
             stopTimeTracking();
-            // Track pause engagement
-            trackEngagement(id as string, { type: 'video_paused' });
+            // Track pause engagement with error handling
+            try {
+              trackEngagement(id as string, { type: 'video_paused' });
+            } catch (error) {
+              console.warn('Failed to track pause engagement:', error);
+            }
           } else if (event.data === window.YT.PlayerState.ENDED || event.data === 0) {
             console.log('🏁 Video ended - stopping time tracking');
             stopTimeTracking();
             
-            // Track course completion
+            // Track course completion with error handling
             if (id && typeof id === 'string') {
-              trackCourse({
-                courseId: id,
-                action: 'complete',
-                duration: Math.round(duration),
-                questionsAnswered: answeredQuestions.size,
-                completionPercentage: 100
-              });
+              try {
+                trackCourse({
+                  courseId: id,
+                  action: 'complete',
+                  duration: Math.round(duration),
+                  questionsAnswered: answeredQuestions.size,
+                  completionPercentage: 100
+                });
+              } catch (error) {
+                console.warn('Failed to track course completion:', error);
+              }
               
               // Trigger rating modal on completion
               triggerRatingModal('completion');
@@ -754,9 +762,13 @@ export default function CoursePage() {
       });
     }
     
-    // Track question answered engagement
+    // Track question answered engagement with error handling
     if (id && typeof id === 'string') {
-      trackEngagement(id, { type: 'question_answered', value: correct ? 1 : 0 });
+      try {
+        trackEngagement(id, { type: 'question_answered', value: correct ? 1 : 0 });
+      } catch (error) {
+        console.warn('Failed to track question engagement:', error);
+      }
     }
     
     // Track question results for curriculum card
@@ -793,7 +805,11 @@ export default function CoursePage() {
     setShowRatingModal(true);
     
     if (id && typeof id === 'string') {
-      trackRatingModalShown(id, context);
+      try {
+        trackRatingModalShown(id, context);
+      } catch (error) {
+        console.warn('Failed to track rating modal shown:', error);
+      }
     }
   };
 
@@ -825,15 +841,19 @@ export default function CoursePage() {
         const data = await response.json();
         console.log('✅ Rating submitted:', data);
         
-        // Track rating analytics
-        trackRating({
-          courseId: id,
-          rating,
-          context: completionPercentage >= 90 ? 'completion' : 'mid_course',
-          timeToRate: Date.now() - courseStartTime,
-          engagementScore,
-          platform: getPlatform()
-        });
+        // Track rating analytics with error handling
+        try {
+          trackRating({
+            courseId: id,
+            rating,
+            context: completionPercentage >= 90 ? 'completion' : 'mid_course',
+            timeToRate: Date.now() - courseStartTime,
+            engagementScore,
+            platform: getPlatform()
+          });
+        } catch (error) {
+          console.warn('Failed to track rating analytics:', error);
+        }
         
         setHasRated(true);
         setShowRatingModal(false);
@@ -849,16 +869,24 @@ export default function CoursePage() {
     setShowRatingModal(false);
     
     if (id && typeof id === 'string') {
-      trackRatingModalDismissed(id, 'manual');
+      try {
+        trackRatingModalDismissed(id, 'manual');
+      } catch (error) {
+        console.warn('Failed to track rating modal dismissed:', error);
+      }
     }
   };
 
   const handleVideoSeek = async (seekTime: number) => {
     if (!playerRef.current || !questions) return;
     
-    // Track video seek engagement
+    // Track video seek engagement with error handling
     if (id && typeof id === 'string') {
-      trackEngagement(id, { type: 'video_seeked', value: seekTime });
+      try {
+        trackEngagement(id, { type: 'video_seeked', value: seekTime });
+      } catch (error) {
+        console.warn('Failed to track video seek engagement:', error);
+      }
     }
 
     // Find all questions between current time and seek time
