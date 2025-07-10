@@ -159,6 +159,63 @@ export default async function handler(
     }
   }
 
+  // Handle GET - Retrieve Rating Stats
+  if (req.method === 'GET') {
+    try {
+      // Get course rating statistics
+      const { data: stats, error: statsError } = await supabase
+        .from('course_rating_stats')
+        .select('*')
+        .eq('course_id', courseId)
+        .maybeSingle(); // Use maybeSingle to handle no results gracefully
+
+      if (statsError) {
+        console.error('Failed to fetch rating stats:', statsError);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to fetch rating statistics'
+        });
+      }
+
+      if (!stats) {
+        return res.status(200).json({
+          success: true,
+          stats: {
+            average_rating: 0,
+            total_ratings: 0
+          }
+        });
+      }
+
+      console.log(`📊 Rating stats fetched for course ${courseId}:`, {
+        averageRating: stats.average_rating,
+        totalRatings: stats.total_ratings
+      });
+
+      return res.status(200).json({
+        success: true,
+        stats: {
+          average_rating: stats.average_rating,
+          total_ratings: stats.total_ratings,
+          five_star_count: stats.five_star_count,
+          four_star_count: stats.four_star_count,
+          three_star_count: stats.three_star_count,
+          two_star_count: stats.two_star_count,
+          one_star_count: stats.one_star_count,
+          median_rating: stats.median_rating,
+          last_rated_at: stats.last_rated_at
+        }
+      });
+
+    } catch (error) {
+      console.error('Error fetching rating stats:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Internal server error'
+      });
+    }
+  }
+
   // Handle DELETE - Remove Rating
   if (req.method === 'DELETE') {
     try {
