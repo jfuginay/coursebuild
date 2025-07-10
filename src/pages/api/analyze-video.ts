@@ -292,8 +292,8 @@ export default async function handler(
 
     console.log('✅ Course created:', course.id);
 
-    // Step 2: Call quiz-generation-v4 service (replacing enhanced-quiz-service)
-    const serviceName = 'quiz-generation-v4';
+    // Step 2: Call quiz-generation-v5 service (replacing enhanced-quiz-service)
+    const serviceName = 'quiz-generation-v5';
     const edgeResponse = await fetch(
       `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/${serviceName}`,
       {

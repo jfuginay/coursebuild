@@ -11,14 +11,15 @@ declare const Deno: {
   };
 };
 
-import type { QuestionPlan } from '../types/interfaces';
+import type { QuestionPlan } from '../types/interfaces.ts';
 import { 
   ENHANCED_QUESTION_PLANNING_PROMPT,
   PLANNING_RESPONSE_SCHEMA,
   QUESTION_TYPE_CONFIG,
   DIFFICULTY_LEVEL_GUIDELINES,
   BLOOM_LEVEL_DEFINITIONS 
-} from '../config/prompts';
+} from '../config/prompts.ts';
+import { convertBase60ToSeconds, formatSecondsForDisplay } from '../utils/timestamp-converter.ts';
 
 // =============================================================================
 // Enhanced Question Planning Configuration
@@ -26,7 +27,7 @@ import {
 
 const PLANNING_GENERATION_CONFIG = {
   temperature: 0.7,
-  maxOutputTokens: 16384, // Increased for transcript + plans
+  maxOutputTokens: 65535, // Increased for transcript + plans
   topK: 40,
   topP: 0.95,
   responseMimeType: "application/json",
@@ -97,7 +98,7 @@ export const generateQuestionPlans = async (
   maxQuestions: number,
   courseId?: string,
   supabaseClient?: any
-): Promise<QuestionPlan[]> => {
+): Promise<{ plans: QuestionPlan[], transcript: any }> => {
   const startTime = Date.now();
   
   try {
@@ -126,7 +127,7 @@ export const generateQuestionPlans = async (
      • Matching: 10% (meaningful relationships and categories)
      • Sequencing: 10% (process understanding and logical progression)
    - Each question plan must reference specific transcript segments
-   - Use transcript timestamps to ensure proper spacing between questions
+   - Use transcript timestamps to ensure the question timestamp is placed after the concept is finished being explained
 
 ## QUALITY STANDARDS
 - Every question must have clear educational value based on transcript content
@@ -190,9 +191,62 @@ Return a structured JSON response following the provided schema with both video_
       throw new Error('Response missing required fields: video_transcript or question_plans');
     }
     
+    // Convert all timestamps from base-60 to seconds
+    console.log('🕐 Converting timestamps from base-60 format...');
+    
+    // Convert transcript timestamps
+    if (video_transcript.full_transcript) {
+      // Log a few examples of timestamp conversion
+      const exampleSegments = video_transcript.full_transcript.slice(0, 3);
+      console.log('   📍 Example timestamp conversions:');
+      exampleSegments.forEach((seg: any) => {
+        const converted = convertBase60ToSeconds(seg.timestamp);
+        console.log(`      ${seg.timestamp} → ${converted}s (${formatSecondsForDisplay(converted)})`);
+      });
+      
+      video_transcript.full_transcript = video_transcript.full_transcript.map((segment: any, index: number, array: any[]) => {
+        const convertedSegment = {
+          ...segment,
+          timestamp: convertBase60ToSeconds(segment.timestamp),
+          end_timestamp: segment.end_timestamp ? convertBase60ToSeconds(segment.end_timestamp) : undefined
+        };
+        
+        // If no end_timestamp, use the start of the next segment
+        if (!convertedSegment.end_timestamp && index < array.length - 1) {
+          const nextSegmentStart = convertBase60ToSeconds(array[index + 1].timestamp);
+          convertedSegment.end_timestamp = nextSegmentStart;
+        }
+        
+        return convertedSegment;
+      });
+    }
+    
+    // Convert key concepts timeline timestamps
+    if (video_transcript.key_concepts_timeline) {
+      video_transcript.key_concepts_timeline = video_transcript.key_concepts_timeline.map((concept: any) => ({
+        ...concept,
+        first_mentioned: convertBase60ToSeconds(concept.first_mentioned),
+        explanation_timestamps: concept.explanation_timestamps ? 
+          concept.explanation_timestamps.map((ts: number) => convertBase60ToSeconds(ts)) : []
+      }));
+    }
+    
+    // Convert question plan timestamps
+    const convertedQuestionPlans = question_plans.map((plan: any) => ({
+      ...plan,
+      timestamp: convertBase60ToSeconds(plan.timestamp),
+      frame_timestamp: plan.frame_timestamp ? convertBase60ToSeconds(plan.frame_timestamp) : undefined,
+      // Convert transcript_reference timestamps if present
+      transcript_reference: plan.transcript_reference ? {
+        ...plan.transcript_reference,
+        start_timestamp: convertBase60ToSeconds(plan.transcript_reference.start_timestamp),
+        end_timestamp: convertBase60ToSeconds(plan.transcript_reference.end_timestamp)
+      } : undefined
+    }));
+    
     console.log(`📝 Transcript generated: ${video_transcript.full_transcript.length} segments`);
     console.log(`📊 Key concepts identified: ${video_transcript.key_concepts_timeline.length}`);
-    console.log(`🎯 Question plans created: ${question_plans.length}`);
+    console.log(`🎯 Question plans created: ${convertedQuestionPlans.length}`);
     
     // Log transcript summary
     console.log(`\n📹 Video Summary: ${video_transcript.video_summary}`);
@@ -216,13 +270,13 @@ Return a structured JSON response following the provided schema with both video_
     }
     
     // Enhanced post-processing with transcript awareness
-    const processedPlans = enhanceQuestionPlans(question_plans, maxQuestions, video_transcript);
+    const processedPlans = enhanceQuestionPlans(convertedQuestionPlans, maxQuestions, video_transcript);
     
     console.log(`\n✅ Generated ${processedPlans.length} strategically designed question plans`);
     console.log(`   📚 Educational framework: Transcript-based planning with Bloom's integration`);
     console.log(`   🎨 Question variety: ${getTypeDistribution(processedPlans)}`);
     
-    return processedPlans;
+    return { plans: processedPlans, transcript: video_transcript };
     
   } catch (error: unknown) {
     console.error('❌ Enhanced question planning failed:', error);
@@ -234,7 +288,7 @@ Return a structured JSON response following the provided schema with both video_
 // Enhanced Plan Post-Processing
 // =============================================================================
 
-const enhanceQuestionPlans = (plans: QuestionPlan[], maxQuestions: number, transcript: any): QuestionPlan[] => {
+const enhanceQuestionPlans = (plans: QuestionPlan[], maxQuestions: number, transcript?: any): QuestionPlan[] => {
   let processedPlans = [...plans];
   
   // Validate educational quality with transcript verification
@@ -249,8 +303,8 @@ const enhanceQuestionPlans = (plans: QuestionPlan[], maxQuestions: number, trans
   // Sort by timestamp for logical progression
   processedPlans.sort((a, b) => a.timestamp - b.timestamp);
   
-  // Ensure proper spacing for cognitive processing
-  processedPlans = optimizeQuestionSpacing(processedPlans);
+  // Ensure proper spacing for cognitive processing (now checks video duration)
+  //processedPlans = optimizeQuestionSpacing(processedPlans, transcript);
   
   // Ensure unique identifiers
   processedPlans = ensureUniqueIdentifiers(processedPlans);
@@ -352,10 +406,18 @@ const calculateEducationalScore = (plan: QuestionPlan): number => {
   return score;
 };
 
-const optimizeQuestionSpacing = (plans: QuestionPlan[]): QuestionPlan[] => {
+const optimizeQuestionSpacing = (plans: QuestionPlan[], transcript?: any): QuestionPlan[] => {
   const MIN_SPACING = 30; // seconds
   const spacedPlans: QuestionPlan[] = [];
   let lastTimestamp = -MIN_SPACING;
+  
+  // Get maximum video duration from transcript
+  let maxVideoTimestamp = Infinity;
+  if (transcript && transcript.full_transcript && transcript.full_transcript.length > 0) {
+    const lastSegment = transcript.full_transcript[transcript.full_transcript.length - 1];
+    maxVideoTimestamp = lastSegment.end_timestamp || lastSegment.timestamp;
+    console.log(`   📏 Video duration: ${formatSecondsForDisplay(maxVideoTimestamp)} (${maxVideoTimestamp}s)`);
+  }
   
   for (const plan of plans) {
     if (plan.timestamp >= lastTimestamp + MIN_SPACING) {
@@ -364,16 +426,37 @@ const optimizeQuestionSpacing = (plans: QuestionPlan[]): QuestionPlan[] => {
     } else {
       // Adjust timestamp to maintain spacing
       const adjustedTimestamp = lastTimestamp + MIN_SPACING;
+      
+      // Check if adjusted timestamp exceeds video duration
+      if (adjustedTimestamp > maxVideoTimestamp) {
+        console.log(`⏰ Cannot adjust question ${plan.question_id} - would exceed video duration (${adjustedTimestamp}s > ${maxVideoTimestamp}s)`);
+        // Skip this question if it can't fit within video duration
+        continue;
+      }
+      
       spacedPlans.push({
         ...plan,
         timestamp: adjustedTimestamp
       });
       lastTimestamp = adjustedTimestamp;
-      console.log(`⏰ Adjusted question ${plan.question_id} timestamp to ${adjustedTimestamp}s for optimal cognitive spacing`);
+      console.log(`⏰ Adjusted question ${plan.question_id} timestamp to ${formatSecondsForDisplay(adjustedTimestamp)} (${adjustedTimestamp}s) for optimal cognitive spacing`);
     }
   }
   
-  return spacedPlans;
+  // Final check: remove any questions that still exceed video duration
+  const finalPlans = spacedPlans.filter(plan => {
+    if (plan.timestamp > maxVideoTimestamp) {
+      console.warn(`⚠️ Removing question ${plan.question_id}: Timestamp ${plan.timestamp}s exceeds video duration ${maxVideoTimestamp}s`);
+      return false;
+    }
+    return true;
+  });
+  
+  if (finalPlans.length < spacedPlans.length) {
+    console.log(`   📊 Removed ${spacedPlans.length - finalPlans.length} questions that exceeded video duration after spacing adjustment`);
+  }
+  
+  return finalPlans;
 };
 
 const ensureUniqueIdentifiers = (plans: QuestionPlan[]): QuestionPlan[] => {
