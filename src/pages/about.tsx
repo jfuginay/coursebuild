@@ -2,6 +2,7 @@ import Head from 'next/head';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Progress } from '@/components/ui/progress';
 import { 
   Play, 
   Brain, 
@@ -14,7 +15,13 @@ import {
   ArrowRight,
   Youtube,
   Cpu,
-  MessageSquare
+  MessageSquare,
+  Loader2,
+  Eye,
+  Sparkles,
+  FileText,
+  Wand2,
+  Lightbulb
 } from 'lucide-react';
 import Header from '@/components/Header';
 
@@ -22,60 +29,78 @@ export default function About() {
   const features = [
     {
       icon: <Youtube className="h-5 w-5" />,
-      title: "YouTube Integration",
-      description: "Simply paste any YouTube URL and let AI do the rest"
+      title: "Connect Any YouTube Video",
+      description: "Simply paste any YouTube URL and watch AI transform it instantly",
+      color: "bg-red-100 text-red-600"
     },
     {
       icon: <Brain className="h-5 w-5" />,
-      title: "AI-Powered Analysis",
-      description: "Advanced AI analyzes video content and generates structured courses"
+      title: "Analyze with Advanced AI",
+      description: "Powerful AI processes video content and builds structured learning paths",
+      color: "bg-blue-100 text-blue-600"
     },
     {
       icon: <Target className="h-5 w-5" />,
-      title: "Interactive Questions",
-      description: "Automatically generated questions test comprehension at key moments"
+      title: "Create Interactive Questions",
+      description: "Generate engaging assessments that test comprehension at perfect moments",
+      color: "bg-green-100 text-green-600"
     },
     {
       icon: <Clock className="h-5 w-5" />,
-      title: "Smart Segmentation",
-      description: "Content is intelligently broken into digestible learning segments"
+      title: "Segment Content Intelligently",
+      description: "Break down videos into digestible learning chunks with optimal timing",
+      color: "bg-purple-100 text-purple-600"
     },
     {
       icon: <MessageSquare className="h-5 w-5" />,
-      title: "Visual Quizzes",
-      description: "Hotspot and matching questions for enhanced engagement"
+      title: "Build Visual Interactions",
+      description: "Design hotspot and matching questions that boost engagement",
+      color: "bg-orange-100 text-orange-600"
     },
     {
       icon: <Zap className="h-5 w-5" />,
-      title: "Instant Generation",
-      description: "Transform hours of video into structured courses in minutes"
+      title: "Generate Courses Instantly",
+      description: "Transform hours of video content into complete courses in minutes",
+      color: "bg-yellow-100 text-yellow-600"
     }
   ];
 
   const processSteps = [
     {
       step: "1",
-      title: "Video Analysis",
-      description: "AI transcribes and analyzes the YouTube video content, identifying key concepts and learning objectives.",
-      icon: <Cpu className="h-6 w-6" />
+      title: "Analyze Video",
+      description: "AI transcribes and analyzes YouTube content, extracting key concepts and learning objectives in real-time.",
+      icon: <Cpu className="h-6 w-6" />,
+      color: "bg-blue-500",
+      progress: 100,
+      features: ["Full transcript generation", "Concept identification", "Visual frame analysis"]
     },
     {
       step: "2",
-      title: "Content Structuring",
-      description: "The content is automatically segmented into logical chapters with timestamps and concept mapping.",
-      icon: <BookOpen className="h-6 w-6" />
+      title: "Structure Content",
+      description: "AI segments content into logical chapters with precise timestamps and intelligent concept mapping.",
+      icon: <BookOpen className="h-6 w-6" />,
+      color: "bg-green-500",
+      progress: 100,
+      features: ["Chapter segmentation", "Timestamp optimization", "Learning path creation"]
     },
     {
       step: "3",
-      title: "Question Generation",
-      description: "AI generates relevant questions for each segment, including multiple choice, hotspot, and matching questions.",
-      icon: <Target className="h-6 w-6" />
+      title: "Generate Questions",
+      description: "AI creates engaging questions at optimal moments, including interactive hotspot and matching exercises.",
+      icon: <Wand2 className="h-6 w-6" />,
+      color: "bg-purple-500",
+      progress: 100,
+      features: ["Multiple choice questions", "Visual hotspot interactions", "Matching exercises"]
     },
     {
       step: "4",
-      title: "Course Creation",
-      description: "All elements are combined into an interactive course with navigation and progress tracking.",
-      icon: <CheckCircle className="h-6 w-6" />
+      title: "Build Course",
+      description: "AI combines all elements into an interactive learning experience with progress tracking and navigation.",
+      icon: <Sparkles className="h-6 w-6" />,
+      color: "bg-orange-500",
+      progress: 100,
+      features: ["Interactive player", "Progress tracking", "Smart navigation"]
     }
   ];
 
@@ -113,57 +138,160 @@ export default function About() {
           </div>
 
           {/* What It Does Section */}
-          <Card>
+          <Card className="overflow-hidden relative">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Play className="h-5 w-5" />
-                What CourseBuilder Does
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Play className="h-5 w-5 text-blue-600" />
+                </div>
+                How CourseBuilder Transforms Learning
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-muted-foreground">
-                CourseBuilder revolutionizes online learning by automatically converting YouTube videos 
-                into comprehensive, interactive courses. Our AI analyzes video content, extracts key concepts, 
-                and generates engaging questions to create a structured learning experience.
-              </p>
-              <p className="text-muted-foreground">
-                Whether you're an educator, student, or lifelong learner, CourseBuilder makes it easy 
-                to transform any educational video into a professional-grade course with minimal effort.
-              </p>
+            <CardContent className="space-y-6">
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
+                    <div>
+                      <h4 className="font-semibold text-foreground">Converts Videos Automatically</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Transform any YouTube video into an interactive course in minutes, not hours
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-3">
+                    <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
+                    <div>
+                      <h4 className="font-semibold text-foreground">Analyzes Content Intelligently</h4>
+                      <p className="text-sm text-muted-foreground">
+                        AI extracts key concepts and identifies the best moments for learning interactions
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-3">
+                    <div className="w-2 h-2 bg-purple-500 rounded-full mt-2"></div>
+                    <div>
+                      <h4 className="font-semibold text-foreground">Generates Engaging Questions</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Create interactive assessments that appear at optimal learning moments
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-2 h-2 bg-orange-500 rounded-full mt-2"></div>
+                    <div>
+                      <h4 className="font-semibold text-foreground">Structures Learning Paths</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Organize content into logical chapters with clear progression
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-3">
+                    <div className="w-2 h-2 bg-teal-500 rounded-full mt-2"></div>
+                    <div>
+                      <h4 className="font-semibold text-foreground">Tracks Progress Seamlessly</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Monitor learning progress and provide personalized feedback
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-3">
+                    <div className="w-2 h-2 bg-red-500 rounded-full mt-2"></div>
+                    <div>
+                      <h4 className="font-semibold text-foreground">Delivers Professional Results</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Create courses that rival professionally designed educational content
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="pt-4 border-t">
+                <p className="text-center text-muted-foreground">
+                  <strong>For educators, students, and lifelong learners</strong> — transform any educational video into a professional-grade course with minimal effort.
+                </p>
+              </div>
             </CardContent>
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-100/20 to-purple-100/20 rounded-full blur-2xl"></div>
           </Card>
 
           {/* Process Section */}
-          <div className="space-y-6">
+          <div className="space-y-8">
             <div className="text-center">
-              <h2 className="text-3xl font-bold mb-4">The Process</h2>
+              <h2 className="text-3xl font-bold mb-4">Watch AI Transform Your Content</h2>
               <p className="text-muted-foreground">
-                Our AI-powered pipeline transforms raw video content into structured courses in four key steps
+                See how our AI pipeline processes videos in real-time, creating engaging courses automatically
               </p>
             </div>
 
-            <div className="grid gap-6">
+            <div className="grid gap-8">
               {processSteps.map((step, index) => (
-                <Card key={index} className="relative">
-                  <CardHeader>
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center justify-center w-12 h-12 bg-primary text-primary-foreground rounded-full font-bold text-lg">
-                        {step.step}
+                <Card key={index} className="relative overflow-hidden group hover:shadow-lg transition-all duration-300">
+                  <CardHeader className="pb-4">
+                    <div className="flex items-start gap-6">
+                      <div className="flex flex-col items-center">
+                        <div className={`flex items-center justify-center w-16 h-16 ${step.color} text-white rounded-full font-bold text-xl shadow-lg`}>
+                          {step.step}
+                        </div>
+                        {index < processSteps.length - 1 && (
+                          <div className="w-0.5 h-12 bg-gradient-to-b from-gray-300 to-transparent mt-4" />
+                        )}
                       </div>
-                      <div className="flex-1">
-                        <CardTitle className="flex items-center gap-2">
-                          {step.icon}
-                          {step.title}
-                        </CardTitle>
-                        <CardDescription className="mt-2">
-                          {step.description}
-                        </CardDescription>
+                      
+                      <div className="flex-1 space-y-4">
+                        <div>
+                          <CardTitle className="flex items-center gap-3 text-xl">
+                            <div className="p-2 bg-muted rounded-lg">
+                              {step.icon}
+                            </div>
+                            {step.title}
+                          </CardTitle>
+                          <CardDescription className="mt-2 text-base">
+                            {step.description}
+                          </CardDescription>
+                        </div>
+                        
+                        {/* Visual Progress Animation */}
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Processing</span>
+                            <span className="font-medium">{step.progress}%</span>
+                          </div>
+                          <Progress value={step.progress} className="h-2" />
+                        </div>
+                        
+                        {/* Feature List */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-4">
+                          {step.features.map((feature, featureIndex) => (
+                            <div key={featureIndex} className="flex items-center gap-2 text-sm">
+                              <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+                              <span className="text-muted-foreground">{feature}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      {/* Animated Icon */}
+                      <div className="hidden lg:block">
+                        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                          <div className="text-gray-600 animate-pulse">
+                            {step.icon}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </CardHeader>
-                  {index < processSteps.length - 1 && (
-                    <div className="absolute left-6 top-20 w-0.5 h-8 bg-border" />
-                  )}
+                  
+                  {/* Background Animation */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 pointer-events-none" />
                 </Card>
               ))}
             </div>
@@ -172,25 +300,27 @@ export default function About() {
           {/* Features Section */}
           <div className="space-y-6">
             <div className="text-center">
-              <h2 className="text-3xl font-bold mb-4">Key Features</h2>
+              <h2 className="text-3xl font-bold mb-4">What You Can Do</h2>
               <p className="text-muted-foreground">
-                Powerful features that make learning more engaging and effective
+                Powerful actions that transform passive videos into active learning experiences
               </p>
             </div>
 
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {features.map((feature, index) => (
-                <Card key={index} className="h-full">
+                <Card key={index} className="h-full group hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <div className="p-2 bg-primary/10 rounded-lg">
+                    <CardTitle className="flex items-center gap-3 text-lg">
+                      <div className={`p-3 ${feature.color} rounded-lg group-hover:scale-110 transition-transform duration-300`}>
                         {feature.icon}
                       </div>
-                      {feature.title}
+                      <span className="group-hover:text-foreground/80 transition-colors">
+                        {feature.title}
+                      </span>
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-muted-foreground text-sm">
+                    <p className="text-muted-foreground">
                       {feature.description}
                     </p>
                   </CardContent>
@@ -198,26 +328,6 @@ export default function About() {
               ))}
             </div>
           </div>
-
-          {/* Benefits Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Why Choose CourseBuilder?
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid md:grid-cols-2 gap-4">
-                {benefits.map((benefit, index) => (
-                  <div key={index} className="flex items-start gap-3">
-                    <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                    <p className="text-muted-foreground">{benefit}</p>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
 
           {/* Technology Section */}
           <Card>
