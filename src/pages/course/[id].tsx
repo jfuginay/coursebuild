@@ -674,7 +674,7 @@ export default function CoursePage() {
              }
              
              // Trigger rating modal on completion
-             triggerRatingModal('completion');
+             triggerRatingModal();
            }
            
            // Modal should already be shown 3 seconds before the end
@@ -753,14 +753,8 @@ export default function CoursePage() {
    if (correct) {
      setCorrectAnswers(prev => prev + 1);
      
-     // Track engagement and check for rating trigger
-     setEngagementScore(prev => {
-       const newScore = prev + 10;
-       if (newScore >= 30 && !hasRated && !showRatingModal) {
-         triggerRatingModal('question_success');
-       }
-       return newScore;
-     });
+     // Track engagement score but don't trigger rating modal during course
+     setEngagementScore(prev => prev + 10);
    }
    
    // Track question answered engagement with error handling
@@ -799,15 +793,15 @@ export default function CoursePage() {
  };
 
  // Rating trigger logic
- const triggerRatingModal = (context: 'completion' | 'question_success' | 'mid_course') => {
+ const triggerRatingModal = () => {
    if (hasRated || showRatingModal) return;
    
-   console.log(`⭐ Triggering rating modal: ${context}`);
+   console.log(`⭐ Triggering rating modal on course completion`);
    setShowRatingModal(true);
    
    if (id && typeof id === 'string') {
      try {
-       trackRatingModalShown(id, context);
+       trackRatingModalShown(id, 'completion');
      } catch (error) {
        console.warn('Failed to track rating modal shown:', error);
      }
@@ -829,7 +823,7 @@ export default function CoursePage() {
        },
        body: JSON.stringify({
          rating,
-         context: completionPercentage >= 90 ? 'completion' : 'mid_course',
+         context: 'completion', // Always completion since modal only shows at end
          engagementData: {
            timeSpentMinutes,
            questionsAnswered: answeredQuestions.size,
@@ -847,7 +841,7 @@ export default function CoursePage() {
          trackRating({
            courseId: id,
            rating,
-           context: completionPercentage >= 90 ? 'completion' : 'mid_course',
+           context: 'completion', // Always completion since modal only shows at end
            timeToRate: Date.now() - courseStartTime,
            engagementScore,
            platform: getPlatform()
