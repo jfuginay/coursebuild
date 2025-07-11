@@ -75,7 +75,7 @@ export default function CourseCurriculumCard({
   }
 
   return (
-    <Card>
+    <Card id="course-curriculum">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">Course Curriculum</CardTitle>

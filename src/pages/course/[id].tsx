@@ -18,6 +18,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { useAuth } from '@/contexts/AuthContext';
 import { useAnalytics } from '@/hooks/useAnalytics';
 import { supabase } from '@/lib/supabase';
+import { useGuidedTour } from '@/hooks/useGuidedTour';
+import { learnerTourSteps } from '@/config/tours';
 
 interface Course {
  id: string;
@@ -128,6 +130,10 @@ export default function CoursePage() {
  const [hasRated, setHasRated] = useState(false);
  const [engagementScore, setEngagementScore] = useState(0);
  const [courseStartTime] = useState(Date.now());
+ 
+ // Guided tour state
+ const [shouldRunTour, setShouldRunTour] = useState(false);
+ const [hasCheckedOnboarding, setHasCheckedOnboarding] = useState(false);
 
  // Free questions limit
  const FREE_QUESTIONS_LIMIT = 2;
@@ -142,6 +148,53 @@ export default function CoursePage() {
      fetchQuestions();
    }
  }, [id]);
+ 
+ // Check if user has completed onboarding and show tour if needed
+ useEffect(() => {
+   const checkOnboarding = async () => {
+     if (!user || hasCheckedOnboarding || !isVideoReady) return;
+     
+     try {
+       const response = await fetch(`/api/user/check-onboarding?user_id=${user.id}`);
+       const data = await response.json();
+       
+       if (!data.onboarding_completed) {
+         setShouldRunTour(true);
+       }
+       setHasCheckedOnboarding(true);
+     } catch (error) {
+       console.error('Error checking onboarding status:', error);
+       setHasCheckedOnboarding(true);
+     }
+   };
+   
+   checkOnboarding();
+ }, [user, hasCheckedOnboarding, isVideoReady]);
+ 
+ // Initialize guided tour for learner journey
+ useGuidedTour('learner', learnerTourSteps, shouldRunTour, {
+   delay: 2000, // Wait for video to load
+   onComplete: async () => {
+     setShouldRunTour(false);
+     // Update onboarding status in database
+     if (user) {
+       try {
+         await fetch('/api/user/update-onboarding', {
+           method: 'POST',
+           headers: {
+             'Content-Type': 'application/json',
+           },
+           body: JSON.stringify({
+             user_id: user.id,
+             onboarding_completed: true
+           }),
+         });
+       } catch (error) {
+         console.error('Error updating onboarding status:', error);
+       }
+     }
+   }
+ });
 
  useEffect(() => {
    console.log('🔍 Checking YouTube API availability...');

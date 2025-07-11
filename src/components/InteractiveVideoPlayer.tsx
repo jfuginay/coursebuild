@@ -59,7 +59,7 @@ const InteractiveVideoPlayer: React.FC<InteractiveVideoPlayerProps> = ({
   nextCourseApiCalled
 }) => {
   return (
-    <Card>
+    <Card id="interactive-video-player">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Play className="h-5 w-5" />
@@ -70,7 +70,7 @@ const InteractiveVideoPlayer: React.FC<InteractiveVideoPlayerProps> = ({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="aspect-video bg-muted rounded-lg overflow-hidden relative">
+        <div id="video-player-area" className="aspect-video bg-muted rounded-lg overflow-hidden relative">
           {!isYTApiLoaded && !error && (
             <div className="absolute inset-0 flex items-center justify-center bg-muted z-10">
               <div className="text-center">
