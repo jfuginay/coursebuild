@@ -1388,19 +1388,16 @@ export default function CoursePage() {
            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
              {course.description}
            </p>
-           
-           {/* Course Rating */}
-           {course.totalRatings && course.totalRatings > 0 && (
-             <div className="flex items-center justify-center">
-               <CompactStarRating
-                 rating={course.averageRating || 0}
-                 totalRatings={course.totalRatings}
-                 size="md"
-                 showRatingText={true}
-                 className="text-yellow-500"
-               />
-             </div>
-           )}
+           {/* Course Rating - Always show */}
+           <div className="flex items-center justify-center">
+             <CompactStarRating
+               rating={course.averageRating || 0}
+               totalRatings={course.totalRatings || 0}
+               size="md"
+               showRatingText={true}
+               className="text-yellow-500"
+             />
+           </div>
            
            {/* Course Stats */}
            <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
