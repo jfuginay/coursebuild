@@ -23,7 +23,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Initialize Supabase client
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SECRET_KEY!
     );
 
     // Initialize progress tracking
@@ -51,7 +51,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log('🔄 Calling Quiz Generation v5.0 pipeline...');
     
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-    const apiKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     const quizGenerationUrl = `${supabaseUrl}/functions/v1/quiz-generation-v5`;
 
 
@@ -193,7 +193,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       try {
         const supabase = createClient(
           process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!
+          process.env.SUPABASE_SECRET_KEY!
         );
 
         await supabase

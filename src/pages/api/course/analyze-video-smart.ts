@@ -95,7 +95,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Initialize Supabase client
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
     // If course_id is not provided, create a new course
@@ -218,7 +218,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log('🔄 Calling smart processing initialization...');
     
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-    const apiKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     const initUrl = `${supabaseUrl}/functions/v1/init-segmented-processing`;
 
     // Set a timeout for the initialization request (30 seconds)
@@ -418,7 +418,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       try {
         const supabase = createClient(
           process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!
+          process.env.SUPABASE_SECRET_KEY!
         );
 
         await supabase

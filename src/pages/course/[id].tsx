@@ -13,7 +13,7 @@ import CourseCurriculumCard from '@/components/CourseCurriculumCard';
 import VideoProgressBar from '@/components/VideoProgressBar';
 import TranscriptDisplay from '@/components/TranscriptDisplay';
 import InteractiveVideoPlayer from '@/components/InteractiveVideoPlayer';
-import { RatingModal, CompactStarRating } from '@/components/StarRating';
+
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAnalytics } from '@/hooks/useAnalytics';
@@ -30,8 +30,6 @@ interface Course {
  questionsGenerated?: boolean;
  questions?: Question[];
  videoId?: string;
- averageRating?: number;
- totalRatings?: number;
 }
 
 interface Question {
@@ -123,12 +121,6 @@ export default function CoursePage() {
  const [autoGenerationTriggered, setAutoGenerationTriggered] = useState(false); // Track if auto-generation was triggered
  const [nextCourseModalShown, setNextCourseModalShown] = useState(false); // Track if modal has been shown
  const [isProcessing, setIsProcessing] = useState(false); // Track if course is still processing
- 
- // Rating state
- const [showRatingModal, setShowRatingModal] = useState(false);
- const [hasRated, setHasRated] = useState(false);
- const [engagementScore, setEngagementScore] = useState(0);
- const [courseStartTime] = useState(Date.now());
 
  // Free questions limit
  const FREE_QUESTIONS_LIMIT = 2;
@@ -343,37 +335,13 @@ export default function CoursePage() {
          return () => clearInterval(pollInterval);
        }
        
-       // Enhance course data with rating information
-      let courseWithRating = { ...data.course };
-      
-      try {
-        // Fetch rating data for this course
-        const ratingResponse = await fetch(`/api/courses/${id}/rating`);
-        if (ratingResponse.ok) {
-          const ratingData = await ratingResponse.json();
-          if (ratingData.success && ratingData.stats) {
-            courseWithRating.averageRating = ratingData.stats.average_rating || 0;
-            courseWithRating.totalRatings = ratingData.stats.total_ratings || 0;
-            console.log('⭐ Rating data loaded:', {
-              averageRating: courseWithRating.averageRating,
-              totalRatings: courseWithRating.totalRatings
-            });
-          }
-        }
-      } catch (ratingError) {
-        console.warn('Failed to fetch rating data:', ratingError);
-        // Continue without rating data
-      }
-      
-      setCourse(courseWithRating);
+       setCourse(data.course);
        const extractedVideoId = extractVideoId(data.course.youtube_url);
        console.log('🎬 Course loaded:', {
          title: data.course.title,
          youtubeUrl: data.course.youtube_url,
          extractedVideoId: extractedVideoId,
          published: data.course.published
-         hasRatings: courseWithRating.totalRatings > 0,
-         averageRating: courseWithRating.averageRating
        });
        setVideoId(extractedVideoId);
      } else {
@@ -770,9 +738,6 @@ export default function CoursePage() {
              } catch (error) {
                console.warn('Failed to track course completion:', error);
              }
-             
-             // Trigger rating modal on completion
-             triggerRatingModal();
            }
            
            // Modal should already be shown 3 seconds before the end
@@ -850,9 +815,6 @@ export default function CoursePage() {
  const handleAnswer = (correct: boolean, selectedAnswer?: string) => {
    if (correct) {
      setCorrectAnswers(prev => prev + 1);
-     
-     // Track engagement score but don't trigger rating modal during course
-     setEngagementScore(prev => prev + 10);
    }
    
    // Track question answered engagement with error handling
@@ -890,85 +852,7 @@ export default function CoursePage() {
    playerRef.current?.playVideo(); // Resume video when continuing
  };
 
- // Rating trigger logic
- const triggerRatingModal = () => {
-   if (hasRated || showRatingModal) return;
-   
-   console.log(`⭐ Triggering rating modal on course completion`);
-   setShowRatingModal(true);
-   
-   if (id && typeof id === 'string') {
-     try {
-       trackRatingModalShown(id, 'completion');
-     } catch (error) {
-       console.warn('Failed to track rating modal shown:', error);
-     }
-   }
- };
 
- const handleRatingSubmit = async (rating: number) => {
-   if (!id || typeof id !== 'string') return;
-   
-   const timeSpentMinutes = Math.round((Date.now() - courseStartTime) / 60000);
-   const completionPercentage = duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0;
-   
-   try {
-     const response = await fetch(`/api/courses/${id}/rating`, {
-       method: 'POST',
-       headers: {
-         'Content-Type': 'application/json',
-         ...(session?.access_token && { 'Authorization': `Bearer ${session.access_token}` })
-       },
-       body: JSON.stringify({
-         rating,
-         context: 'completion', // Always completion since modal only shows at end
-         engagementData: {
-           timeSpentMinutes,
-           questionsAnswered: answeredQuestions.size,
-           completionPercentage
-         }
-       })
-     });
-
-     if (response.ok) {
-       const data = await response.json();
-       console.log('✅ Rating submitted:', data);
-       
-       // Track rating analytics with error handling
-       try {
-         trackRating({
-           courseId: id,
-           rating,
-           context: 'completion', // Always completion since modal only shows at end
-           timeToRate: Date.now() - courseStartTime,
-           engagementScore,
-           platform: getPlatform()
-         });
-       } catch (error) {
-         console.warn('Failed to track rating analytics:', error);
-       }
-       
-       setHasRated(true);
-       setShowRatingModal(false);
-     } else {
-       console.error('Failed to submit rating');
-     }
-   } catch (error) {
-     console.error('Error submitting rating:', error);
-   }
- };
-
- const handleRatingClose = () => {
-   setShowRatingModal(false);
-   
-   if (id && typeof id === 'string') {
-     try {
-       trackRatingModalDismissed(id, 'manual');
-     } catch (error) {
-       console.warn('Failed to track rating modal dismissed:', error);
-     }
-   }
- };
 
  const handleVideoSeek = async (seekTime: number) => {
    if (!playerRef.current || !questions) return;
@@ -1296,19 +1180,7 @@ export default function CoursePage() {
            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
              {course.description}
            </p>
-           
-           {/* Course Rating */}
-           {course.totalRatings && course.totalRatings > 0 && (
-             <div className="flex items-center justify-center">
-               <CompactStarRating
-                 rating={course.averageRating || 0}
-                 totalRatings={course.totalRatings}
-                 size="md"
-                 showRatingText={true}
-                 className="text-yellow-500"
-               />
-             </div>
-           )}
+
            
            {/* Course Stats */}
            <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
@@ -1509,15 +1381,7 @@ export default function CoursePage() {
        </DialogContent>
      </Dialog>
 
-     {/* Rating Modal */}
-     <RatingModal
-       isOpen={showRatingModal}
-       onClose={handleRatingClose}
-       onRate={handleRatingSubmit}
-       courseTitle={course?.title}
-       position="center"
-       autoHide={8000}
-     />
+
    </div>
  );
 }

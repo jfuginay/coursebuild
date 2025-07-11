@@ -22,10 +22,10 @@ export default async function handler(
       return res.status(400).json({ error: 'User ID and email are required' });
     }
 
-    // Create Supabase client with service role key to bypass RLS
+    // Create Supabase client with secret key to bypass RLS
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SECRET_KEY!
     );
 
     // Check if profile already exists

@@ -136,7 +136,7 @@ serve(async (req: Request) => {
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SECRET_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
     
     // Detect if running locally
@@ -573,7 +573,7 @@ serve(async (req: Request) => {
       // Use segment_id from the already parsed request body
       const supabase = createClient(
         Deno.env.get('SUPABASE_URL')!,
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+        Deno.env.get('SUPABASE_SECRET_KEY')!
       );
       
       // segment_id is already available from the destructured request at the top

@@ -16,7 +16,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Initialize Supabase client
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SECRET_KEY!
     );
 
     // Check for segments that have been processing for too long (>3 minutes)
@@ -132,7 +132,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Trigger segment processing
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-    const apiKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     const functionUrl = `${supabaseUrl}/functions/v1/process-video-segment`;
 
     const response = await fetch(functionUrl, {
