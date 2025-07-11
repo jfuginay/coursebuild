@@ -375,6 +375,16 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
                     <CardTitle className="text-lg line-clamp-2 group-hover:text-primary transition-colors">
                       {course.title}
                     </CardTitle>
+                    {/* Rating Display - Prominent placement */}
+                    <div className="mt-2">
+                      <CompactStarRating 
+                        rating={course.averageRating || 0} 
+                        totalRatings={course.totalRatings || 0}
+                        showRatingText={true}
+                        size="sm"
+                        className="text-yellow-500"
+                      />
+                    </div>
                   </div>
                 </div>
               </CardHeader>
@@ -433,29 +443,15 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
 
                 {/* Course Info */}
                 <div className="space-y-2">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        <span className="text-xs sm:text-sm">{formatDate(course.created_at)}</span>
-                      </div>
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      <span className="text-xs sm:text-sm">{formatDate(course.created_at)}</span>
                     </div>
-                    
-                    {/* Rating Display */}
-                    {(course.totalRatings || 0) > 0 && (
-                      <CompactStarRating 
-                        rating={course.averageRating || 0} 
-                        totalRatings={course.totalRatings || 0}
-                        showRatingText={true}
-                        size="xs"
-                        className="self-start sm:self-auto"
-                      />
-                    )}
+                    <Badge variant="secondary" className="text-xs">
+                      AI Enhanced Course
+                    </Badge>
                   </div>
-                  
-                  <Badge variant="secondary" className="text-xs">
-                    AI Enhanced Course
-                  </Badge>
                 </div>
 
                 {/* Call to Action */}

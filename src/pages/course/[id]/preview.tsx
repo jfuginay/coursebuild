@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { Clock, BookOpen, HelpCircle, ArrowLeft, Lock, CheckCircle, XCircle, ChevronRight, Play, Pause, ExternalLink } from 'lucide-react';
+import { CompactStarRating } from '@/components/StarRating';
 import Header from '@/components/Header';
 import QuestionOverlay from '@/components/QuestionOverlay';
 import CourseCurriculumCard from '@/components/CourseCurriculumCard';
@@ -58,6 +59,8 @@ interface Course {
   youtube_url: string;
   created_at: string;
   published: boolean;
+  averageRating?: number;
+  totalRatings?: number;
 }
 
 interface YTPlayer {
@@ -248,6 +251,23 @@ export default function CoursePreviewPage() {
 
       setCourse(courseData.course);
       const videoId = extractVideoId(courseData.course.youtube_url);
+
+      // Fetch rating data
+      try {
+        const ratingResponse = await fetch(`/api/courses/${id}/rating`);
+        if (ratingResponse.ok) {
+          const ratingData = await ratingResponse.json();
+          if (ratingData.success && ratingData.stats) {
+            setCourse(prev => prev ? {
+              ...prev,
+              averageRating: ratingData.stats.average_rating || 0,
+              totalRatings: ratingData.stats.total_ratings || 0
+            } : null);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch rating data:', error);
+      }
 
       // Fetch real questions from the API
       const questionsResponse = await fetch(`/api/course/${id}/questions`);
@@ -707,6 +727,19 @@ export default function CoursePreviewPage() {
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
               {courseData.description}
             </p>
+            
+            {/* Course Rating Display */}
+            {course && (
+              <div className="flex items-center justify-center">
+                <CompactStarRating
+                  rating={course.averageRating || 0}
+                  totalRatings={course.totalRatings || 0}
+                  size="md"
+                  showRatingText={true}
+                  className="text-yellow-500"
+                />
+              </div>
+            )}
             
             {/* Course Stats */}
             <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
