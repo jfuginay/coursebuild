@@ -160,40 +160,22 @@ serve(async (req: Request) => {
       const result = await response.json();
       
       // Update course as published if quiz generation was successful
-      if (response.ok && result.success) {
+      if (result.success) {
         console.log('✅ Quiz generation successful, marking course as published');
         
-        // Extract video title from the transcript if available
-        let videoTitle = 'AI Generated Course';
-        let videoDescription = 'Interactive course generated from YouTube video';
-        
-        // Check if we have transcript data with video metadata
-        if (result.pipeline_results?.planning?.video_summary) {
-          videoDescription = result.pipeline_results.planning.video_summary;
-        }
-        
-        // Try to get a better title from the planning metadata
-        if (result.pipeline_results?.planning?.planning_metadata?.content_coverage?.length > 0) {
-          const mainTopics = result.pipeline_results.planning.planning_metadata.content_coverage
-            .slice(0, 3)
-            .map((topic: any) => topic.topic || topic)
-            .join(', ');
-          videoTitle = `Course: ${mainTopics}`;
-        }
-        
+        // Simply mark the course as published without changing title/description
+        // The title and description were already set properly when the course was created
         const { error: publishError } = await supabase
           .from('courses')
           .update({ 
-            published: true,
-            title: videoTitle,
-            description: videoDescription
+            published: true
           })
           .eq('id', course_id);
         
         if (publishError) {
           console.error('❌ Failed to update course:', publishError);
         } else {
-          console.log('✅ Course updated with title:', videoTitle);
+          console.log('✅ Course marked as published');
         }
       }
       

@@ -85,10 +85,25 @@ const InteractiveVideoPlayer: React.FC<InteractiveVideoPlayerProps> = ({
     <div ref={playerContainerRef}>
       <Card id="interactive-video-player" className="h-full">
         <CardHeader>
+          <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <Play className="h-5 w-5" />
             Interactive Video Course
           </CardTitle>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={onFetchNextCourse}
+              disabled={isLoadingNextCourse || !!nextCourse || nextCourseApiCalled || showQuestion}
+            >
+              {isLoadingNextCourse ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+              ) : (
+                <BookOpen className="mr-2 h-4 w-4" />
+              )}
+              {nextCourse ? 'Next Course Ready' : isLoadingNextCourse ? 'Generating...' : nextCourseApiCalled ? 'Generating...' : 'Generate Next Course'}
+            </Button>
+          </div>
           <CardDescription>
             Watch the video and answer questions as they appear
           </CardDescription>
@@ -140,22 +155,6 @@ const InteractiveVideoPlayer: React.FC<InteractiveVideoPlayerProps> = ({
               />
             </div>
           )}
-          <div className="flex justify-center gap-3">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={onFetchNextCourse}
-              disabled={isLoadingNextCourse || !!nextCourse || nextCourseApiCalled || showQuestion}
-            >
-              {isLoadingNextCourse ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
-              ) : (
-                <BookOpen className="mr-2 h-4 w-4" />
-
-              )}
-              {nextCourse ? 'Next Course Ready' : isLoadingNextCourse ? 'Generating...' : nextCourseApiCalled ? 'Generating...' : 'Generate Next Course'}
-            </Button>
-          </div>
         </CardContent>
       </Card>
     </div>

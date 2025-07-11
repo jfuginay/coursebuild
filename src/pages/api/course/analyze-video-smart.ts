@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
+import { extractVideoId, fetchYouTubeMetadata, generateFallbackTitle } from '@/utils/youtube';
 
 // Duration threshold for segmentation (10 minutes)
 const SEGMENT_THRESHOLD = 600; // seconds
@@ -19,28 +20,6 @@ function isValidYouTubeUrl(url: string): boolean {
   }
   
   return false;
-}
-
-// Extract video title from URL (simplified version)
-function extractVideoTitle(url: string): string {
-  const videoId = extractVideoId(url);
-  return videoId ? `YouTube Video (${videoId})` : 'YouTube Video';
-}
-
-function extractVideoId(url: string): string | null {
-  const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-    /youtube\.com\/watch\?.*v=([^&\n?#]+)/
-  ];
-  
-  for (const pattern of patterns) {
-    const match = url.match(pattern);
-    if (match) {
-      return match[1];
-    }
-  }
-  
-  return null;
 }
 
 // Sanitize YouTube URL to just the core video URL
@@ -98,16 +77,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
+    // Variables for video metadata
+    let videoTitle = '';
+    let videoDescription = '';
+
     // If course_id is not provided, create a new course
     if (!course_id) {
       const sanitizedUrl = sanitizeYouTubeUrl(youtube_url);
       console.log('📝 Creating new course record...');
       
+      // Fetch video metadata from YouTube
+      const videoMetadata = await fetchYouTubeMetadata(sanitizedUrl);
+      videoTitle = videoMetadata?.title || generateFallbackTitle(sanitizedUrl);
+      videoDescription = videoMetadata 
+        ? `Interactive course from "${videoMetadata.author_name}" - Learn through AI-generated questions perfectly timed with the video content.`
+        : 'AI-powered interactive course from YouTube video with perfectly timed questions to enhance learning.';
+      
+      console.log('📹 Video Title:', videoTitle);
+      console.log('👤 Author:', videoMetadata?.author_name || 'Unknown');
+      
       const { data: course, error: courseError } = await supabase
         .from('courses')
         .insert({
-          title: extractVideoTitle(youtube_url),
-          description: 'AI Generated Course from YouTube Video',
+          title: videoTitle,
+          description: videoDescription,
           youtube_url: sanitizedUrl,
           published: false
         })
@@ -393,6 +386,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         console.error('Failed to fetch course data:', courseError);
       }
       
+      // Extract video summary from the init result if available
+      let updatedDescription = courseData?.description || videoDescription;
+      
+      if (initResult.result?.pipeline_results?.planning?.video_summary) {
+        // Use the AI-generated video summary as the description
+        updatedDescription = initResult.result.pipeline_results.planning.video_summary;
+        console.log('📝 Using AI-generated video summary for description');
+        
+        // Update the course with the AI-generated summary
+        await supabase
+          .from('courses')
+          .update({ description: updatedDescription })
+          .eq('id', course_id);
+      }
+      
       // The init endpoint already triggered regular processing
       return res.status(200).json({
         success: true,
@@ -402,8 +410,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         segmented: false,
         cached: false,
         data: {
-          title: courseData?.title || 'Generated Course',
-          description: courseData?.description || 'AI-generated interactive course',
+          title: courseData?.title || videoTitle,
+          description: updatedDescription,
           // Add other expected fields
         },
         result: initResult.result

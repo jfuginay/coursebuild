@@ -960,4 +960,40 @@ Example trace information:
 
 ---
 
+## YouTube Metadata Integration
+
+### Overview
+The system automatically fetches video metadata from YouTube's oEmbed API to provide real, meaningful titles and descriptions for courses instead of generic placeholders.
+
+### Implementation Details
+
+1. **Metadata Fetching** (`src/utils/youtube.ts`)
+   - Uses YouTube's oEmbed API (no API key required)
+   - Fetches: video title, author name, thumbnail URL
+   - Provides fallback titles if fetch fails
+
+2. **Integration Points**
+   - `analyze-video-smart.ts`: Fetches metadata when creating new courses
+   - `create-with-progress.tsx`: Shows real titles during creation
+   - `init-segmented-processing`: Preserves original titles (no overwriting)
+
+3. **AI-Generated Descriptions**
+   - **Initial Creation**: Courses start with author-based descriptions
+   - **Smart Updates**: After transcript generation, descriptions are replaced with AI-generated video summaries
+   - **Automatic Process**: Works for both immediate and segmented processing
+   - **Course Page Integration**: Checks for generic descriptions during loading and updates automatically
+   - **Orchestrator Support**: Updates descriptions when all segments complete
+
+4. **Update Endpoints**
+   - **Title Updates**: `POST /api/update-course-titles`
+     - Finds courses with placeholder titles
+     - Updates them with real YouTube titles
+     - Includes rate limiting to respect YouTube's API
+   - **Description Updates**: `POST /api/course/update-summary`
+     - Replaces generic descriptions with AI-generated summaries
+     - Uses video_summary from transcript analysis
+     - Only updates if description is generic
+
+---
+
 *This documentation reflects the current v5.0 implementation with full transcript generation, intelligent timestamp optimization, atomic segment processing, backend orchestration, complete metadata storage, and enhanced educational context awareness.* 

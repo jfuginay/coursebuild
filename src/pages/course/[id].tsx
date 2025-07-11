@@ -37,6 +37,7 @@ interface Course {
  videoId?: string;
  averageRating?: number;
  totalRatings?: number;
+ topic?: string;
 }
 
 interface Question {
@@ -366,66 +367,80 @@ export default function CoursePage() {
      if (data.success) {
        setCourse(data.course);
        
-       // Check if course is still processing
-       if (!data.course.published) {
+       // Check if course is processing
+       if (data.course && !data.course.published) {
+         console.log('Course is still processing');
          setIsProcessing(true);
-         console.log('📊 Course is still processing, will check again...');
          
-                 // Initial check for stuck segments (only once)
-        try {
-          const checkResponse = await fetch('/api/course/check-segment-processing', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ course_id: id })
-          });
-          
-          if (checkResponse.ok) {
-            const checkData = await checkResponse.json();
-            console.log('🔄 Initial segment check result:', checkData);
-          }
-        } catch (error) {
-          console.error('Failed to check segments:', error);
-        }
+         // Check if the course has a generic description that needs updating
+         const hasGenericDescription = data.course.description && (
+           data.course.description.includes('Interactive course from') ||
+           data.course.description.includes('AI-powered interactive course') ||
+           data.course.description.includes('AI Generated Course')
+         );
          
-                 // Set up polling to check for completion
-        let checkCounter = 0;
-        const pollInterval = setInterval(async () => {
-          const pollResponse = await fetch(`/api/course/${id}`);
-          const pollData = await pollResponse.json();
-          
-          if (pollData.success && pollData.course.published) {
-            console.log('✅ Course processing complete!');
-            setCourse(pollData.course);
-            setIsProcessing(false);
-            clearInterval(pollInterval);
-            // Fetch questions now that course is published
-            fetchQuestions();
-          } else if (checkCounter % 6 === 0) { // Only check segments every 30 seconds (6 * 5s)
-            // Check segments less frequently to avoid overwhelming the orchestrator
-            try {
-              const checkResponse = await fetch('/api/course/check-segment-processing', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ course_id: id })
-              });
-              
-              if (checkResponse.ok) {
-                const checkData = await checkResponse.json();
-                console.log('🔄 Periodic segment check result:', checkData);
-              }
-            } catch (error) {
-              console.error('Failed to check segments:', error);
-            }
-          }
-          checkCounter++;
-        }, 5000); // Poll course status every 5 seconds
+         if (hasGenericDescription) {
+           // Try to update the description with AI-generated summary
+           try {
+             const updateResponse = await fetch('/api/course/update-summary', {
+               method: 'POST',
+               headers: { 'Content-Type': 'application/json' },
+               body: JSON.stringify({ course_id: data.course.id })
+             });
+             
+             if (updateResponse.ok) {
+               const updateResult = await updateResponse.json();
+               if (updateResult.success && updateResult.description) {
+                 // Update local state with the new description
+                 setCourse(prev => prev ? { ...prev, description: updateResult.description } : null);
+                 console.log('✅ Course description updated with AI-generated summary');
+               }
+             }
+           } catch (error) {
+             console.log('Could not update course description:', error);
+           }
+         }
          
-         // Clean up interval on unmount
-         return () => clearInterval(pollInterval);
+         // Set up progress tracking
+         if (typeof window !== 'undefined') {
+           // Set up polling to check for completion
+           let checkCounter = 0;
+           const pollInterval = setInterval(async () => {
+             const pollResponse = await fetch(`/api/course/${id}`);
+             const pollData = await pollResponse.json();
+             
+             if (pollData.success && pollData.course.published) {
+               console.log('✅ Course processing complete!');
+               setCourse(pollData.course);
+               setIsProcessing(false);
+               clearInterval(pollInterval);
+               // Fetch questions now that course is published
+               fetchQuestions();
+             } else if (checkCounter % 6 === 0) { // Only check segments every 30 seconds (6 * 5s)
+               // Check segments less frequently to avoid overwhelming the orchestrator
+               try {
+                 const checkResponse = await fetch('/api/course/check-segment-processing', {
+                   method: 'POST',
+                   headers: {
+                     'Content-Type': 'application/json',
+                   },
+                   body: JSON.stringify({ course_id: id })
+                 });
+                 
+                 if (checkResponse.ok) {
+                   const checkData = await checkResponse.json();
+                   console.log('🔄 Periodic segment check result:', checkData);
+                 }
+               } catch (error) {
+                 console.error('Failed to check segments:', error);
+               }
+             }
+             checkCounter++;
+           }, 5000); // Poll course status every 5 seconds
+           
+           // Clean up interval on unmount
+           return () => clearInterval(pollInterval);
+         }
        }
        
        // Enhance course data with rating information
@@ -634,94 +649,156 @@ export default function CoursePage() {
 
      console.log('📊 Sending wrong answers to next course API:', wrongAnswers);
 
-     const response = await fetch(`/api/get-next-course`, {
+     // Step 1: Get course suggestions
+     const suggestionsResponse = await fetch('/api/course/suggestions', {
        method: 'POST',
        headers: {
          'Content-Type': 'application/json',
        },
        body: JSON.stringify({
-         currentCourseId: id,
-         videoUrl: course?.youtube_url,
-         wrongQuestions: wrongAnswers
+         videoUrl: course?.youtube_url
        })
      });
      
-     const data = await response.json();
+     if (!suggestionsResponse.ok) {
+       throw new Error('Failed to get course suggestions');
+     }
+     
+     const suggestionsData = await suggestionsResponse.json();
+     
+     if (!suggestionsData.topics || !Array.isArray(suggestionsData.topics) || suggestionsData.topics.length === 0) {
+       throw new Error('No course suggestions found');
+     }
+     
+     const firstTopic = suggestionsData.topics[0];
+     if (!firstTopic || !firstTopic.video) {
+       throw new Error('Invalid course suggestion');
+     }
+     
+     console.log('🎯 Got course suggestion:', {
+       topic: firstTopic.topic,
+       video: firstTopic.video
+     });
 
-     if (data.success) {
-       console.log('📚 Next course generated with questions:', {
-         courseId: data.courseId,
-         title: data.nextCourse.title,
-         hasQuestions: !!data.courseId
-       });
+     // Step 2: Use analyze-video-smart for more robust processing
+     const sessionId = `next-course-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+     
+     const smartAnalysisResponse = await fetch('/api/course/analyze-video-smart', {
+       method: 'POST',
+       headers: {
+         'Content-Type': 'application/json',
+       },
+       body: JSON.stringify({
+         youtube_url: firstTopic.video,
+         session_id: sessionId,
+         max_questions: 5,
+         enable_quality_verification: true,
+         segment_duration: 300, // 5 minutes
+         useCache: true,
+         useEnhanced: true
+       })
+     });
+     
+     if (!smartAnalysisResponse.ok) {
+       const errorText = await smartAnalysisResponse.text();
+       console.error('Smart analysis failed:', errorText);
+       throw new Error(`Smart analysis failed: ${errorText}`);
+     }
+     
+     const smartAnalysisData = await smartAnalysisResponse.json();
+     
+     if (!smartAnalysisData.success) {
+       throw new Error(smartAnalysisData.error || 'Smart analysis failed');
+     }
+     
+     console.log('✅ Smart analysis completed:', {
+       courseId: smartAnalysisData.course_id,
+       segmented: smartAnalysisData.segmented,
+       cached: smartAnalysisData.cached,
+       backgroundProcessing: smartAnalysisData.background_processing
+     });
+
+     // Step 3: Fetch the generated course and questions
+     try {
+       // Fetch course data from database
+       const courseResponse = await fetch(`/api/course/${smartAnalysisData.course_id}`);
+       const courseData = await courseResponse.json();
        
-       // Now fetch the actual course and questions from Supabase using the courseId
-       try {
-         // Fetch course data from database
-         const courseResponse = await fetch(`/api/course/${data.courseId}`);
-         const courseData = await courseResponse.json();
+       if (courseData.success) {
+         // Fetch questions for the course
+         const questionsResponse = await fetch(`/api/course/${smartAnalysisData.course_id}/questions`);
+         const questionsData = await questionsResponse.json();
          
-         if (courseData.success) {
-           // Fetch questions for the course
-           const questionsResponse = await fetch(`/api/course/${data.courseId}/questions`);
-           const questionsData = await questionsResponse.json();
+         if (questionsData.success) {
+           // Parse questions like in the main fetchQuestions function
+           const parsedQuestions = questionsData.questions.map((q: any) => ({
+             ...q,
+             options: parseOptionsWithTrueFalse(q.options || [], q.type),
+             correct: parseInt(q.correct_answer) || 0,
+             correct_answer: parseInt(q.correct_answer) || 0
+           }));
            
-           if (questionsData.success) {
-             // Parse questions like in the main fetchQuestions function
-             const parsedQuestions = questionsData.questions.map((q: any) => ({
-               ...q,
-               options: parseOptionsWithTrueFalse(q.options || [], q.type),
-               correct: parseInt(q.correct_answer) || 0,
-               correct_answer: parseInt(q.correct_answer) || 0
-             }));
-             
-             // Store the next course with database-fetched data
-             setNextCourse({
-               ...courseData.course,
-               courseId: data.courseId,
-               questionsGenerated: true,
-               questions: parsedQuestions, // Add questions to next course
-               videoId: extractVideoId(courseData.course.youtube_url)
-             });
-             
-             console.log('✅ Next course data fetched from database:', {
-               courseId: data.courseId,
-               title: courseData.course.title,
-               questionsCount: parsedQuestions.length
-             });
-           } else {
-             console.error('Failed to fetch questions for next course:', questionsData.error);
-             // Still set course without questions
-             setNextCourse({
-               ...courseData.course,
-               courseId: data.courseId,
-               questionsGenerated: false,
-               questions: [],
-               videoId: extractVideoId(courseData.course.youtube_url)
-             });
-           }
-         } else {
-           console.error('Failed to fetch next course from database:', courseData.error);
-           // Fallback to the original course data from API
+           // Store the next course with database-fetched data
            setNextCourse({
-             ...data.nextCourse,
-             courseId: data.courseId,
-             questionsGenerated: !!data.courseId
+             ...courseData.course,
+             courseId: smartAnalysisData.course_id,
+             questionsGenerated: true,
+             questions: parsedQuestions,
+             videoId: extractVideoId(courseData.course.youtube_url),
+             topic: firstTopic.topic
+           });
+           
+           console.log('✅ Next course data fetched from database:', {
+             courseId: smartAnalysisData.course_id,
+             title: courseData.course.title,
+             questionsCount: parsedQuestions.length,
+             topic: firstTopic.topic
+           });
+         } else {
+           console.error('Failed to fetch questions for next course:', questionsData.error);
+           // Still set course without questions
+           setNextCourse({
+             ...courseData.course,
+             courseId: smartAnalysisData.course_id,
+             questionsGenerated: false,
+             questions: [],
+             videoId: extractVideoId(courseData.course.youtube_url),
+             topic: firstTopic.topic
            });
          }
-       } catch (fetchError) {
-         console.error('Error fetching next course from database:', fetchError);
-         // Fallback to the original course data from API
+       } else {
+         console.error('Failed to fetch next course from database:', courseData.error);
+         // Fallback to basic course data
          setNextCourse({
-           ...data.nextCourse,
-           courseId: data.courseId,
-           questionsGenerated: !!data.courseId
+           id: smartAnalysisData.course_id,
+           title: firstTopic.topic,
+           description: `AI Generated Course about ${firstTopic.topic}`,
+           youtube_url: firstTopic.video,
+           created_at: new Date().toISOString(),
+           published: true,
+           courseId: smartAnalysisData.course_id,
+           questionsGenerated: smartAnalysisData.segmented || smartAnalysisData.cached || !smartAnalysisData.background_processing,
+           questions: [],
+           videoId: extractVideoId(firstTopic.video),
+           topic: firstTopic.topic
          });
        }
-     } else {
-       console.error('Failed to fetch next course:', data.error);
-       // Reset API called state on error so it can be retried
-       setNextCourseApiCalled(false);
+     } catch (fetchError) {
+       console.error('Error fetching next course from database:', fetchError);
+       // Fallback to basic course data
+       setNextCourse({
+         id: smartAnalysisData.course_id,
+         title: firstTopic.topic,
+         description: `AI Generated Course about ${firstTopic.topic}`,
+         youtube_url: firstTopic.video,
+         created_at: new Date().toISOString(),
+         published: true,
+         courseId: smartAnalysisData.course_id,
+         questionsGenerated: smartAnalysisData.segmented || smartAnalysisData.cached || !smartAnalysisData.background_processing,
+         questions: [],
+         videoId: extractVideoId(firstTopic.video),
+         topic: firstTopic.topic
+       });
      }
    } catch (err) {
      console.error('Error fetching next course:', err);

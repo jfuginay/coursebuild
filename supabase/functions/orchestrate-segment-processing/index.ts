@@ -94,6 +94,51 @@ serve(async (req: Request) => {
           
         if (publishError) {
           console.error('Failed to publish course:', publishError);
+        } else {
+          console.log('✅ Course marked as published');
+          
+          // Try to update course description with AI-generated summary from transcript
+          try {
+            // Check if current description is generic
+            const isGenericDescription = course.description && (
+              course.description.includes('Interactive course from') ||
+              course.description.includes('AI-powered interactive course') ||
+              course.description.includes('AI Generated Course')
+            );
+
+            if (isGenericDescription) {
+              // Fetch the latest transcript for this course
+              const { data: transcript, error: transcriptError } = await supabase
+                .from('video_transcripts')
+                .select('video_summary')
+                .eq('course_id', course_id)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+
+              if (!transcriptError && transcript && transcript.video_summary) {
+                // Update the course with the AI-generated summary
+                const { error: updateError } = await supabase
+                  .from('courses')
+                  .update({ 
+                    description: transcript.video_summary 
+                  })
+                  .eq('id', course_id);
+
+                if (!updateError) {
+                  console.log('✅ Course description updated with AI-generated summary');
+                } else {
+                  console.error('Failed to update course description:', updateError);
+                }
+              } else {
+                console.log('No transcript or video summary available for description update');
+              }
+            } else {
+              console.log('Course already has a custom description, skipping update');
+            }
+          } catch (error) {
+            console.error('Error updating course description:', error);
+          }
         }
       }
       
