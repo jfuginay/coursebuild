@@ -88,7 +88,12 @@ Using the transcript and visual analysis from Phase 1, create strategic question
 ### Question Distribution Strategy
 - **Cognitive Balance**: Distribute across multiple Bloom's taxonomy levels
 - **Type Diversity**: Include multiple question formats for engagement variety
-- **Temporal Spacing**: Use transcript timestamps to distribute questions appropriately
+- **Temporal Spacing**: Distribute questions thoughtfully throughout the video
+  - Place questions AFTER concepts are fully explained (not during)
+  - Allow 4-8 seconds after explanations for processing time
+  - Look for natural pauses between topics or sections
+  - Avoid placing questions mid-sentence or during new topic introductions
+  - Consider transcript segment boundaries and gaps as natural break points
 - **Difficulty Progression**: Start accessible, build to more challenging concepts
 - **Visual Integration**: Include 2-3 visual questions when transcript shows visual content
 
@@ -110,6 +115,30 @@ Each question plan should reference specific transcript segments and demonstrate
 
 Focus on creating questions that would genuinely help students learn and understand, not just demonstrate what they've memorized. Every question should have clear educational value and contribute to meaningful learning outcomes.
 `;
+
+// =============================================================================
+// Shared Timing Instruction for Question Generation
+// =============================================================================
+
+export const QUESTION_TIMING_INSTRUCTION = `
+## IMPORTANT TIMING INSTRUCTION
+Based on the transcript segments above, determine the OPTIMAL TIMESTAMP for this question to appear. The question should appear AFTER all relevant concepts have been fully explained. Look for when explanations end, not when they begin.
+
+Return an "optimal_timestamp" field (in seconds) in your response that indicates when this question should appear. This should be:
+- After all necessary concepts are explained
+- After the end timestamp of the last relevant explanation  
+- At least 4-8 seconds after the explanation ends to give viewers time to process
+- Preferably at a natural pause in the video (between sentences or topics)
+- NOT in the middle of a new topic or ongoing explanation
+- NOT cutting off mid-sentence
+
+Look for these timing cues in the transcript:
+1. End timestamps of explanation segments
+2. Natural pauses between topics (gaps in timestamps)
+3. Transitions indicated by phrases like "Now let's move on to..." or "Next..."
+4. Completion of thought indicated by conclusive statements
+
+If no natural pause exists, add at least 4 seconds after the last explanation ends.`;
 
 // =============================================================================
 // Bloom's Taxonomy Level Definitions

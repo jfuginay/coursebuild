@@ -8,10 +8,18 @@
  * Updated to use unified LLM interface supporting both Gemini and OpenAI.
  */
 
+// =============================================================================
+// Imports
+// =============================================================================
+
 import { QuestionPlan, MCQQuestion, QuestionGenerationError } from '../types/interfaces.ts';
-import { llmService, LLMRequest } from './llm-providers.ts';
-import { QUESTION_TYPE_CONFIGS, validateResponseSchema } from './llm-schemas.ts';
 import { formatSecondsForDisplay } from '../utils/timestamp-converter.ts';
+import { QUESTION_TYPE_CONFIGS, validateResponseSchema } from './llm-schemas.ts';
+import { LLMService, LLMRequest } from './llm-providers.ts';
+import { QUESTION_TIMING_INSTRUCTION } from '../config/prompts.ts';
+
+// Initialize LLM service
+const llmService = new LLMService();
 
 // =============================================================================
 // MCQ-Specific Prompt (Stage 2)
@@ -108,7 +116,6 @@ export const generateMCQQuestion = async (
     
     // Validate MCQ structure
     validateResponseSchema(questionData, 'multiple-choice');
-    validateMCQStructure(questionData);
     
     // Use the timestamp from LLM if provided, otherwise use plan timestamp
     const finalTimestamp = questionData.optimal_timestamp || plan.timestamp;
@@ -148,14 +155,14 @@ export const generateMCQQuestion = async (
     console.error(`❌ MCQ generation failed:`, error);
     
     if (error instanceof Error) {
-      throw new QuestionGenerationError(
+      throw new Error(
         `Failed to generate MCQ: ${error.message}`,
         plan.question_id,
         { questionType: 'multiple-choice', planDetails: plan, error: error.message }
       );
     }
     
-    throw new QuestionGenerationError(
+    throw new Error(
       'Unknown error during MCQ generation',
       plan.question_id,
       { questionType: 'multiple-choice', planDetails: plan }
@@ -181,7 +188,7 @@ const buildMCQContextualPrompt = (plan: QuestionPlan, transcriptContext?: any): 
 - Suggested Timestamp: ${plan.timestamp}s (${formatSecondsForDisplay(plan.timestamp)})`;
 
   // Add transcript context if available
-  if (transcriptContext) {
+  if (transcriptContext && transcriptContext.formattedContext) {
     prompt += `
 
 ## TRANSCRIPT CONTEXT
@@ -193,13 +200,7 @@ Key Concepts Nearby: ${transcriptContext.nearbyConcepts.join(', ')}
 Visual Context: ${transcriptContext.visualContext || 'N/A'}
 ${transcriptContext.isSalientMoment ? `This is a salient learning moment (${transcriptContext.eventType})` : ''}
 
-## IMPORTANT TIMING INSTRUCTION
-Based on the transcript segments above, determine the OPTIMAL TIMESTAMP for this question to appear. The question should appear AFTER all relevant concepts have been fully explained. Look for when explanations end, not when they begin.
-
-Return an "optimal_timestamp" field (in seconds) in your response that indicates when this question should appear. This should be:
-- After all necessary concepts are explained
-- After the end timestamp of the last relevant explanation
-- Before the video moves to unrelated topics
+${QUESTION_TIMING_INSTRUCTION}
 
 Use this transcript context to:
 1. Create more accurate and contextually relevant questions
@@ -217,44 +218,6 @@ Note: No transcript context available. Use the suggested timestamp of ${formatSe
 Generate a high-quality multiple choice question based on this plan.`;
 
   return prompt;
-};
-
-const validateMCQStructure = (data: any): void => {
-  // Basic structure validation
-  if (!data.question || typeof data.question !== 'string' || data.question.trim().length < 10) {
-    throw new Error('Question must be a non-empty string of at least 10 characters');
-  }
-  
-  if (!Array.isArray(data.options) || data.options.length !== 4) {
-    throw new Error('MCQ must have exactly 4 options');
-  }
-  
-  // Validate all options are non-empty strings
-  for (let i = 0; i < data.options.length; i++) {
-    if (!data.options[i] || typeof data.options[i] !== 'string' || data.options[i].trim().length < 2) {
-      throw new Error(`Option ${i} must be a non-empty string`);
-    }
-  }
-  
-  if (typeof data.correct_answer !== 'number' || data.correct_answer < 0 || data.correct_answer > 3) {
-    throw new Error('correct_answer must be a number between 0 and 3');
-  }
-  
-  if (!data.explanation || typeof data.explanation !== 'string' || data.explanation.trim().length < 20) {
-    throw new Error('Explanation must be a meaningful string of at least 20 characters');
-  }
-  
-  // Validate options are reasonably different
-  const uniqueOptions = new Set(data.options.map((opt: string) => opt.toLowerCase().trim()));
-  if (uniqueOptions.size < 4) {
-    throw new Error('All options must be unique');
-  }
-  
-  // Check for basic educational quality indicators
-  const explanation = data.explanation.toLowerCase();
-  if (!explanation.includes('correct') && !explanation.includes('because') && !explanation.includes('why')) {
-    console.warn('⚠️ Explanation may lack educational depth - missing explanatory language');
-  }
 };
 
 // =============================================================================
