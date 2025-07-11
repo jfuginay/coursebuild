@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,34 @@ export default function CreateWithProgress() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
+
+  // =============================================================================
+  // Check for URL parameters on load
+  // =============================================================================
+
+  useEffect(() => {
+    // Check if we were redirected from the main course generation with parameters
+    if (router.query.courseId && router.query.sessionId) {
+      const courseIdParam = router.query.courseId as string;
+      const sessionIdParam = router.query.sessionId as string;
+      const youtubeUrlParam = router.query.youtubeUrl as string;
+
+      console.log('📊 Redirected from main course generation:', {
+        courseId: courseIdParam,
+        sessionId: sessionIdParam,
+        youtubeUrl: youtubeUrlParam
+      });
+
+      // Set the state to show progress tracking immediately
+      setCourseId(courseIdParam);
+      setSessionId(sessionIdParam);
+      setYoutubeUrl(youtubeUrlParam || '');
+      setIsProcessing(true);
+
+      // Show notification
+      toast.info('Your course is being processed. Watch the progress below!');
+    }
+  }, [router.query]);
 
   // =============================================================================
   // Course Creation Handler
@@ -63,7 +91,7 @@ export default function CreateWithProgress() {
       console.log('📊 Session ID generated:', newSessionId);
 
       // Step 3: Start the quiz generation pipeline with progress tracking
-      const response = await fetch('/api/course/analyze-video-with-progress', {
+      const response = await fetch('/api/course/analyze-video-smart', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -72,8 +100,9 @@ export default function CreateWithProgress() {
           course_id: courseData.id,
           youtube_url: youtubeUrl,
           session_id: newSessionId,
-          max_questions: 4,
-          enable_quality_verification: false
+          max_questions: 10, // 10 questions per segment for longer videos
+          enable_quality_verification: false,
+          segment_duration: 300 // 5 minutes per segment
         }),
       });
 
@@ -83,8 +112,13 @@ export default function CreateWithProgress() {
       }
 
       const result = await response.json();
-      console.log('🎯 Pipeline started successfully:', result);
+      console.log('🎯 Processing started:', result);
+      
+      if (result.segmented) {
+        toast.success(`Video will be processed in ${result.total_segments} segments! Watch the progress below.`);
+      } else {
       toast.success('Video processing started! Watch the progress below.');
+      }
 
     } catch (error) {
       console.error('❌ Course creation failed:', error);

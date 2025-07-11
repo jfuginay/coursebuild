@@ -18,16 +18,18 @@ CourseBuilder leverages dual LLM providers with full video transcription and int
 - **Base-60 timestamp conversion** handling Gemini's unique timestamp format
 - **LLM-optimized question timing** ensuring questions appear after concepts are explained
 - **Transcript context extraction** with intelligent segment boundary handling
+- **Dynamic frame sampling** based on video duration for optimal performance (NEW)
 - **Unified LLM interface** supporting OpenAI GPT-4o and Gemini 2.5 Flash
 - **Provider-specific optimization**: OpenAI for text questions, Gemini for visual content
 - **Automatic fallback system** with health checks and retry logic
 
 ### 🔧 **Advanced Processing Pipeline**
 - **Enhanced 3-stage processing**: 
-  - Stage 1: Full transcript generation + planning
+  - Stage 1: Full transcript generation + planning with dynamic frame sampling
   - Stage 2: Context-aware question generation with optimal timing
   - Stage 3: Optional quality verification
 - **Real-time video analysis** with transcript-aware strategic question placement
+- **Intelligent frame sampling** that adapts to video duration (1fps for <5min, scaling down for longer videos)
 - **Transcript storage** for reuse and analysis
 - **End-to-end pipeline** completing in ~30 seconds with full transcription
 - **Data format compatibility** with proper JSON parsing for frontend
@@ -218,6 +220,42 @@ curl -X POST https://YOUR_PROJECT_ID.supabase.co/functions/v1/quiz-generation-v5
 ✅ JSON Parsing: Robust handling of large responses
 ✅ Error Recovery: Multiple fixing attempts
 ```
+
+## Recent Updates
+
+### Timestamp Conversion Fix
+- **Fixed decimal minute format**: Timestamps like 3.37 now correctly convert to 3m 37s (217 seconds)
+- **Issue**: Videos showing incorrect duration (e.g., 3.2s instead of 3:37)
+- **Solution**: Enhanced `convertBase60ToSeconds` to detect and handle decimal minute format
+- **Also supports**: String timestamps in "MM:SS" or "H:MM:SS" format
+
+### Segmented Video Processing Fix
+- **Fixed incorrect filtering**: Removed double-filtering of Gemini's video segment output
+- **Issue**: Code was filtering transcript/questions after Gemini already clipped the video with startOffset/endOffset
+- **Solution**: Trust Gemini's output when video clipping is used - timestamps are absolute but content is already scoped
+- **Result**: Segmented and full video processing now produce consistent, accurate results
+- See `SEGMENTED_PROCESSING_DEBUG.md` for detailed analysis
+
+### Video Segmentation Improvements
+- **Smart Last Segment Handling**: If the last segment is less than 20 seconds, it's automatically merged with the previous segment to avoid tiny segments
+- **Empty Transcript Handling**: Segments with no transcript content (e.g., intro/outro music) skip question generation automatically
+- **5-Second Buffer**: Video segments include a 5-second buffer at the end to avoid cutting off mid-sentence
+  - Buffer is applied to `endOffset` when calling Gemini API
+  - Gemini returns only content from the clipped segment (no additional filtering needed)
+  - No buffer applied to the last segment
+
+### Progress Tracking Table Fix
+- Fixed incorrect table names in progress tracking system
+- Changed `processing_progress` → `quiz_generation_progress` 
+- Changed `details` column → `metadata` column
+- Commented out individual question progress tracking (table doesn't exist yet)
+
+### Dynamic Frame Sampling Based on Video Duration
+- The system now dynamically adjusts frame sampling rates based on video duration
+- Instead of using a fixed 1fps sampling rate, we use:
+  - **Constant 300 frames** per video regardless of duration
+  - Ensures consistent Gemini API usage across all videos
+  - Better coverage for short videos, efficient processing for long videos
 
 ## 📋 Documentation & Resources
 

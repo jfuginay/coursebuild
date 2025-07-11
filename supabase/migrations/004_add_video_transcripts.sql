@@ -104,3 +104,7 @@ SELECT
     concept->'explanation_timestamps' as explanation_timestamps
 FROM video_transcripts vt,
      LATERAL jsonb_array_elements(vt.key_concepts_timeline) AS concept; 
+
+-- 10. Add metadata column if not exists (for segment tracking)
+ALTER TABLE video_transcripts
+ADD COLUMN IF NOT EXISTS metadata JSONB; 
