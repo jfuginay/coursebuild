@@ -14,7 +14,7 @@ import VideoProgressBar from '@/components/VideoProgressBar';
 import TranscriptDisplay from '@/components/TranscriptDisplay';
 import InteractiveVideoPlayer from '@/components/InteractiveVideoPlayer';
 import InfoBiteCard from '@/components/InfoBiteCard';
-import { RatingModal } from '@/components/StarRating';
+import { RatingModal, CompactStarRating } from '@/components/StarRating';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAnalytics } from '@/hooks/useAnalytics';
@@ -400,7 +400,7 @@ export default function CoursePage() {
          title: data.course.title,
          youtubeUrl: data.course.youtube_url,
          extractedVideoId: extractedVideoId,
-         published: data.course.published
+         published: data.course.published,
          hasRatings: courseWithRating.totalRatings > 0,
          averageRating: courseWithRating.averageRating
        });
