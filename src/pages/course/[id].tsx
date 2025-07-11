@@ -367,7 +367,7 @@ export default function CoursePage() {
        const visualQuestions = parsedQuestions.filter((q: Question) => q.type === 'hotspot' || q.type === 'matching' || q.requires_video_overlay);
        console.log('👁️ Visual questions found:', visualQuestions.length);
        if (visualQuestions.length > 0) {
-         console.log('🖼️ First visual question:', visualQuestions[0]);
+         console.log('🖼️ First visual q:', visualQuestions[0]);
        }
        
        setQuestions(parsedQuestions);
