@@ -13,7 +13,7 @@ import CourseCurriculumCard from '@/components/CourseCurriculumCard';
 import VideoProgressBar from '@/components/VideoProgressBar';
 import TranscriptDisplay from '@/components/TranscriptDisplay';
 import InteractiveVideoPlayer from '@/components/InteractiveVideoPlayer';
-import { RatingModal } from '@/components/StarRating';
+import { RatingModal, CompactStarRating } from '@/components/StarRating';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAnalytics } from '@/hooks/useAnalytics';
@@ -30,6 +30,8 @@ interface Course {
  questionsGenerated?: boolean;
  questions?: Question[];
  videoId?: string;
+ averageRating?: number;
+ totalRatings?: number;
 }
 
 interface Question {
@@ -272,12 +274,36 @@ export default function CoursePage() {
      const data = await response.json();
 
      if (data.success) {
-       setCourse(data.course);
+       // Enhance course data with rating information
+      let courseWithRating = { ...data.course };
+      
+      try {
+        // Fetch rating data for this course
+        const ratingResponse = await fetch(`/api/courses/${id}/rating`);
+        if (ratingResponse.ok) {
+          const ratingData = await ratingResponse.json();
+          if (ratingData.success && ratingData.stats) {
+            courseWithRating.averageRating = ratingData.stats.average_rating || 0;
+            courseWithRating.totalRatings = ratingData.stats.total_ratings || 0;
+            console.log('⭐ Rating data loaded:', {
+              averageRating: courseWithRating.averageRating,
+              totalRatings: courseWithRating.totalRatings
+            });
+          }
+        }
+      } catch (ratingError) {
+        console.warn('Failed to fetch rating data:', ratingError);
+        // Continue without rating data
+      }
+      
+      setCourse(courseWithRating);
        const extractedVideoId = extractVideoId(data.course.youtube_url);
        console.log('🎬 Course loaded:', {
          title: data.course.title,
          youtubeUrl: data.course.youtube_url,
-         extractedVideoId: extractedVideoId
+         extractedVideoId: extractedVideoId,
+         hasRatings: courseWithRating.totalRatings > 0,
+         averageRating: courseWithRating.averageRating
        });
        setVideoId(extractedVideoId);
      } else {
@@ -1135,6 +1161,19 @@ export default function CoursePage() {
            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
              {course.description}
            </p>
+           
+           {/* Course Rating */}
+           {course.totalRatings && course.totalRatings > 0 && (
+             <div className="flex items-center justify-center">
+               <CompactStarRating
+                 rating={course.averageRating || 0}
+                 totalRatings={course.totalRatings}
+                 size="md"
+                 showRatingText={true}
+                 className="text-yellow-500"
+               />
+             </div>
+           )}
            
            {/* Course Stats */}
            <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
