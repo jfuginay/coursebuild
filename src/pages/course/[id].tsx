@@ -689,6 +689,22 @@ export default function CoursePage() {
      if (!smartAnalysisResponse.ok) {
        const errorText = await smartAnalysisResponse.text();
        console.error('Smart analysis failed:', errorText);
+       
+       // Parse error response to check if it's a video duration error
+       let errorObj;
+       try {
+         errorObj = JSON.parse(errorText);
+       } catch {
+         errorObj = { error: errorText };
+       }
+       
+       // Check if it's a video duration error
+       if (errorObj.video_duration && errorObj.max_duration) {
+         const videoDurationMinutes = Math.floor(errorObj.video_duration / 60);
+         const maxDurationMinutes = Math.floor(errorObj.max_duration / 60);
+         throw new Error(`The suggested video is ${videoDurationMinutes} minutes long. Maximum allowed duration is ${maxDurationMinutes} minutes. We'll find a shorter alternative.`);
+       }
+       
        throw new Error(`Smart analysis failed: ${errorText}`);
      }
      

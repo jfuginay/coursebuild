@@ -110,6 +110,35 @@ serve(async (req: Request) => {
 
     const videoDuration = await getVideoDuration(videoId);
     
+    // Check if video is too long (more than 45 minutes)
+    const MAX_VIDEO_DURATION = 2700; // 45 minutes in seconds
+    
+    if (videoDuration && videoDuration > MAX_VIDEO_DURATION) {
+      const durationMinutes = Math.floor(videoDuration / 60);
+      const durationSeconds = videoDuration % 60;
+      
+      console.error(`❌ Video too long: ${durationMinutes}m ${durationSeconds}s (max allowed: 45 minutes)`);
+      
+      // Delete the course that was created
+      await supabase
+        .from('courses')
+        .delete()
+        .eq('id', course_id);
+      
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Video is too long (${durationMinutes}m ${durationSeconds}s). Maximum allowed duration is 45 minutes.`,
+          video_duration: videoDuration,
+          max_duration: MAX_VIDEO_DURATION
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400 
+        }
+      );
+    }
+    
     // If we can't get duration, check if video is likely to be long (>10 minutes)
     // based on course metadata or use a default assumption
     let totalDuration = videoDuration || 1800; // Default to 30 minutes if unknown
