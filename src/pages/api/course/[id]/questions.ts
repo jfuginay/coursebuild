@@ -20,6 +20,20 @@ export default async function handler(
     return res.status(400).json({ error: 'Course ID is required' });
   }
 
+  // Check for authentication
+  const authHeader = req.headers.authorization;
+  let isAuthenticated = false;
+  
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+      isAuthenticated = !error && !!user;
+    } catch (error) {
+      console.warn('Failed to verify auth token:', error);
+    }
+  }
+
   try {
     // Fetch questions with bounding boxes for video overlay functionality
     const { data: questions, error } = await supabase
@@ -157,7 +171,20 @@ export default async function handler(
       return true;
     });
 
+    // Apply free questions limit for unauthenticated users
+    const FREE_QUESTIONS_LIMIT = 3;
+    let questionsToReturn = fullyValidQuestions;
+    
+    if (!isAuthenticated && fullyValidQuestions.length > FREE_QUESTIONS_LIMIT) {
+      // Return all questions but mark which ones are locked
+      questionsToReturn = fullyValidQuestions.map((question, index) => ({
+        ...question,
+        isLocked: index >= FREE_QUESTIONS_LIMIT
+      }));
+    }
+
     console.log(`✅ Fetched ${questions?.length || 0} questions, filtered to ${fullyValidQuestions.length} valid questions for course ${id}`);
+    console.log(`🔒 User authenticated: ${isAuthenticated}, questions limit applied: ${!isAuthenticated}`);
     console.log(`🎬 Video overlay questions: ${fullyValidQuestions.filter(q => q.requires_video_overlay).length}`);
     console.log(`🎯 Questions with bounding boxes: ${fullyValidQuestions.filter(q => q.bounding_box_count > 0).length}`);
     console.log(`🔍 Valid hotspot questions: ${fullyValidQuestions.filter(q => q.type === 'hotspot').length}`);
@@ -193,17 +220,20 @@ export default async function handler(
 
     return res.status(200).json({
       success: true,
-      questions: fullyValidQuestions,
+      questions: questionsToReturn,
+      isAuthenticated,
+      freeQuestionsLimit: !isAuthenticated ? FREE_QUESTIONS_LIMIT : null,
       debug: {
         total_questions_fetched: questions?.length || 0,
-        valid_questions_returned: fullyValidQuestions.length,
+        valid_questions_returned: questionsToReturn.length,
         filtered_out_count: (questions?.length || 0) - fullyValidQuestions.length,
         video_overlay_questions: fullyValidQuestions.filter(q => q.requires_video_overlay).length,
         questions_with_bboxes: fullyValidQuestions.filter(q => q.bounding_box_count > 0).length,
         valid_hotspot_questions: fullyValidQuestions.filter(q => q.type === 'hotspot').length,
         matching_questions: fullyValidQuestions.filter(q => q.matching_pairs && q.matching_pairs.length > 0).length,
         sequencing_questions: fullyValidQuestions.filter(q => q.sequence_items && q.sequence_items.length > 0).length,
-        approach: 'comprehensive_question_types'
+        approach: 'comprehensive_question_types',
+        user_authenticated: isAuthenticated
       }
     });
 
