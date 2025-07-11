@@ -13,8 +13,7 @@ import CourseCurriculumCard from '@/components/CourseCurriculumCard';
 import VideoProgressBar from '@/components/VideoProgressBar';
 import TranscriptDisplay from '@/components/TranscriptDisplay';
 import InteractiveVideoPlayer from '@/components/InteractiveVideoPlayer';
-import InfoBiteToast from '@/components/InfoBiteToast';
-import AutonomySlider from '@/components/AutonomySlider';
+import InfoBiteCard from '@/components/InfoBiteCard';
 import { RatingModal } from '@/components/StarRating';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
@@ -134,7 +133,7 @@ export default function CoursePage() {
  const [courseStartTime] = useState(Date.now());
 
  // InfoBite state
- const [autonomyLevel, setAutonomyLevel] = useState(1); // Default to "Help" mode
+ const [autonomyLevel, setAutonomyLevel] = useState(2); // Guide Me mode - active InfoBites
  const [isPlaying, setIsPlaying] = useState(false);
 
  // Player reload state
@@ -873,31 +872,47 @@ export default function CoursePage() {
     
     // Wait for the card to switch back to video, then trigger reload
     setTimeout(() => {
-      console.log('🔄 Auto-reloading player after question...');
-      handleReloadPlayer();
-      
-      // After reload, wait for player to be ready and resume
-      const waitForPlayerAndResume = (attempts = 0) => {
-        if (attempts > 20) {
-          console.error('Failed to resume after reload');
+      // Wait for the DOM to be ready with the player container
+      const waitForContainer = (attempts = 0) => {
+        if (attempts > 10) {
+          console.error('Player container not found after question');
           return;
         }
         
-        if (playerRef.current && isVideoReady) {
-          try {
-            playerRef.current.playVideo();
-            console.log('✅ Video resumed after reload');
-          } catch (error) {
-            console.warn('Failed to resume, retrying...', error);
-            setTimeout(() => waitForPlayerAndResume(attempts + 1), 200);
-          }
+        const container = document.getElementById('youtube-player');
+        if (container) {
+          console.log('🔄 Container found, reloading player after question...');
+          handleReloadPlayer();
+          
+          // After reload, wait for player to be ready and resume
+          const waitForPlayerAndResume = (attempts = 0) => {
+            if (attempts > 20) {
+              console.error('Failed to resume after reload');
+              return;
+            }
+            
+            if (playerRef.current && isVideoReady) {
+              try {
+                playerRef.current.playVideo();
+                console.log('✅ Video resumed after reload');
+              } catch (error) {
+                console.warn('Failed to resume, retrying...', error);
+                setTimeout(() => waitForPlayerAndResume(attempts + 1), 200);
+              }
+            } else {
+              setTimeout(() => waitForPlayerAndResume(attempts + 1), 200);
+            }
+          };
+          
+          // Start checking for player after reload delay
+          setTimeout(() => waitForPlayerAndResume(), 1000);
         } else {
-          setTimeout(() => waitForPlayerAndResume(attempts + 1), 200);
+          console.log(`Waiting for container, attempt ${attempts + 1}`);
+          setTimeout(() => waitForContainer(attempts + 1), 100);
         }
       };
       
-      // Start checking for player after reload delay
-      setTimeout(() => waitForPlayerAndResume(), 1000);
+      waitForContainer();
     }, 100); // Small delay to ensure card has switched
   };
 
@@ -962,29 +977,45 @@ export default function CoursePage() {
     setSavedTimestamp(resumeTimestamp);
     
     setTimeout(() => {
-      console.log('🔄 Auto-reloading player after skip...');
-      handleReloadPlayer();
-      
-      const waitForPlayerAndResume = (attempts = 0) => {
-        if (attempts > 20) {
-          console.error('Failed to resume after skip reload');
+      // Wait for the DOM to be ready with the player container
+      const waitForContainer = (attempts = 0) => {
+        if (attempts > 10) {
+          console.error('Player container not found after skip');
           return;
         }
         
-        if (playerRef.current && isVideoReady) {
-          try {
-            playerRef.current.playVideo();
-            console.log('✅ Video resumed after skip reload');
-          } catch (error) {
-            console.warn('Failed to resume after skip, retrying...', error);
-            setTimeout(() => waitForPlayerAndResume(attempts + 1), 200);
-          }
+        const container = document.getElementById('youtube-player');
+        if (container) {
+          console.log('🔄 Container found, reloading player after skip...');
+          handleReloadPlayer();
+          
+          const waitForPlayerAndResume = (attempts = 0) => {
+            if (attempts > 20) {
+              console.error('Failed to resume after skip reload');
+              return;
+            }
+            
+            if (playerRef.current && isVideoReady) {
+              try {
+                playerRef.current.playVideo();
+                console.log('✅ Video resumed after skip reload');
+              } catch (error) {
+                console.warn('Failed to resume after skip, retrying...', error);
+                setTimeout(() => waitForPlayerAndResume(attempts + 1), 200);
+              }
+            } else {
+              setTimeout(() => waitForPlayerAndResume(attempts + 1), 200);
+            }
+          };
+          
+          setTimeout(() => waitForPlayerAndResume(), 1000);
         } else {
-          setTimeout(() => waitForPlayerAndResume(attempts + 1), 200);
+          console.log(`Waiting for container after skip, attempt ${attempts + 1}`);
+          setTimeout(() => waitForContainer(attempts + 1), 100);
         }
       };
       
-      setTimeout(() => waitForPlayerAndResume(), 1000);
+      waitForContainer();
     }, 100);
  };
 
@@ -1435,17 +1466,6 @@ export default function CoursePage() {
            );
          })()}
 
-         {/* Autonomy Slider */}
-         {user && (
-           <Card>
-             <CardContent className="p-4">
-               <AutonomySlider
-                 value={autonomyLevel}
-                 onChange={setAutonomyLevel}
-               />
-             </CardContent>
-           </Card>
-                   )}
           
           {/* Hotspot Questions and Transcript Display */}
           {(() => {
@@ -1631,11 +1651,13 @@ export default function CoursePage() {
        autoHide={8000}
      />
 
-     {/* InfoBite Toast */}
-     {currentHint && currentHint.type === 'MICRO_LESSON' && currentHint.text && (
-       <InfoBiteToast
+     {/* InfoBite Card - AI-generated insights */}
+     {currentHint && currentHint.type !== 'noop' && currentHint.text && (
+       <InfoBiteCard
+         type={currentHint.type as any}
          text={currentHint.text}
          timestamp={currentHint.timestamp}
+         emphasis={currentHint.metadata?.emphasis}
          onDismiss={dismissHint}
          onTimestampClick={(timestamp) => {
            playerRef.current?.seekTo(timestamp);

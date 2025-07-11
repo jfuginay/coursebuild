@@ -2,11 +2,12 @@
  * InfoBite Agent - Inject Insight Edge Function
  * 
  * Generates contextual micro-lessons based on learner behavior and autonomy settings.
- * Uses transcript context and wrong answer patterns to provide timely hints.
+ * Uses transcript context and AI to provide valuable, dynamic insights.
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { GoogleGenerativeAI } from 'https://esm.sh/@google/generative-ai@0.1.3';
 
 // CORS headers
 const corsHeaders = {
@@ -25,13 +26,15 @@ interface InsightRequest {
 }
 
 interface InsightResponse {
-  type: 'MICRO_LESSON' | 'noop';
+  type: 'MICRO_LESSON' | 'ANALOGY' | 'APPLICATION' | 'CLARIFICATION' | 'DEEPER_DIVE' | 'noop';
   text?: string;
   timestamp?: number;
   metadata?: {
     source?: string;
     confidence?: number;
     conceptsRelated?: string[];
+    insightType?: string;
+    emphasis?: string;
   };
 }
 
@@ -86,6 +89,120 @@ async function getTranscriptContext(
 }
 
 /**
+ * Detect the type of content being discussed
+ */
+function detectContentType(text: string): string {
+  const lowerText = text.toLowerCase();
+  if (lowerText.includes('example') || lowerText.includes('for instance')) return 'example';
+  if (lowerText.includes('define') || lowerText.includes('what is')) return 'definition';
+  if (lowerText.includes('formula') || lowerText.includes('equation')) return 'formula';
+  if (lowerText.includes('process') || lowerText.includes('steps')) return 'process';
+  if (lowerText.includes('code') || lowerText.includes('function')) return 'code';
+  return 'explanation';
+}
+
+/**
+ * Generate AI-powered insight using Google's Gemini
+ */
+async function generateAIInsight(
+  currentText: string,
+  surroundingContext: string,
+  concepts: any[],
+  wrongAnswerStreak: number
+): Promise<{ text: string; type: string; emphasis: string }> {
+  const genAI = new GoogleGenerativeAI(Deno.env.get('GOOGLE_AI_API_KEY') || '');
+  const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+  
+  const contentType = detectContentType(currentText);
+  
+  // Build dynamic prompt based on content type and user struggle level
+  let promptInstruction = `Analyze this educational content and provide a valuable insight that adds NEW information not mentioned in the transcript.\n\n`;
+  
+  if (wrongAnswerStreak >= 2) {
+    promptInstruction += `The learner is struggling (${wrongAnswerStreak} wrong answers). Provide a very clear, helpful insight that clarifies the concept.\n`;
+  }
+  
+  const contentTypePrompts = {
+    'definition': 'Provide a memorable analogy or real-world comparison that makes this concept easier to understand.',
+    'formula': 'Explain a practical application or show why this formula matters in real life.',
+    'process': 'Give a simpler analogy or break down why each step is important.',
+    'code': 'Highlight a common pitfall to avoid or a best practice related to this.',
+    'example': 'Add context about why this example is significant or what principle it demonstrates.',
+    'explanation': 'Provide an interesting fact, application, or deeper insight about this concept.'
+  };
+  
+  promptInstruction += contentTypePrompts[contentType] || contentTypePrompts['explanation'];
+  
+  const prompt = `
+${promptInstruction}
+
+Current content being discussed:
+"${currentText}"
+
+Surrounding context:
+"${surroundingContext}"
+
+${concepts.length > 0 ? `Key concepts: ${concepts.map(c => c.concept).join(', ')}` : ''}
+
+Generate a 2-3 sentence insight that:
+1. Adds value beyond what's being said
+2. Is engaging and memorable
+3. Helps the learner understand better
+
+Format: Start with an emoji that fits the insight type, then provide the insight.
+`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+    
+    // Determine insight type from the generated content
+    let insightType = 'DEEPER_DIVE';
+    if (text.includes('like') || text.includes('similar to')) insightType = 'ANALOGY';
+    else if (text.includes('real-world') || text.includes('used in')) insightType = 'APPLICATION';
+    else if (text.includes('common mistake') || text.includes('clarify')) insightType = 'CLARIFICATION';
+    
+    // Extract key emphasis (first few words after emoji)
+    const emphasisMatch = text.match(/^[^\s]+ (.{10,30})/);;
+    const emphasis = emphasisMatch ? emphasisMatch[1] + '...' : 'Key insight';
+    
+    return {
+      text: text.trim(),
+      type: insightType,
+      emphasis
+    };
+  } catch (error) {
+    console.error('AI generation failed:', error);
+    // Fallback to template-based generation
+    return generateTemplateHint(currentText, concepts, wrongAnswerStreak);
+  }
+}
+
+/**
+ * Fallback template-based hint generation
+ */
+function generateTemplateHint(
+  currentText: string,
+  concepts: any[],
+  wrongAnswerStreak: number
+): { text: string; type: string; emphasis: string } {
+  if (wrongAnswerStreak >= 2 && concepts.length > 0) {
+    return {
+      text: `💡 Focus on understanding "${concepts[0].concept}" - it's key to answering the questions.`,
+      type: 'CLARIFICATION',
+      emphasis: 'Focus on key concept'
+    };
+  }
+  
+  return {
+    text: `🎯 Pay attention to this section - it often appears in questions.`,
+    type: 'DEEPER_DIVE',
+    emphasis: 'Important section'
+  };
+}
+
+/**
  * Generate a micro-lesson hint based on context
  */
 async function generateHint(
@@ -101,80 +218,52 @@ async function generateHint(
 
   const { segments, concepts, currentSegment } = context;
   
-  // If user is struggling (high wrong answer streak), provide more direct help
-  if (wrongAnswerStreak >= 2) {
-    // Look for key concepts being explained
-    if (concepts.length > 0) {
-      const concept = concepts[0];
-      return {
-        text: `💡 Focus on understanding "${concept.concept}" - it's key to answering the questions.`,
-        metadata: {
-          source: 'concept_focus',
-          confidence: 0.9,
-          conceptsRelated: [concept.concept]
-        }
-      };
-    }
-
-    // Provide encouragement with context
+  // Prepare surrounding context (combine nearby segments)
+  const surroundingContext = segments
+    .map(s => s.text)
+    .join(' ')
+    .slice(0, 500); // Limit context size
+  
+  try {
+    // Generate AI-powered insight
+    const aiInsight = await generateAIInsight(
+      currentSegment.text,
+      surroundingContext,
+      concepts,
+      wrongAnswerStreak
+    );
+    
     return {
-      text: `📝 Pro tip: ${currentSegment.text.slice(0, 100)}... Pay attention to this part!`,
+      text: aiInsight.text,
       metadata: {
-        source: 'transcript_highlight',
-        confidence: 0.8
+        source: 'ai_generated',
+        confidence: 0.9,
+        conceptsRelated: concepts.map(c => c.concept),
+        insightType: aiInsight.type,
+        emphasis: aiInsight.emphasis
+      }
+    };
+  } catch (error) {
+    console.error('Failed to generate AI insight:', error);
+    
+    // Fallback to template hint
+    const fallbackHint = generateTemplateHint(
+      currentSegment.text,
+      concepts,
+      wrongAnswerStreak
+    );
+    
+    return {
+      text: fallbackHint.text,
+      metadata: {
+        source: 'template_fallback',
+        confidence: 0.7,
+        conceptsRelated: concepts.map(c => c.concept),
+        insightType: fallbackHint.type,
+        emphasis: fallbackHint.emphasis
       }
     };
   }
-
-  // Normal hints - provide subtle guidance
-  const hintTemplates = [
-    {
-      condition: () => concepts.length > 0,
-      generate: () => `🎯 New concept introduced: "${concepts[0].concept}". Watch how it's applied.`,
-      metadata: { source: 'concept_intro', confidence: 0.85 }
-    },
-    {
-      condition: () => currentSegment.is_salient_event === 'true',
-      generate: () => `⚡ Important moment! This section often appears in questions.`,
-      metadata: { source: 'salient_event', confidence: 0.9 }
-    },
-    {
-      condition: () => currentSegment.visual_description,
-      generate: () => `👀 Notice what's shown on screen - visual elements may be important.`,
-      metadata: { source: 'visual_cue', confidence: 0.7 }
-    },
-    {
-      condition: () => segments.length > 3,
-      generate: () => `🔄 This section connects to what was discussed earlier. Think about the relationship.`,
-      metadata: { source: 'connection_hint', confidence: 0.75 }
-    }
-  ];
-
-  // Find applicable hint
-  for (const template of hintTemplates) {
-    if (template.condition()) {
-      return {
-        text: template.generate(),
-        metadata: {
-          ...template.metadata,
-          conceptsRelated: concepts.map(c => c.concept)
-        }
-      };
-    }
-  }
-
-  // Default contextual hint
-  const words = currentSegment.text.split(' ');
-  const keyPhrase = words.slice(0, Math.min(words.length, 15)).join(' ');
-  
-  return {
-    text: `💭 Key point: "${keyPhrase}..."`,
-    metadata: {
-      source: 'key_phrase',
-      confidence: 0.6,
-      conceptsRelated: concepts.map(c => c.concept)
-    }
-  };
 }
 
 serve(async (req) => {
@@ -291,9 +380,9 @@ serve(async (req) => {
 
     console.log(`💡 Hint generated: ${hint.text.substring(0, 50)}...`);
 
-    // Return hint
+    // Return enhanced hint
     const response: InsightResponse = {
-      type: 'MICRO_LESSON',
+      type: hint.metadata.insightType || 'MICRO_LESSON',
       text: hint.text,
       timestamp: currentTime,
       metadata: hint.metadata

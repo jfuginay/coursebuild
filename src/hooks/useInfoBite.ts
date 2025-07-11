@@ -3,13 +3,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 
 interface InfoBiteHint {
-  type: 'MICRO_LESSON' | 'noop';
+  type: 'MICRO_LESSON' | 'ANALOGY' | 'APPLICATION' | 'CLARIFICATION' | 'DEEPER_DIVE' | 'noop';
   text?: string;
   timestamp?: number;
   metadata?: {
     source?: string;
     confidence?: number;
     conceptsRelated?: string[];
+    insightType?: string;
+    emphasis?: string;
   };
 }
 
@@ -143,16 +145,17 @@ export function useInfoBite({
 
       const hint: InfoBiteHint = await response.json();
 
-      if (hint.type === 'MICRO_LESSON' && hint.text) {
+      if (hint.type !== 'noop' && hint.text) {
         setCurrentHint(hint);
 
-        // Auto-dismiss after 10 seconds
+        // Auto-dismiss after 10-15 seconds depending on insight type
         if (hintTimeoutRef.current) {
           clearTimeout(hintTimeoutRef.current);
         }
+        const dismissTime = hint.type === 'CLARIFICATION' ? 15000 : 10000;
         hintTimeoutRef.current = setTimeout(() => {
           dismissHint();
-        }, 10000);
+        }, dismissTime);
       }
     } catch (err) {
       console.error('Failed to fetch hint:', err);
