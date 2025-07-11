@@ -118,12 +118,12 @@ export default function ChatBubble({ className, courseId, currentVideoTime, acti
     }
   };
 
-  const handlePredefinedMessage = async (message: string) => {
+  const handlePredefinedMessage = async (message: string, displayMessage?: string) => {
     if (isLoading) return;
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
-      text: message,
+      text: displayMessage || message,
       isUser: true,
       timestamp: new Date()
     };
@@ -191,20 +191,24 @@ export default function ChatBubble({ className, courseId, currentVideoTime, acti
   };
 
   const handleExplainVideo = () => {
-    const message = "Explain what has happened in the video so far, succintly and focus on someone who wants to learn the concepts not random background or video specific details";
-    handlePredefinedMessage(message);
+    const apiMessage = "Explain what has happened in the video so far, succintly and focus on someone who wants to learn the concepts not random background or video specific details";
+    const userDisplayMessage = "Summarize the video so far for me";
+    
+    handlePredefinedMessage(apiMessage, userDisplayMessage);
   };
 
   const handleHelpWithQuestion = () => {
     if (!activeQuestion) return;
     
-    const message = `Help me with this question: Provide a hint for the question content without solving the question. 
+    const apiMessage = `Help me with this question: Provide a hint for the question content without solving the question. 
 
 Question: ${activeQuestion.question}
 Type: ${activeQuestion.type}
 Options: ${activeQuestion.options.join(', ')}`;
     
-    handlePredefinedMessage(message);
+    const userDisplayMessage = "Help me with this question";
+    
+    handlePredefinedMessage(apiMessage, userDisplayMessage);
   };
 
   const formatTime = (date: Date) => {
