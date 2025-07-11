@@ -943,6 +943,18 @@ export default function CoursePage() {
  const handleContinueVideo = () => {
    setAnsweredQuestions(prev => new Set(prev).add(currentQuestionIndex));
    setShowQuestion(false);
+   
+   // For hotspot questions, seek back to the original question timestamp
+   const currentQuestion = questions[currentQuestionIndex];
+   if (currentQuestion && currentQuestion.type === 'hotspot' && currentQuestion.frame_timestamp && playerRef.current) {
+     // The video is currently at frame_timestamp, need to go back to the original timestamp
+     console.log('🎯 Returning to question timestamp from frame timestamp:', {
+       originalTimestamp: currentQuestion.timestamp,
+       frameTimestamp: currentQuestion.frame_timestamp
+     });
+     playerRef.current.seekTo(currentQuestion.timestamp);
+   }
+   
    playerRef.current?.playVideo(); // Resume video when continuing
  };
 
