@@ -1,4 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
+import { createClient } from '@supabase/supabase-js';
+
+// Regular client for authenticated operations
 import { supabase } from '@/lib/supabase';
 
 interface RatingRequest {
@@ -56,6 +59,7 @@ export default async function handler(
 
     // Get user from session (if available)
     let userId: string | null = null;
+    let anonymousId: string | null = null;
     
     try {
       const authHeader = req.headers.authorization;
@@ -70,10 +74,10 @@ export default async function handler(
       console.warn('Auth check failed, allowing anonymous rating:', error);
     }
 
-    // For anonymous users, create a temporary user ID based on IP + course
+    // For anonymous users, create an anonymous identifier based on IP + course
     if (!userId) {
       const clientIP = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-      userId = `anon_${Buffer.from(`${clientIP}_${courseId}`).toString('base64').slice(0, 20)}`;
+      anonymousId = `anon_${Buffer.from(`${clientIP}_${courseId}`).toString('base64').slice(0, 20)}`;
     }
 
     try {
@@ -92,8 +96,7 @@ export default async function handler(
       }
 
       // Prepare rating data
-      const ratingData = {
-        user_id: userId,
+      const ratingData: any = {
         course_id: courseId,
         rating,
         rating_context: context,
@@ -102,8 +105,21 @@ export default async function handler(
         completion_percentage: engagementData?.completionPercentage || 0
       };
 
+      // Add user_id or anonymous_id based on authentication status
+      if (userId) {
+        ratingData.user_id = userId;
+      } else {
+        ratingData.anonymous_id = anonymousId;
+      }
+
       // Insert or update rating (upsert)
-      const { data: insertedRating, error: insertError } = await supabase
+      // Use admin client for anonymous users to bypass RLS
+      const supabaseClient = !userId ? createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      ) : supabase;
+      
+      const { data: insertedRating, error: insertError } = await supabaseClient
         .from('course_ratings')
         .upsert(ratingData, {
           onConflict: 'user_id,course_id',
@@ -142,7 +158,7 @@ export default async function handler(
         };
       }
 
-      console.log(`✅ Rating submitted: ${rating} stars for course ${courseId} by user ${userId}`);
+      console.log(`✅ Rating submitted: ${rating} stars for course ${courseId} by ${userId ? `user ${userId}` : `anonymous ${anonymousId}`}`);
 
       return res.status(200).json({
         success: true,
@@ -152,6 +168,63 @@ export default async function handler(
 
     } catch (error) {
       console.error('Error submitting rating:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Internal server error'
+      });
+    }
+  }
+
+  // Handle GET - Retrieve Rating Stats
+  if (req.method === 'GET') {
+    try {
+      // Get course rating statistics
+      const { data: stats, error: statsError } = await supabase
+        .from('course_rating_stats')
+        .select('*')
+        .eq('course_id', courseId)
+        .maybeSingle(); // Use maybeSingle to handle no results gracefully
+
+      if (statsError) {
+        console.error('Failed to fetch rating stats:', statsError);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to fetch rating statistics'
+        });
+      }
+
+      if (!stats) {
+        return res.status(200).json({
+          success: true,
+          stats: {
+            average_rating: 0,
+            total_ratings: 0
+          }
+        });
+      }
+
+      console.log(`📊 Rating stats fetched for course ${courseId}:`, {
+        averageRating: stats.average_rating,
+        totalRatings: stats.total_ratings
+      });
+
+      return res.status(200).json({
+        success: true,
+        stats: {
+          average_rating: stats.average_rating,
+          total_ratings: stats.total_ratings,
+          five_star_count: stats.five_star_count,
+          four_star_count: stats.four_star_count,
+          three_star_count: stats.three_star_count,
+          two_star_count: stats.two_star_count,
+          one_star_count: stats.one_star_count,
+          median_rating: stats.median_rating,
+          last_rated_at: stats.last_rated_at
+        }
+      });
+
+    } catch (error) {
+      console.error('Error fetching rating stats:', error);
       return res.status(500).json({
         success: false,
         error: 'Internal server error'

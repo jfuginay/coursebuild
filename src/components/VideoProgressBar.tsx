@@ -103,7 +103,7 @@ export default function VideoProgressBar({
   };
 
   return (
-    <div className={cn("space-y-3", className)}>
+    <div id="video-progress-bar" className={cn("space-y-3", className)}>
       <div className="flex justify-between text-sm text-muted-foreground">
         <span>{formatTimestamp(currentTime)}</span>
         <span>{formatTimestamp(duration)}</span>

@@ -431,7 +431,7 @@ export const QUESTION_TYPE_CONFIGS = {
     maxOutputTokens: 4096,
     topK: 40,
     topP: 0.9,
-    preferredProvider: 'gemini' as const
+    preferredProvider: 'openai' as const
   },
   'true-false': {
     schema: TRUE_FALSE_SCHEMA,
@@ -439,7 +439,7 @@ export const QUESTION_TYPE_CONFIGS = {
     maxOutputTokens: 1536,
     topK: 30,
     topP: 0.8,
-    preferredProvider: 'gemini' as const
+    preferredProvider: 'openai' as const
   },
   'matching': {
     schema: MATCHING_SCHEMA,
@@ -447,7 +447,7 @@ export const QUESTION_TYPE_CONFIGS = {
     maxOutputTokens: 2048,
     topK: 40,
     topP: 0.9,
-    preferredProvider: 'gemini' as const
+    preferredProvider: 'openai' as const
   },
   'sequencing': {
     schema: SEQUENCING_SCHEMA,
@@ -455,6 +455,6 @@ export const QUESTION_TYPE_CONFIGS = {
     maxOutputTokens: 2048,
     topK: 35,
     topP: 0.8,
-    preferredProvider: 'gemini' as const
+    preferredProvider: 'openai' as const
   }
 }; 

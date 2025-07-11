@@ -317,60 +317,11 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({
   }, [startTime]);
 
   // =============================================================================
-  // Segment Recovery Check (for stuck segments)
+  // Segment Recovery Check (DISABLED - Now handled by backend orchestrator)
   // =============================================================================
 
-  useEffect(() => {
-    // Skip if not segmented processing or already completed
-    const isSegmentedProcessing = processingProgress?.metadata?.is_segmented || segments.length > 0;
-    if (!isSegmentedProcessing || !courseId || processingProgress?.stage === 'completed') {
-      return;
-    }
-
-    // Check for stuck segments every 30 seconds
-    const checkInterval = setInterval(async () => {
-      // Only check if we have segments and they're not all completed
-      const hasIncompleteSegments = segments.some(s => 
-        s.status === 'processing' || s.status === 'pending' || s.status === 'failed'
-      );
-
-      if (!hasIncompleteSegments) {
-        return;
-      }
-
-      // Check if any segment has been processing for too long
-      const stuckSegment = segments.find(s => {
-        if (s.status !== 'processing' || !s.processing_started_at) {
-          return false;
-        }
-        const processingTime = Date.now() - new Date(s.processing_started_at).getTime();
-        return processingTime > 180000; // 3 minutes
-      });
-
-      if (stuckSegment) {
-        console.log('🔄 Found stuck segment, attempting recovery...');
-        
-        try {
-          const response = await fetch('/api/course/check-segment-processing', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ course_id: courseId }),
-          });
-
-          if (response.ok) {
-            const result = await response.json();
-            console.log('✅ Recovery initiated:', result.message);
-          }
-        } catch (error) {
-          console.error('Failed to check segment processing:', error);
-        }
-      }
-    }, 30000); // Check every 30 seconds
-
-    return () => clearInterval(checkInterval);
-  }, [courseId, segments, processingProgress]);
+  // Frontend no longer triggers segment processing to avoid race conditions
+  // All segment orchestration is handled by the backend
 
   // =============================================================================
   // Helper Functions

@@ -88,7 +88,12 @@ Using the transcript and visual analysis from Phase 1, create strategic question
 ### Question Distribution Strategy
 - **Cognitive Balance**: Distribute across multiple Bloom's taxonomy levels
 - **Type Diversity**: Include multiple question formats for engagement variety
-- **Temporal Spacing**: Use transcript timestamps to distribute questions appropriately
+- **Temporal Spacing**: Distribute questions thoughtfully throughout the video
+  - Place questions AFTER concepts are fully explained (not during)
+  - Allow 4-8 seconds after explanations for processing time
+  - Look for natural pauses between topics or sections
+  - Avoid placing questions mid-sentence or during new topic introductions
+  - Consider transcript segment boundaries and gaps as natural break points
 - **Difficulty Progression**: Start accessible, build to more challenging concepts
 - **Visual Integration**: Include 2-3 visual questions when transcript shows visual content
 
@@ -110,6 +115,22 @@ Each question plan should reference specific transcript segments and demonstrate
 
 Focus on creating questions that would genuinely help students learn and understand, not just demonstrate what they've memorized. Every question should have clear educational value and contribute to meaningful learning outcomes.
 `;
+
+// =============================================================================
+// Shared Timing Instruction for Question Generation
+// =============================================================================
+
+export const QUESTION_TIMING_INSTRUCTION = `
+## TIMING INSTRUCTION
+Determine the optimal timestamp for this question based on the transcript. Return an "optimal_timestamp" field (in seconds).
+
+The question should appear:
+- AFTER all relevant concepts are fully explained (not during)
+- With 4-8 seconds delay for processing (minimum 2 seconds if no natural pause)
+- At natural pauses: gaps between segments, transitions ("Now let's...", "Next..."), or thought completions
+- NEVER mid-sentence, during active explanations, or when introducing new topics
+
+Look for the END of explanations, not the beginning.`;
 
 // =============================================================================
 // Bloom's Taxonomy Level Definitions

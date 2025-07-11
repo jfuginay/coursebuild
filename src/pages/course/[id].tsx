@@ -20,6 +20,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useAnalytics } from '@/hooks/useAnalytics';
 import { useInfoBite } from '@/hooks/useInfoBite';
 import { supabase } from '@/lib/supabase';
+import { useGuidedTour } from '@/hooks/useGuidedTour';
+import { learnerTourSteps } from '@/config/tours';
+import ChatBubble from '@/components/ChatBubble';
 
 interface Course {
  id: string;
@@ -134,6 +137,10 @@ export default function CoursePage() {
  const [hasRated, setHasRated] = useState(false);
  const [engagementScore, setEngagementScore] = useState(0);
  const [courseStartTime] = useState(Date.now());
+ 
+ // Guided tour state
+ const [shouldRunTour, setShouldRunTour] = useState(false);
+ const [hasCheckedOnboarding, setHasCheckedOnboarding] = useState(false);
 
  // InfoBite state
  const [autonomyLevel, setAutonomyLevel] = useState(2); // Guide Me mode - active InfoBites
@@ -169,6 +176,53 @@ export default function CoursePage() {
      fetchCourse();
    }
  }, [id]);
+ 
+ // Check if user has completed onboarding and show tour if needed
+ useEffect(() => {
+   const checkOnboarding = async () => {
+     if (!user || hasCheckedOnboarding || !isVideoReady) return;
+     
+     try {
+       const response = await fetch(`/api/user/check-onboarding?user_id=${user.id}`);
+       const data = await response.json();
+       
+       if (!data.onboarding_completed) {
+         setShouldRunTour(true);
+       }
+       setHasCheckedOnboarding(true);
+     } catch (error) {
+       console.error('Error checking onboarding status:', error);
+       setHasCheckedOnboarding(true);
+     }
+   };
+   
+   checkOnboarding();
+ }, [user, hasCheckedOnboarding, isVideoReady]);
+ 
+ // Initialize guided tour for learner journey
+ useGuidedTour('learner', learnerTourSteps, shouldRunTour, {
+   delay: 2000, // Wait for video to load
+   onComplete: async () => {
+     setShouldRunTour(false);
+     // Update onboarding status in database
+     if (user) {
+       try {
+         await fetch('/api/user/update-onboarding', {
+           method: 'POST',
+           headers: {
+             'Content-Type': 'application/json',
+           },
+           body: JSON.stringify({
+             user_id: user.id,
+             onboarding_completed: true
+           }),
+         });
+       } catch (error) {
+         console.error('Error updating onboarding status:', error);
+       }
+     }
+   }
+ });
 
  useEffect(() => {
    // Only fetch questions if course is loaded and published
@@ -317,56 +371,58 @@ export default function CoursePage() {
          setIsProcessing(true);
          console.log('📊 Course is still processing, will check again...');
          
-         // Also check for stuck segments
-         try {
-           const checkResponse = await fetch('/api/course/check-segment-processing', {
-             method: 'POST',
-             headers: {
-               'Content-Type': 'application/json',
-             },
-             body: JSON.stringify({ course_id: id })
-           });
-           
-           if (checkResponse.ok) {
-             const checkData = await checkResponse.json();
-             console.log('🔄 Segment check result:', checkData);
-           }
-         } catch (error) {
-           console.error('Failed to check segments:', error);
-         }
+                 // Initial check for stuck segments (only once)
+        try {
+          const checkResponse = await fetch('/api/course/check-segment-processing', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ course_id: id })
+          });
+          
+          if (checkResponse.ok) {
+            const checkData = await checkResponse.json();
+            console.log('🔄 Initial segment check result:', checkData);
+          }
+        } catch (error) {
+          console.error('Failed to check segments:', error);
+        }
          
-         // Set up polling to check for completion
-         const pollInterval = setInterval(async () => {
-           const pollResponse = await fetch(`/api/course/${id}`);
-           const pollData = await pollResponse.json();
-           
-           if (pollData.success && pollData.course.published) {
-             console.log('✅ Course processing complete!');
-             setCourse(pollData.course);
-             setIsProcessing(false);
-             clearInterval(pollInterval);
-             // Fetch questions now that course is published
-             fetchQuestions();
-           } else {
-             // Check segments again
-             try {
-               const checkResponse = await fetch('/api/course/check-segment-processing', {
-                 method: 'POST',
-                 headers: {
-                   'Content-Type': 'application/json',
-                 },
-                 body: JSON.stringify({ course_id: id })
-               });
-               
-               if (checkResponse.ok) {
-                 const checkData = await checkResponse.json();
-                 console.log('🔄 Segment check result:', checkData);
-               }
-             } catch (error) {
-               console.error('Failed to check segments:', error);
-             }
-           }
-         }, 5000); // Poll every 5 seconds
+                 // Set up polling to check for completion
+        let checkCounter = 0;
+        const pollInterval = setInterval(async () => {
+          const pollResponse = await fetch(`/api/course/${id}`);
+          const pollData = await pollResponse.json();
+          
+          if (pollData.success && pollData.course.published) {
+            console.log('✅ Course processing complete!');
+            setCourse(pollData.course);
+            setIsProcessing(false);
+            clearInterval(pollInterval);
+            // Fetch questions now that course is published
+            fetchQuestions();
+          } else if (checkCounter % 6 === 0) { // Only check segments every 30 seconds (6 * 5s)
+            // Check segments less frequently to avoid overwhelming the orchestrator
+            try {
+              const checkResponse = await fetch('/api/course/check-segment-processing', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ course_id: id })
+              });
+              
+              if (checkResponse.ok) {
+                const checkData = await checkResponse.json();
+                console.log('🔄 Periodic segment check result:', checkData);
+              }
+            } catch (error) {
+              console.error('Failed to check segments:', error);
+            }
+          }
+          checkCounter++;
+        }, 5000); // Poll course status every 5 seconds
          
          // Clean up interval on unmount
          return () => clearInterval(pollInterval);
@@ -469,7 +525,7 @@ export default function CoursePage() {
        const visualQuestions = parsedQuestions.filter((q: Question) => q.type === 'hotspot' || q.type === 'matching' || q.requires_video_overlay);
        console.log('👁️ Visual questions found:', visualQuestions.length);
        if (visualQuestions.length > 0) {
-         console.log('🖼️ First visual question:', visualQuestions[0]);
+         console.log('🖼️ First visual q:', visualQuestions[0]);
        }
        
        setQuestions(parsedQuestions);
@@ -966,54 +1022,67 @@ export default function CoursePage() {
     setAnsweredQuestions(prev => new Set(prev).add(currentQuestionIndex));
     setShowQuestion(false);
     
-    // Save the timestamp to restore after reload
-    const resumeTimestamp = lastQuestionTimestamp.current || currentTime;
-    setSavedTimestamp(resumeTimestamp);
-    
-    // Wait for the card to switch back to video, then trigger reload
-    setTimeout(() => {
-      // Wait for the DOM to be ready with the player container
-      const waitForContainer = (attempts = 0) => {
-        if (attempts > 10) {
-          console.error('Player container not found after question');
-          return;
-        }
-        
-        const container = document.getElementById('youtube-player');
-        if (container) {
-          console.log('🔄 Container found, reloading player after question...');
-          handleReloadPlayer();
+    // Check if this is a hotspot question that needs special handling
+    const currentQuestion = questions[currentQuestionIndex];
+    if (currentQuestion && currentQuestion.type === 'hotspot' && currentQuestion.frame_timestamp && playerRef.current) {
+      // For hotspot questions, seek back to the original question timestamp
+      console.log('🎯 Returning to question timestamp from frame timestamp:', {
+        originalTimestamp: currentQuestion.timestamp,
+        frameTimestamp: currentQuestion.frame_timestamp
+      });
+      playerRef.current.seekTo(currentQuestion.timestamp);
+      playerRef.current?.playVideo();
+    } else {
+      // For non-hotspot questions, use the reload approach
+      // Save the timestamp to restore after reload
+      const resumeTimestamp = lastQuestionTimestamp.current || currentTime;
+      setSavedTimestamp(resumeTimestamp);
+      
+      // Wait for the card to switch back to video, then trigger reload
+      setTimeout(() => {
+        // Wait for the DOM to be ready with the player container
+        const waitForContainer = (attempts = 0) => {
+          if (attempts > 10) {
+            console.error('Player container not found after question');
+            return;
+          }
           
-          // After reload, wait for player to be ready and resume
-          const waitForPlayerAndResume = (attempts = 0) => {
-            if (attempts > 20) {
-              console.error('Failed to resume after reload');
-              return;
-            }
+          const container = document.getElementById('youtube-player');
+          if (container) {
+            console.log('🔄 Container found, reloading player after question...');
+            handleReloadPlayer();
             
-            if (playerRef.current && isVideoReady) {
-              try {
-                playerRef.current.playVideo();
-                console.log('✅ Video resumed after reload');
-              } catch (error) {
-                console.warn('Failed to resume, retrying...', error);
+            // After reload, wait for player to be ready and resume
+            const waitForPlayerAndResume = (attempts = 0) => {
+              if (attempts > 20) {
+                console.error('Failed to resume after reload');
+                return;
+              }
+              
+              if (playerRef.current && isVideoReady) {
+                try {
+                  playerRef.current.playVideo();
+                  console.log('✅ Video resumed after reload');
+                } catch (error) {
+                  console.warn('Failed to resume, retrying...', error);
+                  setTimeout(() => waitForPlayerAndResume(attempts + 1), 200);
+                }
+              } else {
                 setTimeout(() => waitForPlayerAndResume(attempts + 1), 200);
               }
-            } else {
-              setTimeout(() => waitForPlayerAndResume(attempts + 1), 200);
-            }
-          };
-          
-          // Start checking for player after reload delay
-          setTimeout(() => waitForPlayerAndResume(), 1000);
-        } else {
-          console.log(`Waiting for container, attempt ${attempts + 1}`);
-          setTimeout(() => waitForContainer(attempts + 1), 100);
-        }
-      };
-      
-      waitForContainer();
-    }, 100); // Small delay to ensure card has switched
+            };
+            
+            // Start checking for player after reload delay
+            setTimeout(() => waitForPlayerAndResume(), 1000);
+          } else {
+            console.log(`Waiting for container, attempt ${attempts + 1}`);
+            setTimeout(() => waitForContainer(attempts + 1), 100);
+          }
+        };
+        
+        waitForContainer();
+      }, 100); // Small delay to ensure card has switched
+    }
   };
 
  const handleSkipQuestion = async () => {
@@ -1384,6 +1453,44 @@ export default function CoursePage() {
    };
  };
 
+ // Get active question data for chat bubble
+ const getActiveQuestion = () => {
+   if (!showQuestion || !questions[currentQuestionIndex]) {
+     return null;
+   }
+
+   const question = questions[currentQuestionIndex];
+   
+   // Parse options - handle both array and JSON string formats
+   const parseOptions = (options: string[] | string): string[] => {
+     if (Array.isArray(options)) {
+       return options;
+     }
+     
+     if (typeof options === 'string') {
+       try {
+         const parsed = JSON.parse(options);
+         return Array.isArray(parsed) ? parsed : [options];
+       } catch (e) {
+         return [options];
+       }
+     }
+     
+     return [];
+   };
+
+   const parsedOptions = parseOptions(question.options || []);
+   const finalOptions = parsedOptions.length === 0 && (question.type === 'true-false' || question.type === 'true_false') 
+     ? ['True', 'False'] 
+     : parsedOptions;
+
+   return {
+     question: question.question,
+     type: question.type,
+     options: finalOptions
+   };
+ };
+
  // Convert answeredQuestions Set<number> to Set<string> format expected by curriculum card
  const getAnsweredQuestionsForCurriculum = (): Set<string> => {
    return new Set(Array.from(answeredQuestions).map(index => `0-${index}`));
@@ -1553,19 +1660,16 @@ export default function CoursePage() {
            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
              {course.description}
            </p>
-           
-           {/* Course Rating */}
-           {course.totalRatings && course.totalRatings > 0 && (
-             <div className="flex items-center justify-center">
-               <CompactStarRating
-                 rating={course.averageRating || 0}
-                 totalRatings={course.totalRatings}
-                 size="md"
-                 showRatingText={true}
-                 className="text-yellow-500"
-               />
-             </div>
-           )}
+           {/* Course Rating - Always show */}
+           <div className="flex items-center justify-center">
+             <CompactStarRating
+               rating={course.averageRating || 0}
+               totalRatings={course.totalRatings || 0}
+               size="md"
+               showRatingText={true}
+               className="text-yellow-500"
+             />
+           </div>
            
            {/* Course Stats */}
            <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
@@ -1841,6 +1945,13 @@ export default function CoursePage() {
          }}
        />
      )}
+
+     {/* Chat Bubble */}
+     <ChatBubble 
+       courseId={id as string}
+       currentVideoTime={currentTime}
+       activeQuestion={getActiveQuestion()}
+     />
    </div>
  );
 }

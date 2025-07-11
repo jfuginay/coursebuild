@@ -249,7 +249,7 @@ export const extractNearbyKeyConcepts = (
 export const findOptimalQuestionTimestamp = (
   context: TranscriptContext,
   originalTimestamp: number,
-  minDelaySeconds: number = 5
+  minDelaySeconds: number = 5 // Adjusted from 8 to 5 seconds
 ): number => {
   let latestExplanationTimestamp = originalTimestamp;
   
@@ -290,6 +290,66 @@ export const findOptimalQuestionTimestamp = (
   
   // Add minimum delay after the last explanation
   return latestExplanationTimestamp + minDelaySeconds;
+};
+
+/**
+ * Find the next natural pause after a given timestamp
+ * Looks for segment boundaries and topic transitions
+ */
+export const findNextNaturalPause = (
+  transcript: VideoTranscript,
+  afterTimestamp: number,
+  minPauseGap: number = 2
+): number | null => {
+  if (!transcript || !transcript.full_transcript) {
+    return null;
+  }
+  
+  // Sort segments by timestamp
+  const sortedSegments = [...transcript.full_transcript].sort((a, b) => a.timestamp - b.timestamp);
+  
+  for (let i = 0; i < sortedSegments.length - 1; i++) {
+    const currentSegment = sortedSegments[i];
+    const nextSegment = sortedSegments[i + 1];
+    
+    // Check if this segment ends after our target timestamp
+    const segmentEnd = currentSegment.end_timestamp || currentSegment.timestamp + 5;
+    if (segmentEnd > afterTimestamp) {
+      // Check if there's a gap between segments (natural pause)
+      const gap = nextSegment.timestamp - segmentEnd;
+      if (gap >= minPauseGap) {
+        // Return a timestamp in the middle of the pause
+        return segmentEnd + (gap / 2);
+      }
+      
+      // Check if the next segment is a salient event (topic change)
+      if (nextSegment.is_salient_event) {
+        // Place question just before the new topic
+        return Math.max(segmentEnd + 1, nextSegment.timestamp - 2);
+      }
+    }
+  }
+  
+  return null;
+};
+
+/**
+ * Check if a timestamp would interrupt an ongoing sentence
+ */
+export const isInterruptingSentence = (
+  transcript: VideoTranscript,
+  timestamp: number
+): boolean => {
+  const segment = findSegmentAtTimestamp(transcript, timestamp);
+  if (!segment) return false;
+  
+  // Check if we're in the middle of a segment
+  const segmentProgress = timestamp - segment.timestamp;
+  const segmentDuration = (segment.end_timestamp || segment.timestamp + 5) - segment.timestamp;
+  const progressRatio = segmentProgress / segmentDuration;
+  
+  // If we're in the middle 60% of a segment, we're likely interrupting
+  return progressRatio > 0.2 && progressRatio < 0.8;
 };
 
 /**
