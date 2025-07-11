@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ArrowLeft, Play, BookOpen, Clock, Users, CheckCircle, Check, X, Sparkles, ExternalLink, Loader2, Pencil, Save, XCircle } from 'lucide-react';
 import Header from '@/components/Header';
+import { useGuidedTour, hasTourBeenCompleted } from '@/hooks/useGuidedTour';
+import { previewPageSteps } from '@/config/tours';
 import { toast } from 'sonner';
 
 interface CourseData {
@@ -81,6 +83,9 @@ export default function Create() {
   const [editDescription, setEditDescription] = useState<string>('');
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [courseId, setCourseId] = useState<string>('');
+  
+  // Guided tour state
+  const [shouldRunTour, setShouldRunTour] = useState(false);
 
   // Helper function to extract video ID
   const extractVideoId = (url: string): string => {
@@ -289,6 +294,21 @@ export default function Create() {
       console.log('Course ID set:', router.query.courseId);
     }
   }, [router.query]);
+  
+  // Check if this is part of the newcomer journey and show tour
+  useEffect(() => {
+    if (!hasTourBeenCompleted('newcomer') && courseData) {
+      setShouldRunTour(true);
+    }
+  }, [courseData]);
+  
+  // Initialize guided tour for preview page
+  useGuidedTour('newcomer', previewPageSteps, shouldRunTour, {
+    delay: 1500, // Wait for content to render
+    onComplete: () => {
+      setShouldRunTour(false);
+    }
+  });
 
   const handleBackToHome = () => {
     router.push('/');
@@ -776,7 +796,7 @@ export default function Create() {
             </Card>
 
             {/* Course Structure */}
-            <Card>
+            <Card id="course-preview-card">
               <CardHeader>
                 <CardTitle>Course Structure</CardTitle>
                 <CardDescription>

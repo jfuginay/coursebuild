@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ProgressTracker } from '@/components/ProgressTracker';
 import { createClient } from '@supabase/supabase-js';
 import { toast } from 'sonner';
+import { useGuidedTour, hasTourBeenCompleted } from '@/hooks/useGuidedTour';
+import { creationPageSteps } from '@/config/tours';
 
 // =============================================================================
 // Course Creation with Progress Tracking Demo
@@ -18,12 +20,30 @@ export default function CreateWithProgress() {
   const [courseId, setCourseId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<any[]>([]);
   const router = useRouter();
+  
+  // Guided tour state
+  const [shouldRunTour, setShouldRunTour] = useState(false);
 
   // Initialize Supabase client
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
+  
+  // Check if this is part of the newcomer journey and show tour
+  useEffect(() => {
+    if (!hasTourBeenCompleted('newcomer') && isProcessing) {
+      setShouldRunTour(true);
+    }
+  }, [isProcessing]);
+  
+  // Initialize guided tour for creation page
+  useGuidedTour('newcomer', creationPageSteps, shouldRunTour, {
+    delay: 1500, // Wait for progress tracker to render
+    onComplete: () => {
+      setShouldRunTour(false);
+    }
+  });
 
   // =============================================================================
   // Check for URL parameters on load
@@ -216,7 +236,7 @@ export default function CreateWithProgress() {
 
         {/* Progress Tracking Display */}
         {isProcessing && sessionId && courseId && (
-          <div className="space-y-6">
+          <div id="progress-tracker" className="space-y-6">
             <ProgressTracker
               courseId={courseId}
               sessionId={sessionId}

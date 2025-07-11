@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
+import { extractVideoId, fetchYouTubeMetadata, generateFallbackTitle } from '@/utils/youtube';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,27 +24,6 @@ function isValidYouTubeUrl(url: string): boolean {
   return false;
 }
 
-// Extract video title from URL (simplified version)
-function extractVideoTitle(url: string): string {
-  const videoId = extractVideoId(url);
-  return videoId ? `YouTube Video (${videoId})` : 'YouTube Video';
-}
-
-function extractVideoId(url: string): string | null {
-  const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-    /youtube\.com\/watch\?.*v=([^&\n?#]+)/
-  ];
-  
-  for (const pattern of patterns) {
-    const match = url.match(pattern);
-    if (match) {
-      return match[1];
-    }
-  }
-  
-  return null;
-}
 
 // Sanitize YouTube URL to just the core video URL for cache comparison
 function sanitizeYouTubeUrl(url: string): string {
@@ -458,15 +438,22 @@ export default async function handler(
       return res.status(400).json({ error: 'Invalid YouTube URL format' });
     }
 
-    // Step 1: Create course record in database
+    // Step 1: Fetch video metadata
+    const videoMetadata = await fetchYouTubeMetadata(youtubeUrl);
+    const videoTitle = videoMetadata?.title || generateFallbackTitle(youtubeUrl);
+    const videoDescription = videoMetadata ? `AI Generated Course from "${videoMetadata.author_name}"` : 'AI Generated Course from YouTube Video';
+    
+    // Step 2: Create course record in database
     const sanitizedUrl = sanitizeYouTubeUrl(youtubeUrl);
     console.log('📝 Original URL:', youtubeUrl);
     console.log('🧹 Sanitized URL:', sanitizedUrl);
+    console.log('📹 Video Title:', videoTitle);
+    
     const { data: course, error: courseError } = await supabase
       .from('courses')
       .insert({
-        title: extractVideoTitle(youtubeUrl),
-        description: 'AI Generated Course from YouTube Video',
+        title: videoTitle,
+        description: videoDescription,
         youtube_url: sanitizedUrl,  // Store sanitized URL for consistent cache lookups
         published: false
       })
