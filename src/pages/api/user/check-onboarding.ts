@@ -19,9 +19,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const { data, error } = await supabase
-      .from('user_profiles')
-      .select('onboarding_completed')
-      .eq('user_id', user_id)
+      .from('profiles')
+      .select('notification_preferences')
+      .eq('id', user_id)
       .single();
 
     if (error) {
@@ -35,8 +35,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       throw error;
     }
 
+    // Check onboarding status from notification_preferences JSON field
+    const notificationPrefs = data?.notification_preferences || {};
+    const onboardingCompleted = notificationPrefs.onboarding_completed || false;
+
     return res.status(200).json({ 
-      onboarding_completed: data?.onboarding_completed || false,
+      onboarding_completed: onboardingCompleted,
       profile_exists: true 
     });
   } catch (error) {
