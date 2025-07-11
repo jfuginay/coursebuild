@@ -151,6 +151,7 @@ const InteractiveVideoPlayer: React.FC<InteractiveVideoPlayerProps> = ({
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
               ) : (
                 <BookOpen className="mr-2 h-4 w-4" />
+
               )}
               {nextCourse ? 'Next Course Ready' : isLoadingNextCourse ? 'Generating...' : nextCourseApiCalled ? 'Generating...' : 'Generate Next Course'}
             </Button>

@@ -32,6 +32,8 @@ interface Course {
  questionsGenerated?: boolean;
  questions?: Question[];
  videoId?: string;
+ averageRating?: number;
+ totalRatings?: number;
 }
 
 interface Question {
@@ -125,6 +127,7 @@ export default function CoursePage() {
  const [isEnrolled, setIsEnrolled] = useState(false); // Track enrollment status
  const [autoGenerationTriggered, setAutoGenerationTriggered] = useState(false); // Track if auto-generation was triggered
  const [nextCourseModalShown, setNextCourseModalShown] = useState(false); // Track if modal has been shown
+ const [isProcessing, setIsProcessing] = useState(false); // Track if course is still processing
  
  // Rating state
  const [showRatingModal, setShowRatingModal] = useState(false);
@@ -164,9 +167,15 @@ export default function CoursePage() {
  useEffect(() => {
    if (id) {
      fetchCourse();
-     fetchQuestions();
    }
  }, [id]);
+
+ useEffect(() => {
+   // Only fetch questions if course is loaded and published
+   if (course && course.published && id) {
+     fetchQuestions();
+   }
+ }, [course, id]);
 
  useEffect(() => {
    console.log('🔍 Checking YouTube API availability...');
@@ -302,11 +311,98 @@ export default function CoursePage() {
 
      if (data.success) {
        setCourse(data.course);
+       
+       // Check if course is still processing
+       if (!data.course.published) {
+         setIsProcessing(true);
+         console.log('📊 Course is still processing, will check again...');
+         
+         // Also check for stuck segments
+         try {
+           const checkResponse = await fetch('/api/course/check-segment-processing', {
+             method: 'POST',
+             headers: {
+               'Content-Type': 'application/json',
+             },
+             body: JSON.stringify({ course_id: id })
+           });
+           
+           if (checkResponse.ok) {
+             const checkData = await checkResponse.json();
+             console.log('🔄 Segment check result:', checkData);
+           }
+         } catch (error) {
+           console.error('Failed to check segments:', error);
+         }
+         
+         // Set up polling to check for completion
+         const pollInterval = setInterval(async () => {
+           const pollResponse = await fetch(`/api/course/${id}`);
+           const pollData = await pollResponse.json();
+           
+           if (pollData.success && pollData.course.published) {
+             console.log('✅ Course processing complete!');
+             setCourse(pollData.course);
+             setIsProcessing(false);
+             clearInterval(pollInterval);
+             // Fetch questions now that course is published
+             fetchQuestions();
+           } else {
+             // Check segments again
+             try {
+               const checkResponse = await fetch('/api/course/check-segment-processing', {
+                 method: 'POST',
+                 headers: {
+                   'Content-Type': 'application/json',
+                 },
+                 body: JSON.stringify({ course_id: id })
+               });
+               
+               if (checkResponse.ok) {
+                 const checkData = await checkResponse.json();
+                 console.log('🔄 Segment check result:', checkData);
+               }
+             } catch (error) {
+               console.error('Failed to check segments:', error);
+             }
+           }
+         }, 5000); // Poll every 5 seconds
+         
+         // Clean up interval on unmount
+         return () => clearInterval(pollInterval);
+       }
+       
+       // Enhance course data with rating information
+      let courseWithRating = { ...data.course };
+      
+      try {
+        // Fetch rating data for this course
+        const ratingResponse = await fetch(`/api/courses/${id}/rating`);
+        if (ratingResponse.ok) {
+          const ratingData = await ratingResponse.json();
+          if (ratingData.success && ratingData.stats) {
+            courseWithRating.averageRating = ratingData.stats.average_rating || 0;
+            courseWithRating.totalRatings = ratingData.stats.total_ratings || 0;
+            console.log('⭐ Rating data loaded:', {
+              averageRating: courseWithRating.averageRating,
+              totalRatings: courseWithRating.totalRatings
+            });
+          }
+        }
+      } catch (ratingError) {
+        console.warn('Failed to fetch rating data:', ratingError);
+        // Continue without rating data
+      }
+      
+      setCourse(courseWithRating);
        const extractedVideoId = extractVideoId(data.course.youtube_url);
        console.log('🎬 Course loaded:', {
          title: data.course.title,
          youtubeUrl: data.course.youtube_url,
-         extractedVideoId: extractedVideoId
+         extractedVideoId: extractedVideoId,
+         published: data.course.published
+         hasRatings: courseWithRating.totalRatings > 0,
+         averageRating: courseWithRating.averageRating
        });
        setVideoId(extractedVideoId);
      } else {
@@ -315,6 +411,8 @@ export default function CoursePage() {
    } catch (err) {
      setError('Error loading course');
      console.error('Error fetching course:', err);
+   } finally {
+     setIsLoading(false);
    }
  };
 
@@ -831,6 +929,8 @@ export default function CoursePage() {
      });
    } else {
      reportWrongAnswer(); // Report to InfoBite
+     // Track engagement score but don't trigger rating modal during course
+     setEngagementScore(prev => prev + 10);
    }
    
    // Track question answered engagement with error handling
@@ -1020,15 +1120,15 @@ export default function CoursePage() {
  };
 
  // Rating trigger logic
- const triggerRatingModal = (context: 'completion' | 'question_success' | 'mid_course') => {
+ const triggerRatingModal = () => {
    if (hasRated || showRatingModal) return;
    
-   console.log(`⭐ Triggering rating modal: ${context}`);
+   console.log(`⭐ Triggering rating modal on course completion`);
    setShowRatingModal(true);
    
    if (id && typeof id === 'string') {
      try {
-       trackRatingModalShown(id, context);
+       trackRatingModalShown(id, 'completion');
      } catch (error) {
        console.warn('Failed to track rating modal shown:', error);
      }
@@ -1050,7 +1150,7 @@ export default function CoursePage() {
        },
        body: JSON.stringify({
          rating,
-         context: completionPercentage >= 90 ? 'completion' : 'mid_course',
+         context: 'completion', // Always completion since modal only shows at end
          engagementData: {
            timeSpentMinutes,
            questionsAnswered: answeredQuestions.size,
@@ -1068,7 +1168,7 @@ export default function CoursePage() {
          trackRating({
            courseId: id,
            rating,
-           context: completionPercentage >= 90 ? 'completion' : 'mid_course',
+           context: 'completion', // Always completion since modal only shows at end
            timeToRate: Date.now() - courseStartTime,
            engagementScore,
            platform: getPlatform()
@@ -1330,6 +1430,69 @@ export default function CoursePage() {
    );
  }
 
+ if (isProcessing) {
+   return (
+     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+       <Header />
+       <div className="container mx-auto px-4 py-8">
+         <div className="max-w-4xl mx-auto space-y-8">
+           <Button variant="ghost" onClick={handleBackToHome} className="mb-4">
+             <ArrowLeft className="mr-2 h-4 w-4" />
+             Back to Home
+           </Button>
+           
+           <div className="text-center space-y-4">
+             <h1 className="text-3xl font-bold tracking-tight lg:text-4xl">
+               {course?.title || 'Processing Course'}
+             </h1>
+             <p className="text-lg text-muted-foreground">
+               Your course is being generated. This may take a few minutes.
+             </p>
+           </div>
+           
+           <Card>
+             <CardContent className="p-6">
+               <div className="aspect-video w-full bg-muted flex items-center justify-center">
+                 <div className="text-center space-y-4">
+                   <div className="flex justify-center">
+                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                   </div>
+                   <p className="text-muted-foreground">
+                     Analyzing video and generating interactive questions...
+                   </p>
+                   <p className="text-sm text-muted-foreground">
+                     The page will refresh automatically when ready.
+                   </p>
+                 </div>
+               </div>
+             </CardContent>
+           </Card>
+           
+           {course?.youtube_url && (
+             <Card>
+               <CardHeader>
+                 <CardTitle>Video Preview</CardTitle>
+               </CardHeader>
+               <CardContent>
+                 <div className="aspect-video">
+                   <iframe
+                     src={`https://www.youtube.com/embed/${extractVideoId(course.youtube_url)}`}
+                     title="YouTube video player"
+                     frameBorder="0"
+                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                     allowFullScreen
+                     className="w-full h-full rounded-lg"
+                   />
+                 </div>
+               </CardContent>
+             </Card>
+           )}
+         </div>
+       </div>
+     </div>
+   );
+ }
+
  if (error) {
    return (
      <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
@@ -1390,6 +1553,19 @@ export default function CoursePage() {
            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
              {course.description}
            </p>
+           
+           {/* Course Rating */}
+           {course.totalRatings && course.totalRatings > 0 && (
+             <div className="flex items-center justify-center">
+               <CompactStarRating
+                 rating={course.averageRating || 0}
+                 totalRatings={course.totalRatings}
+                 size="md"
+                 showRatingText={true}
+                 className="text-yellow-500"
+               />
+             </div>
+           )}
            
            {/* Course Stats */}
            <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">

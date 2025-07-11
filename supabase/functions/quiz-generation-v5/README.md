@@ -80,3 +80,37 @@ The function uses the same environment variables as v4:
 - `OPENAI_API_KEY` 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY` 
+
+### New in v5.0:
+- `YOUTUBE_API_KEY` (Optional): Enables dynamic frame sampling based on video duration
+  - If not provided, defaults to 1 fps sampling rate
+  - Get your API key from [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+  - Enable YouTube Data API v3 in your Google Cloud project
+
+## Dynamic Frame Sampling (New Feature)
+
+v5.0 introduces intelligent frame sampling that processes exactly 300 frames per video:
+
+- **Constant Frame Count**: Every video is sampled to extract exactly 300 frames
+- **Adaptive FPS**: Frame rate automatically adjusts based on video duration
+- **Consistent Processing**: Same analysis depth regardless of video length
+
+| Video Duration | Frame Sampling Rate | Frame Interval |
+|----------------|-------------------|----------------|
+| 5 minutes      | 1.0 fps          | Every second |
+| 10 minutes     | 0.5 fps          | Every 2 seconds |
+| 30 minutes     | 0.167 fps        | Every 6 seconds |
+| 60 minutes     | 0.083 fps        | Every 12 seconds |
+| 2 hours        | 0.042 fps        | Every 24 seconds |
+
+This optimization:
+- **Consistent Analysis**: All videos get the same level of visual analysis (300 frames)
+- **Predictable Costs**: Token usage scales linearly with audio duration only
+- **Optimal Coverage**: 300 frames provides good coverage for educational content
+- **Automatic Fallback**: Works without YouTube API using default 1 fps
+
+To enable dynamic frame sampling:
+```bash
+# Set the YouTube API key in Supabase Edge Functions
+npx supabase secrets set YOUTUBE_API_KEY=your_youtube_api_key --project-ref YOUR_PROJECT_ID
+``` 

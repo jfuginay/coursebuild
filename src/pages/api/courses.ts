@@ -17,6 +17,14 @@ export default async function handler(
   const { ids } = req.query;
 
   try {
+    // Refresh the materialized view to ensure rating stats are up-to-date
+    const { error: refreshError } = await supabase.rpc('refresh_course_rating_stats');
+    if (refreshError) {
+      console.error('Error refreshing course_rating_stats:', refreshError);
+      // Decide if this should be a hard error or just a warning
+      // For now, let's log it and continue, as courses can still be fetched
+    }
+
     // Get basic course data first (reliable baseline)
     let query = supabase
       .from('courses')
@@ -69,9 +77,20 @@ export default async function handler(
           if (!ratingError && ratingStats) {
             averageRating = Number(ratingStats.average_rating) || 0;
             totalRatings = Number(ratingStats.total_ratings) || 0;
+            
+            // Debug: Log rating data for courses that have ratings
+            if (totalRatings > 0) {
+              console.log(`⭐ Course "${course.title}" has ratings:`, {
+                averageRating,
+                totalRatings,
+                courseId: course.id
+              });
+            }
+          } else if (ratingError) {
+            console.warn(`❌ Rating error for course ${course.id}:`, ratingError);
           }
         } catch (ratingError) {
-          // Continue with default values (0)
+          console.warn(`❌ Rating fetch error for course ${course.id}:`, ratingError);
         }
 
         return {
@@ -86,6 +105,18 @@ export default async function handler(
         };
       })
     );
+
+    // Debug: Log final courses data
+    const coursesWithRatingData = coursesWithRatings.filter(c => c.totalRatings > 0);
+    console.log('📊 Courses API Debug:', {
+      totalCourses: coursesWithRatings.length,
+      coursesWithRatings: coursesWithRatingData.length,
+      ratingData: coursesWithRatingData.map(c => ({
+        title: c.title,
+        averageRating: c.averageRating,
+        totalRatings: c.totalRatings
+      }))
+    });
 
     return res.status(200).json({ 
       success: true,

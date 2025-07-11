@@ -22,7 +22,6 @@ export default async function handler(
         .from('courses')
         .select('*')
         .eq('id', id)
-        .eq('published', true)
         .single();
 
       if (error) {
