@@ -124,6 +124,7 @@ export default function CoursePage() {
  const [isEnrolled, setIsEnrolled] = useState(false); // Track enrollment status
  const [autoGenerationTriggered, setAutoGenerationTriggered] = useState(false); // Track if auto-generation was triggered
  const [nextCourseModalShown, setNextCourseModalShown] = useState(false); // Track if modal has been shown
+ const [isProcessing, setIsProcessing] = useState(false); // Track if course is still processing
  
  // Rating state
  const [showRatingModal, setShowRatingModal] = useState(false);
@@ -145,7 +146,6 @@ export default function CoursePage() {
  useEffect(() => {
    if (id) {
      fetchCourse();
-     fetchQuestions();
    }
  }, [id]);
  
@@ -195,6 +195,13 @@ export default function CoursePage() {
      }
    }
  });
+
+ useEffect(() => {
+   // Only fetch questions if course is loaded and published
+   if (course && course.published && id) {
+     fetchQuestions();
+   }
+ }, [course, id]);
 
  useEffect(() => {
    console.log('🔍 Checking YouTube API availability...');
@@ -327,6 +334,68 @@ export default function CoursePage() {
      const data = await response.json();
 
      if (data.success) {
+       setCourse(data.course);
+       
+       // Check if course is still processing
+       if (!data.course.published) {
+         setIsProcessing(true);
+         console.log('📊 Course is still processing, will check again...');
+         
+         // Also check for stuck segments
+         try {
+           const checkResponse = await fetch('/api/course/check-segment-processing', {
+             method: 'POST',
+             headers: {
+               'Content-Type': 'application/json',
+             },
+             body: JSON.stringify({ course_id: id })
+           });
+           
+           if (checkResponse.ok) {
+             const checkData = await checkResponse.json();
+             console.log('🔄 Segment check result:', checkData);
+           }
+         } catch (error) {
+           console.error('Failed to check segments:', error);
+         }
+         
+         // Set up polling to check for completion
+         const pollInterval = setInterval(async () => {
+           const pollResponse = await fetch(`/api/course/${id}`);
+           const pollData = await pollResponse.json();
+           
+           if (pollData.success && pollData.course.published) {
+             console.log('✅ Course processing complete!');
+             setCourse(pollData.course);
+             setIsProcessing(false);
+             clearInterval(pollInterval);
+             // Fetch questions now that course is published
+             fetchQuestions();
+           } else {
+             // Check segments again
+             try {
+               const checkResponse = await fetch('/api/course/check-segment-processing', {
+                 method: 'POST',
+                 headers: {
+                   'Content-Type': 'application/json',
+                 },
+                 body: JSON.stringify({ course_id: id })
+               });
+               
+               if (checkResponse.ok) {
+                 const checkData = await checkResponse.json();
+                 console.log('🔄 Segment check result:', checkData);
+               }
+             } catch (error) {
+               console.error('Failed to check segments:', error);
+             }
+           }
+         }, 5000); // Poll every 5 seconds
+         
+         // Clean up interval on unmount
+         return () => clearInterval(pollInterval);
+       }
+       
        // Enhance course data with rating information
       let courseWithRating = { ...data.course };
       
@@ -355,6 +424,7 @@ export default function CoursePage() {
          title: data.course.title,
          youtubeUrl: data.course.youtube_url,
          extractedVideoId: extractedVideoId,
+         published: data.course.published
          hasRatings: courseWithRating.totalRatings > 0,
          averageRating: courseWithRating.averageRating
        });
@@ -365,6 +435,8 @@ export default function CoursePage() {
    } catch (err) {
      setError('Error loading course');
      console.error('Error fetching course:', err);
+   } finally {
+     setIsLoading(false);
    }
  };
 
@@ -1148,6 +1220,69 @@ export default function CoursePage() {
                <Skeleton className="aspect-video w-full" />
              </CardContent>
            </Card>
+         </div>
+       </div>
+     </div>
+   );
+ }
+
+ if (isProcessing) {
+   return (
+     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+       <Header />
+       <div className="container mx-auto px-4 py-8">
+         <div className="max-w-4xl mx-auto space-y-8">
+           <Button variant="ghost" onClick={handleBackToHome} className="mb-4">
+             <ArrowLeft className="mr-2 h-4 w-4" />
+             Back to Home
+           </Button>
+           
+           <div className="text-center space-y-4">
+             <h1 className="text-3xl font-bold tracking-tight lg:text-4xl">
+               {course?.title || 'Processing Course'}
+             </h1>
+             <p className="text-lg text-muted-foreground">
+               Your course is being generated. This may take a few minutes.
+             </p>
+           </div>
+           
+           <Card>
+             <CardContent className="p-6">
+               <div className="aspect-video w-full bg-muted flex items-center justify-center">
+                 <div className="text-center space-y-4">
+                   <div className="flex justify-center">
+                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                   </div>
+                   <p className="text-muted-foreground">
+                     Analyzing video and generating interactive questions...
+                   </p>
+                   <p className="text-sm text-muted-foreground">
+                     The page will refresh automatically when ready.
+                   </p>
+                 </div>
+               </div>
+             </CardContent>
+           </Card>
+           
+           {course?.youtube_url && (
+             <Card>
+               <CardHeader>
+                 <CardTitle>Video Preview</CardTitle>
+               </CardHeader>
+               <CardContent>
+                 <div className="aspect-video">
+                   <iframe
+                     src={`https://www.youtube.com/embed/${extractVideoId(course.youtube_url)}`}
+                     title="YouTube video player"
+                     frameBorder="0"
+                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                     allowFullScreen
+                     className="w-full h-full rounded-lg"
+                   />
+                 </div>
+               </CardContent>
+             </Card>
+           )}
          </div>
        </div>
      </div>

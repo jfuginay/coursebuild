@@ -11,6 +11,7 @@ import { ArrowLeft, Play, BookOpen, Clock, Users, CheckCircle, Check, X, Sparkle
 import Header from '@/components/Header';
 import { useGuidedTour, hasTourBeenCompleted } from '@/hooks/useGuidedTour';
 import { previewPageSteps } from '@/config/tours';
+import { toast } from 'sonner';
 
 interface CourseData {
   title: string;
@@ -158,6 +159,86 @@ export default function Create() {
     return courseData.title; // Fallback to original title if no concepts found
   };
 
+  // Helper function to format duration
+  const formatDuration = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  // Helper function to transform questions into segments
+  const transformQuestions = (questions: any[]): CourseData['segments'] => {
+    // Group questions by segments if available
+    const segments: CourseData['segments'] = [];
+    
+    // Check if questions have segment information
+    const hasSegments = questions.some(q => q.segment_index !== undefined);
+    
+    if (hasSegments) {
+      // Group by segment index
+      const segmentMap = new Map<number, any[]>();
+      questions.forEach(q => {
+        const index = q.segment_index || 0;
+        if (!segmentMap.has(index)) {
+          segmentMap.set(index, []);
+        }
+        segmentMap.get(index)!.push(q);
+      });
+      
+      // Create segments
+      Array.from(segmentMap.entries())
+        .sort(([a], [b]) => a - b)
+        .forEach(([index, segmentQuestions]) => {
+          segments.push({
+            title: `Segment ${index + 1}`,
+            timestamp: formatTimestamp(Math.min(...segmentQuestions.map((q: any) => q.timestamp))),
+            concepts: [], // These would need to be fetched separately
+            questions: segmentQuestions.map(q => ({
+              id: q.id,
+              type: q.type || 'multiple-choice',
+              question: q.question,
+              options: q.options ? (typeof q.options === 'string' ? JSON.parse(q.options) : q.options) : [],
+              correct: q.correct_answer,
+              explanation: q.explanation,
+              has_visual_asset: q.has_visual_asset,
+              timestamp: q.timestamp
+            }))
+          });
+        });
+    } else {
+      // Create a single segment with all questions
+      segments.push({
+        title: 'Main Content',
+        timestamp: '0:00',
+        concepts: [],
+        questions: questions.map(q => ({
+          id: q.id,
+          type: q.type || 'multiple-choice',
+          question: q.question,
+          options: q.options ? (typeof q.options === 'string' ? JSON.parse(q.options) : q.options) : [],
+          correct: q.correct_answer,
+          explanation: q.explanation,
+          has_visual_asset: q.has_visual_asset,
+          timestamp: q.timestamp
+        }))
+      });
+    }
+    
+    return segments;
+  };
+
+  // Helper function to format timestamp
+  const formatTimestamp = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  };
+
   useEffect(() => {
     // Try to get data from sessionStorage first (fallback for feature branch compatibility)
     const storedData = sessionStorage.getItem('courseData');
@@ -211,8 +292,6 @@ export default function Create() {
     if (router.query.courseId) {
       setCourseId(router.query.courseId as string);
       console.log('Course ID set:', router.query.courseId);
-    } else {
-      console.log('No courseId in router query. Available query params:', Object.keys(router.query));
     }
   }, [router.query]);
   

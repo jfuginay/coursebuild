@@ -13,7 +13,7 @@ declare const Deno: {
 };
 
 import { QuestionPlan, HotspotQuestion, QuestionGenerationError } from '../types/interfaces.ts';
-import { convertSecondsToBase60 } from '../utils/timestamp-converter.ts';
+import { convertSecondsToMMSS, formatSecondsForDisplay } from '../utils/timestamp-converter.ts';
 
 // =============================================================================
 // Simplified Hotspot Generation Function
@@ -28,7 +28,7 @@ export const generateHotspotQuestion = async (
     console.log(`🎯 Generating Hotspot Bounding Boxes: ${plan.question_id}`);
     console.log(`   📚 Learning Objective: ${plan.learning_objective}`);
     console.log(`   🎯 Target Objects: ${plan.target_objects?.join(', ') || 'Not specified'}`);
-    console.log(`   🎬 Frame Timestamp: ${plan.frame_timestamp || plan.timestamp}s`);
+    console.log(`   🎬 Frame Timestamp: ${formatSecondsForDisplay(plan.frame_timestamp || plan.timestamp)}`);
     
     if (transcriptContext && transcriptContext.visualContext) {
       console.log(`   👁️ Visual Context from Transcript: ${transcriptContext.visualContext.substring(0, 100)}...`);
@@ -81,7 +81,7 @@ export const generateHotspotQuestion = async (
     console.log(`✅ Hotspot generated successfully: ${plan.question_id}`);
     console.log(`   🎯 Question: ${hotspotQuestion.question.substring(0, 60)}...`);
     console.log(`   📦 Target Objects: ${plan.target_objects.join(', ')}`);
-    console.log(`   🎬 Frame Timestamp: ${frameTimestamp}s`);
+    console.log(`   🎬 Frame Timestamp: ${formatSecondsForDisplay(frameTimestamp)}`);
     console.log(`   📍 Bounding Boxes: ${boundingBoxes.elements.length} options generated`);
     
     return hotspotQuestion;
@@ -124,11 +124,9 @@ const generateBoundingBoxes = async (
       const startOffset = Math.max(0, frameTimestamp - 0.5);
       const endOffset = frameTimestamp;
       
-      // Convert to base-60 for Gemini
-      const startOffsetBase60 = convertSecondsToBase60(startOffset);
-      const endOffsetBase60 = convertSecondsToBase60(endOffset);
       
-      console.log(`📹 Analyzing video segment: ${startOffset}s to ${endOffset}s (base-60: ${startOffsetBase60} to ${endOffsetBase60})`);
+      console.log(`📹 Analyzing video segment: ${formatSecondsForDisplay(startOffset)} to ${formatSecondsForDisplay(endOffset)}`);
+      console.log(`   📍 Sending to Gemini: startOffset="${startOffset}s", endOffset="${endOffset}s"`);
       
       const objectDetectionPrompt = `
 You are creating a visual hotspot question for educational purposes. Generate appropriate question text, explanation, and bounding boxes for all visible objects in this frame.
@@ -187,8 +185,8 @@ Guidelines for bounding boxes:
                   fileUri: youtubeUrl
                 },
                 videoMetadata: {
-                  startOffset: `${startOffsetBase60}s`,
-                  endOffset: `${endOffsetBase60}s`
+                  startOffset: `${startOffset}s`,
+                  endOffset: `${endOffset}s`
                 }
               },
               {
@@ -424,9 +422,9 @@ Guidelines for bounding boxes:
         console.error(`❌ HOTSPOT QUESTION DISCARDED: No correct answer detected in video frame`);
         console.error(`   🎯 Target objects: ${plan.target_objects?.join(', ')}`);
         console.error(`   📦 Detected objects: ${normalizedElements.map((el: any) => el.label).join(', ')}`);
-        console.error(`   🎬 Frame timestamp: ${frameTimestamp}s (${startOffset}s - ${endOffset}s)`);
+        console.error(`   🎬 Frame timestamp: ${formatSecondsForDisplay(frameTimestamp)} (${formatSecondsForDisplay(startOffset)} - ${formatSecondsForDisplay(endOffset)})`);
         console.error(`   📝 Question context: ${plan.question_context}`);
-        throw new Error(`Correct answer object(s) '${plan.target_objects?.join(', ')}' not detected in video frame. The target objects are not visible or recognizable at timestamp ${frameTimestamp}s. Hotspot question discarded.`);
+        throw new Error(`Correct answer object(s) '${plan.target_objects?.join(', ')}' not detected in video frame. The target objects are not visible or recognizable at timestamp ${formatSecondsForDisplay(frameTimestamp)}. Hotspot question discarded.`);
       }
 
       console.log(`✅ Generated ${normalizedElements.length} bounding boxes successfully on attempt ${attempt}`);

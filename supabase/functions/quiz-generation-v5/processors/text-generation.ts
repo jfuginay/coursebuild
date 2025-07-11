@@ -110,7 +110,7 @@ export const generateMCQQuestion = async (plan: QuestionPlan): Promise<MCQQuesti
     const contextualPrompt = buildMCQPrompt(plan);
     
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -202,7 +202,7 @@ export const generateTrueFalseQuestion = async (plan: QuestionPlan): Promise<Tru
     const contextualPrompt = buildTrueFalsePrompt(plan);
     
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -272,7 +272,7 @@ export const generateTextMatchingQuestion = async (plan: QuestionPlan): Promise<
     const contextualPrompt = buildMatchingPrompt(plan);
     
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -341,7 +341,7 @@ export const generateSequencingQuestion = async (plan: QuestionPlan): Promise<Se
     const contextualPrompt = buildSequencingPrompt(plan);
     
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

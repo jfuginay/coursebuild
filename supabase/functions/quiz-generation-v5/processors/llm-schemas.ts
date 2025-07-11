@@ -90,7 +90,7 @@ export const MCQ_SCHEMA_BASE = {
       additionalProperties: false
     }
   },
-  required: ["question", "options", "correct_answer", "explanation", "educational_rationale", "misconception_analysis", "cognitive_level", "difficulty_indicators"],
+  required: ["question", "options", "correct_answer", "explanation", "educational_rationale", "misconception_analysis", "cognitive_level", "difficulty_indicators", "optimal_timestamp"],
   additionalProperties: false
 };
 
@@ -153,7 +153,7 @@ export const TRUE_FALSE_SCHEMA_BASE = {
       additionalProperties: false
     }
   },
-  required: ["question", "correct_answer", "explanation", "educational_rationale", "concept_analysis", "cognitive_level", "misconception_addressed", "difficulty_indicators"],
+  required: ["question", "correct_answer", "explanation", "educational_rationale", "concept_analysis", "cognitive_level", "misconception_addressed", "difficulty_indicators", "optimal_timestamp"],
   additionalProperties: false
 };
 
@@ -227,7 +227,7 @@ export const MATCHING_SCHEMA_BASE = {
       additionalProperties: false
     }
   },
-  required: ["question", "matching_pairs", "explanation", "educational_rationale", "relationship_analysis", "cognitive_level", "difficulty_indicators"],
+  required: ["question", "matching_pairs", "explanation", "educational_rationale", "relationship_analysis", "cognitive_level", "difficulty_indicators", "optimal_timestamp"],
   additionalProperties: false
 };
 
@@ -293,7 +293,7 @@ export const SEQUENCING_SCHEMA_BASE = {
       additionalProperties: false
     }
   },
-  required: ["question", "sequence_items", "explanation", "educational_rationale", "sequence_analysis", "cognitive_level", "difficulty_indicators"],
+  required: ["question", "sequence_items", "explanation", "educational_rationale", "sequence_analysis", "cognitive_level", "difficulty_indicators", "optimal_timestamp"],
   additionalProperties: false
 };
 
@@ -431,7 +431,7 @@ export const QUESTION_TYPE_CONFIGS = {
     maxOutputTokens: 4096,
     topK: 40,
     topP: 0.9,
-    preferredProvider: 'openai' as const
+    preferredProvider: 'gemini' as const
   },
   'true-false': {
     schema: TRUE_FALSE_SCHEMA,
@@ -439,7 +439,7 @@ export const QUESTION_TYPE_CONFIGS = {
     maxOutputTokens: 1536,
     topK: 30,
     topP: 0.8,
-    preferredProvider: 'openai' as const
+    preferredProvider: 'gemini' as const
   },
   'matching': {
     schema: MATCHING_SCHEMA,
@@ -447,7 +447,7 @@ export const QUESTION_TYPE_CONFIGS = {
     maxOutputTokens: 2048,
     topK: 40,
     topP: 0.9,
-    preferredProvider: 'openai' as const
+    preferredProvider: 'gemini' as const
   },
   'sequencing': {
     schema: SEQUENCING_SCHEMA,
@@ -455,6 +455,6 @@ export const QUESTION_TYPE_CONFIGS = {
     maxOutputTokens: 2048,
     topK: 35,
     topP: 0.8,
-    preferredProvider: 'openai' as const
+    preferredProvider: 'gemini' as const
   }
 }; 
