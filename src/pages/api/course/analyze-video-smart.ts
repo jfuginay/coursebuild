@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
+import { extractVideoId, fetchYouTubeMetadata, generateFallbackTitle } from '@/utils/youtube';
 
 // Duration threshold for segmentation (10 minutes)
 const SEGMENT_THRESHOLD = 600; // seconds
@@ -19,28 +20,6 @@ function isValidYouTubeUrl(url: string): boolean {
   }
   
   return false;
-}
-
-// Extract video title from URL (simplified version)
-function extractVideoTitle(url: string): string {
-  const videoId = extractVideoId(url);
-  return videoId ? `YouTube Video (${videoId})` : 'YouTube Video';
-}
-
-function extractVideoId(url: string): string | null {
-  const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-    /youtube\.com\/watch\?.*v=([^&\n?#]+)/
-  ];
-  
-  for (const pattern of patterns) {
-    const match = url.match(pattern);
-    if (match) {
-      return match[1];
-    }
-  }
-  
-  return null;
 }
 
 // Sanitize YouTube URL to just the core video URL
@@ -103,11 +82,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const sanitizedUrl = sanitizeYouTubeUrl(youtube_url);
       console.log('📝 Creating new course record...');
       
+      // Fetch video metadata from YouTube
+      const videoMetadata = await fetchYouTubeMetadata(sanitizedUrl);
+      const videoTitle = videoMetadata?.title || generateFallbackTitle(sanitizedUrl);
+      const videoDescription = videoMetadata 
+        ? `Interactive course from "${videoMetadata.author_name}" - Learn through AI-generated questions perfectly timed with the video content.`
+        : 'AI-powered interactive course from YouTube video with perfectly timed questions to enhance learning.';
+      
+      console.log('📹 Video Title:', videoTitle);
+      console.log('👤 Author:', videoMetadata?.author_name || 'Unknown');
+      
       const { data: course, error: courseError } = await supabase
         .from('courses')
         .insert({
-          title: extractVideoTitle(youtube_url),
-          description: 'AI Generated Course from YouTube Video',
+          title: videoTitle,
+          description: videoDescription,
           youtube_url: sanitizedUrl,
           published: false
         })

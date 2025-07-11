@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import { createClient } from '@supabase/supabase-js';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ProgressTracker } from '@/components/ProgressTracker';
-import { createClient } from '@supabase/supabase-js';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { toast } from 'sonner';
+import { ProgressTracker } from '@/components/ProgressTracker';
+import { extractVideoId, fetchYouTubeMetadata, generateFallbackTitle } from '@/utils/youtube';
 import { useGuidedTour, hasTourBeenCompleted } from '@/hooks/useGuidedTour';
 import { creationPageSteps } from '@/config/tours';
 
@@ -87,11 +89,22 @@ export default function CreateWithProgress() {
       setIsProcessing(true);
       console.log('🚀 Starting course creation with progress tracking...');
 
+      // Fetch video metadata from YouTube
+      const videoMetadata = await fetchYouTubeMetadata(youtubeUrl);
+      const videoTitle = videoMetadata?.title || generateFallbackTitle(youtubeUrl);
+      const videoDescription = videoMetadata 
+        ? `Interactive course from "${videoMetadata.author_name}" - Learn through AI-generated questions perfectly timed with the video content.`
+        : 'AI-powered interactive course from YouTube video with perfectly timed questions to enhance learning.';
+      
+      console.log('📹 Video Title:', videoTitle);
+      console.log('👤 Author:', videoMetadata?.author_name || 'Unknown');
+
       // Step 1: Create a course record
       const { data: courseData, error: courseError } = await supabase
         .from('courses')
         .insert({
-          title: `Course from ${youtubeUrl}`,
+          title: videoTitle,
+          description: videoDescription,
           youtube_url: youtubeUrl,
           published: false,  // Ensure course starts as unpublished
           status: 'processing'
