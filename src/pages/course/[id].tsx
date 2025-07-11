@@ -424,7 +424,7 @@ export default function CoursePage() {
          title: data.course.title,
          youtubeUrl: data.course.youtube_url,
          extractedVideoId: extractedVideoId,
-         published: data.course.published
+         published: data.course.published,
          hasRatings: courseWithRating.totalRatings > 0,
          averageRating: courseWithRating.averageRating
        });
