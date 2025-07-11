@@ -1009,49 +1009,64 @@ The system automatically fetches video metadata from YouTube's oEmbed API to pro
 3. Questions were still being inserted into the database
 4. Users saw an incomplete course with missing questions
 
-**Solution**: Course publishing now happens AFTER all database operations complete:
+**Solution**: Multi-level verification ensures courses are only published when questions exist:
 
+#### 1. Segment Processor Verification
 ```typescript
 // In process-video-segment/index.ts
-// OLD: Course marked as published immediately after segment completion
-// NEW: Course marked as published after all DB operations
-
 if (isLastSegment) {
-  // All questions and bounding boxes have been inserted
-  console.log(`🏁 All database operations complete for last segment. Now finalizing course...`);
+  // Verify questions exist before marking as published
+  const { count: questionCount } = await supabase
+    .from('questions')
+    .select('*', { count: 'exact', head: true })
+    .eq('course_id', course_id);
   
-  // NOW it's safe to mark as published
+  if (!questionCount || questionCount === 0) {
+    console.warn(`⚠️ No questions found. Not marking as published.`);
+    // Return without publishing
+  }
+  
+  // Only mark as published if questions exist
   await supabase
     .from('courses')
-    .update({ 
-      published: true,
-      updated_at: new Date().toISOString()
-    })
+    .update({ published: true })
     .eq('id', course_id);
 }
 ```
 
-**Key Points**:
-- The last segment processor handles course publishing
-- Publishing happens AFTER all questions and bounding boxes are inserted
-- The orchestrator no longer marks courses as published
-- Course page only redirects when all content is guaranteed to be ready
-
-### Polling and State Management
-
-The course page (`src/pages/course/[id].tsx`) polls for completion:
+#### 2. Course Page Verification
 ```typescript
-// Polls every 5 seconds
-if (pollData.success && pollData.course.published) {
-  console.log('✅ Course processing complete!');
-  setCourse(pollData.course);
-  setIsProcessing(false);
-  clearInterval(pollInterval);
-  fetchQuestions(); // Now guaranteed to find all questions
+// In src/pages/course/[id].tsx polling logic
+if (pollData.course.published) {
+  // Also verify questions exist
+  const questionsResponse = await fetch(`/api/course/${id}/questions`);
+  const questionsData = await questionsResponse.json();
+  
+  if (questionsData.questions?.length > 0) {
+    // Only stop processing UI when questions are confirmed
+    setIsProcessing(false);
+    setQuestions(questionsData.questions);
+  } else {
+    // Continue polling even if published=true
+    console.log('⚠️ Course published but no questions yet');
+  }
 }
 ```
 
-This ensures users only see the course content when generation is truly complete.
+**Key Points**:
+- The last segment processor verifies questions exist before publishing
+- The course page double-checks questions exist before showing content
+- The orchestrator tracks question counts for monitoring
+- Users only see courses when questions are guaranteed to be ready
+
+### Safety Mechanisms
+
+1. **Database Verification**: Questions are counted directly from the database
+2. **Double-Check Pattern**: Both backend and frontend verify questions
+3. **Graceful Degradation**: Processing continues if questions aren't ready
+4. **Clear Logging**: Each step logs question counts for debugging
+
+This ensures users never see an empty course page!
 
 ---
 
