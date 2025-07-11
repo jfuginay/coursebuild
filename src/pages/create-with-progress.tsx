@@ -73,6 +73,7 @@ export default function CreateWithProgress() {
         .insert({
           title: `Course from ${youtubeUrl}`,
           youtube_url: youtubeUrl,
+          published: false,  // Ensure course starts as unpublished
           status: 'processing'
         })
         .select()
