@@ -1,11 +1,21 @@
 const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env.local') });
 
-// Hardcode the values from .env.local
-const supabaseUrl = 'https://nkqehqwbxkxrgecmgzuq.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rcWVocXdieGt4cmdlY21nenVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5OTYxODAsImV4cCI6MjA2NzU3MjE4MH0.mOOF0r4u2WFgcEHdvn-3laDCR5IK_8Z49ZSuOVyXDv8';
-const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rcWVocXdieGt4cmdlY21nenVxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTk5NjE4MCwiZXhwIjoyMDY3NTcyMTgwfQ.bWXToInycb2-1gEFKROXNnmYmu_m5GMAb3LPZzgUuRw';
+// Get values from environment variables
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey) {
+  console.error('❌ Missing required environment variables:');
+  console.error('   - NEXT_PUBLIC_SUPABASE_URL');
+  console.error('   - NEXT_PUBLIC_SUPABASE_ANON_KEY');
+  console.error('   - SUPABASE_SERVICE_ROLE_KEY');
+  console.error('\nPlease ensure these are set in your .env.local file');
+  process.exit(1);
+}
 
 async function createTables() {
   console.log('🚀 Creating InfoBite tables via Supabase REST API...\n');
@@ -60,7 +70,8 @@ async function createTables() {
   console.log('===============================================\n');
   console.log('The tables need to be created manually. Please:');
   console.log('\n1. Go to your Supabase SQL Editor:');
-  console.log('   https://supabase.com/dashboard/project/nkqehqwbxkxrgecmgzuq/sql/new\n');
+  const projectRef = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1];
+  console.log(`   https://supabase.com/dashboard/project/${projectRef}/sql/new\n`);
   console.log('2. Copy ALL the SQL below and paste it into the editor:\n');
   console.log('===============================================\n');
   console.log(migrationSQL);
