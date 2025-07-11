@@ -14,169 +14,118 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Validate user token
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) {
-    return res.status(401).json({ error: 'Authorization token required' });
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  if (authError || !user) {
-    return res.status(401).json({ error: 'Invalid or expired token' });
-  }
-
-  const { 
-    question_id, 
-    enrollment_id,
-    course_id,
-    selected_answer, 
-    selected_answers,
-    response_text,
-    response_data,
-    is_correct, 
-    points_earned,
-    max_points,
-    response_time_ms,
-    attempt_number,
-    is_final_attempt
-  } = req.body;
-
-  if (!question_id || is_correct === undefined) {
-    return res.status(400).json({ 
-      error: 'question_id and is_correct are required' 
-    });
-  }
-
-  // Use the authenticated user's ID
-  const user_id = user.id;
-
-  // If enrollment_id is not provided, try to get it from course_id
-  let finalEnrollmentId = enrollment_id;
-  if (!enrollment_id && course_id) {
-    try {
-      const { data: enrollment, error: enrollmentError } = await supabase
-        .from('user_course_enrollments')
-        .select('id')
-        .eq('user_id', user_id)
-        .eq('course_id', course_id)
-        .single();
-
-      if (enrollmentError) {
-        console.error('Error finding enrollment:', enrollmentError);
-        return res.status(400).json({ 
-          error: 'Could not find enrollment for this user and course' 
-        });
-      }
-
-      finalEnrollmentId = enrollment.id;
-    } catch (error) {
-      console.error('Error looking up enrollment:', error);
-      return res.status(400).json({ 
-        error: 'Failed to lookup enrollment' 
-      });
-    }
-  }
-
-  if (!finalEnrollmentId) {
-    return res.status(400).json({ 
-      error: 'enrollment_id or course_id is required' 
-    });
-  }
+  const token = authHeader.replace('Bearer ', '');
 
   try {
-    // Check if response already exists for this attempt
-    const currentAttemptNumber = attempt_number || 1;
-    const { data: existing, error: checkError } = await supabase
-      .from('user_question_responses')
-      .select('id, attempted_at')
-      .eq('user_id', user_id)
-      .eq('question_id', question_id)
-      .eq('attempt_number', currentAttemptNumber)
+    // Verify the user's token
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    const {
+      question_id,
+      course_id,
+      selected_answer,
+      is_correct,
+      response_time_ms,
+      question_type,
+      timestamp
+    } = req.body;
+
+    // Validate required fields
+    if (!question_id || !course_id || selected_answer === undefined || is_correct === undefined) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Check if user has enrollment (or create one)
+    let enrollmentId: string;
+    const { data: enrollment, error: enrollmentError } = await supabase
+      .from('user_course_enrollments')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('course_id', course_id)
       .single();
 
-    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is "not found"
-      console.error('Error checking existing response:', checkError);
-      return res.status(500).json({ error: 'Failed to check existing response' });
+    if (enrollmentError && enrollmentError.code !== 'PGRST116') { // PGRST116 = not found
+      console.error('Error checking enrollment:', enrollmentError);
+      return res.status(500).json({ error: 'Failed to check enrollment' });
     }
 
-    // Handle different data types properly
-    let processedSelectedAnswer = null;
-    let processedResponseText = response_text || null;
-
-    // If selected_answer is a string (like LaTeX), it should go in response_text
-    // If it's a number, it should go in selected_answer
-    if (selected_answer !== null && selected_answer !== undefined) {
-      if (typeof selected_answer === 'string') {
-        processedResponseText = selected_answer;
-        processedSelectedAnswer = null;
-      } else if (typeof selected_answer === 'number' || !isNaN(Number(selected_answer))) {
-        processedSelectedAnswer = Number(selected_answer);
-      }
-    }
-
-    const responseData = {
-      user_id,
-      question_id,
-      enrollment_id: finalEnrollmentId,
-      selected_answer: processedSelectedAnswer,
-      selected_answers: selected_answers || null,
-      response_text: processedResponseText,
-      response_data: response_data || null,
-      is_correct,
-      points_earned: points_earned || 0,
-      max_points: max_points || 1,
-      response_time_ms: response_time_ms || null,
-      attempted_at: new Date().toISOString(),
-      attempt_number: currentAttemptNumber,
-      is_final_attempt: is_final_attempt !== undefined ? is_final_attempt : true
-    };
-
-    if (existing) {
-      // Update existing response
-      const { data: response, error: updateError } = await supabase
-        .from('user_question_responses')
-        .update(responseData)
-        .eq('id', existing.id)
-        .select()
+    // Create enrollment if it doesn't exist
+    if (!enrollment) {
+      const { data: newEnrollment, error: createEnrollmentError } = await supabase
+        .from('user_course_enrollments')
+        .insert({
+          user_id: user.id,
+          course_id,
+          enrollment_type: 'free'
+        })
+        .select('id')
         .single();
 
-      if (updateError) {
-        console.error('Error updating question response:', updateError);
-        return res.status(500).json({ error: 'Failed to update question response' });
+      if (createEnrollmentError || !newEnrollment) {
+        console.error('Error creating enrollment:', createEnrollmentError);
+        return res.status(500).json({ error: 'Failed to create enrollment' });
       }
-
-      return res.status(200).json({
-        success: true,
-        response_id: response.id,
-        message: 'Question response updated successfully',
-        was_existing: true
-      });
+      
+      enrollmentId = newEnrollment.id;
     } else {
-      // Create new response
-      const { data: response, error: createError } = await supabase
-        .from('user_question_responses')
-        .insert(responseData)
-        .select()
-        .single();
-
-      if (createError) {
-        console.error('Error creating question response:', createError);
-        return res.status(500).json({ error: 'Failed to create question response' });
-      }
-
-      return res.status(201).json({
-        success: true,
-        response_id: response.id,
-        message: 'Question response recorded successfully',
-        was_existing: false
-      });
+      enrollmentId = enrollment.id;
     }
+
+    // Insert the question response
+    const { data: response, error: responseError } = await supabase
+      .from('user_question_responses')
+      .insert({
+        user_id: user.id,
+        question_id,
+        enrollment_id: enrollmentId,
+        selected_answer: selected_answer.toString(),
+        is_correct,
+        response_time_ms,
+        question_type,
+        video_timestamp: timestamp ? Math.round(timestamp) : null
+      })
+      .select()
+      .single();
+
+    if (responseError) {
+      console.error('Error inserting question response:', responseError);
+      return res.status(500).json({ error: 'Failed to save question response' });
+    }
+
+    // Log learner event for wrong answers
+    if (!is_correct) {
+      await supabase
+        .from('learner_events')
+        .insert({
+          user_id: user.id,
+          course_id,
+          event_type: 'QUIZ_WRONG',
+          video_timestamp: timestamp ? Math.round(timestamp) : null,
+          metadata: {
+            question_id,
+            question_type,
+            selected_answer: selected_answer.toString()
+          }
+        });
+    }
+
+    return res.status(200).json({ 
+      success: true, 
+      data: response,
+      message: 'Question response tracked successfully' 
+    });
 
   } catch (error) {
-    console.error('API error:', error);
-    return res.status(500).json({ 
-      error: 'Internal server error',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    });
+    console.error('Error in user-question-responses API:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
-} 
+}
