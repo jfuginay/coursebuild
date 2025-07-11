@@ -430,6 +430,40 @@ serve(async (req: Request) => {
       } else if (!nextSegment) {
         console.log(`✅ This was the LAST segment (${segment_index + 1}/${total_segments})! Finalizing course...`);
         
+        // IMPORTANT: Verify questions exist before marking as published
+        const { count: questionCount, error: countError } = await supabase
+          .from('questions')
+          .select('*', { count: 'exact', head: true })
+          .eq('course_id', course_id);
+        
+        if (countError) {
+          console.error('Failed to count questions:', countError);
+        }
+        
+        console.log(`📊 Total questions in database for course: ${questionCount || 0}`);
+        
+        if (!questionCount || questionCount === 0) {
+          console.warn(`⚠️ No questions found for course ${course_id}. Not marking as published.`);
+          
+          // Don't publish the course if no questions exist
+          return new Response(
+            JSON.stringify({
+              success: true,
+              segment_index,
+              questions_generated: 0,
+              generation_metadata: { skipped: true, reason: 'No transcript content' },
+              context_for_next: validatedPreviousContext,
+              next_segment_triggered: false,
+              errors: [],
+              warning: 'Course not published - no questions found in database'
+            }),
+            { 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              status: 200 
+            }
+          );
+        }
+        
         // Update course as fully processed
         const { error: courseUpdateError } = await supabase
           .from('courses')
@@ -441,6 +475,8 @@ serve(async (req: Request) => {
           
         if (courseUpdateError) {
           console.error('Failed to update course status:', courseUpdateError);
+        } else {
+          console.log(`✅ Course marked as published (${questionCount} questions verified)`);
         }
 
         // Update progress to completed
@@ -666,6 +702,9 @@ serve(async (req: Request) => {
       console.error('Error checking for next segment:', nextSegmentError);
     }
 
+    // Check if this is the last segment BEFORE triggering next segment or marking as published
+    const isLastSegment = !nextSegment;
+    
     if (nextSegment && nextSegment.status === 'pending') {
       console.log(`🔄 Next segment ${nextSegment.segment_index + 1} is ready`);
       console.log(`   🎼 Triggering orchestrator to handle next segment`);
@@ -696,8 +735,52 @@ serve(async (req: Request) => {
       } catch (err) {
         console.error('Failed to trigger orchestrator:', err);
       }
-    } else if (!nextSegment) {
-      console.log(`✅ This was the LAST segment (${segment_index + 1}/${total_segments})! Finalizing course...`);
+    } else if (isLastSegment) {
+      console.log(`✅ This was the LAST segment (${segment_index + 1}/${total_segments})! Will finalize course after all DB operations complete...`);
+      
+      // IMPORTANT: Course publishing is now moved to AFTER all DB operations are complete
+      // This prevents the race condition where the course page sees published=true before questions are inserted
+    } else {
+      console.log(`📝 Segment ${segment_index + 1} has a next segment but it's not pending (status: ${nextSegment?.status})`);
+    }
+
+    // If this is the last segment, publish the course AFTER all operations are complete
+    if (isLastSegment) {
+      console.log(`🏁 All database operations complete for last segment. Now finalizing course...`);
+      
+      // IMPORTANT: Verify questions exist before marking as published
+      const { count: questionCount, error: countError } = await supabase
+        .from('questions')
+        .select('*', { count: 'exact', head: true })
+        .eq('course_id', course_id);
+      
+      if (countError) {
+        console.error('Failed to count questions:', countError);
+      }
+      
+      console.log(`📊 Total questions in database for course: ${questionCount || 0}`);
+      
+      if (!questionCount || questionCount === 0) {
+        console.warn(`⚠️ No questions found for course ${course_id}. Not marking as published yet.`);
+        
+        // Update segment status but don't publish the course
+        return new Response(
+          JSON.stringify({
+            success: true,
+            segment_index,
+            questions_generated: generationResult.generated_questions.length,
+            generation_metadata: generationResult.generation_metadata,
+            context_for_next: cumulativeContext,
+            next_segment_triggered: false,
+            errors: generationResult.errors,
+            warning: 'Course not published - no questions found in database'
+          }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200 
+          }
+        );
+      }
       
       // Update course as fully processed
       const { error: courseUpdateError } = await supabase
@@ -711,7 +794,7 @@ serve(async (req: Request) => {
       if (courseUpdateError) {
         console.error('Failed to update course status:', courseUpdateError);
       } else {
-        console.log('✅ Course marked as published');
+        console.log(`✅ Course marked as published (${questionCount} questions verified)`);
       }
 
       // Update progress to completed
@@ -739,9 +822,8 @@ serve(async (req: Request) => {
         - Segment: ${segment_index + 1}/${total_segments}
         - Questions generated: ${generationResult.generated_questions.length}
         - Questions inserted: ${insertedQuestions.length}
+        - Total questions in course: ${questionCount}
         - Course published: ${!courseUpdateError}`);
-    } else {
-      console.log(`📝 Segment ${segment_index + 1} has a next segment but it's not pending (status: ${nextSegment?.status})`);
     }
 
     return new Response(

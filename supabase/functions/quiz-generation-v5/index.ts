@@ -700,6 +700,38 @@ const executeQuizGenerationPipeline = async (
     
     stageTimings.storage = Date.now() - stage4StartTime;
     
+    // VERIFY AND PUBLISH: Mark course as published only if questions exist
+    console.log(`\n✅ VERIFYING AND PUBLISHING`);
+    const { count: questionCount, error: countError } = await supabaseClient
+      .from('questions')
+      .select('*', { count: 'exact', head: true })
+      .eq('course_id', request.course_id);
+    
+    if (countError) {
+      console.error('Failed to count questions:', countError);
+    }
+    
+    console.log(`📊 Total questions in database: ${questionCount || 0}`);
+    
+    if (questionCount && questionCount > 0) {
+      // Only mark as published if questions exist
+      const { error: publishError } = await supabaseClient
+        .from('courses')
+        .update({ 
+          published: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', request.course_id);
+      
+      if (publishError) {
+        console.error('Failed to publish course:', publishError);
+      } else {
+        console.log(`✅ Course marked as published (${questionCount} questions verified)`);
+      }
+    } else {
+      console.warn(`⚠️ No questions found for course ${request.course_id}. Not marking as published.`);
+    }
+    
     // PIPELINE COMPLETION
     const totalTimeMs = Date.now() - pipelineStartTime;
     const successRate = generationResult.generated_questions.length / questionPlans.length;
@@ -709,6 +741,8 @@ const executeQuizGenerationPipeline = async (
     console.log(`   📈 Success Rate: ${(successRate * 100).toFixed(1)}%`);
     console.log(`   ❌ Errors: ${errorCount}`);
     console.log(`   🔍 Verification: ${request.enable_quality_verification ? 'Enabled' : 'Disabled'}`);
+    console.log(`   📊 Questions in DB: ${questionCount || 0}`);
+    console.log(`   ✅ Published: ${questionCount && questionCount > 0 ? 'Yes' : 'No'}`);
     
     // Calculate verification metrics (only if verification was enabled)
     const avgQualityScore = verificationResults.length > 0 

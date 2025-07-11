@@ -86,10 +86,10 @@ const InteractiveVideoPlayer: React.FC<InteractiveVideoPlayerProps> = ({
       <Card id="interactive-video-player" className="h-full">
         <CardHeader>
           <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <Play className="h-5 w-5" />
-            Interactive Video Course
-          </CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Play className="h-5 w-5" />
+              Interactive Video Course
+            </CardTitle>
             <Button 
               variant="outline" 
               size="sm"
@@ -118,6 +118,8 @@ const InteractiveVideoPlayer: React.FC<InteractiveVideoPlayerProps> = ({
                 </div>
               </div>
             )}
+            
+            {/* Fallback iframe if API fails */}
             {error && videoId && (
               <iframe
                 src={`https://www.youtube.com/embed/${videoId}?controls=1&modestbranding=1&rel=0&enablejsapi=1&origin=${window.location.origin}`}
@@ -128,6 +130,8 @@ const InteractiveVideoPlayer: React.FC<InteractiveVideoPlayerProps> = ({
                 className="w-full h-full"
               />
             )}
+            
+            {/* Main YouTube API player */}
             <div 
               id="youtube-player" 
               className="w-full h-full"
@@ -138,6 +142,8 @@ const InteractiveVideoPlayer: React.FC<InteractiveVideoPlayerProps> = ({
               }} 
             />
           </div>
+          
+          {/* Progress Bar */}
           {isVideoReady && duration > 0 && (
             <div className="space-y-3 px-2">
               <div className="flex justify-between text-sm text-muted-foreground">
@@ -148,8 +154,13 @@ const InteractiveVideoPlayer: React.FC<InteractiveVideoPlayerProps> = ({
                 currentTime={currentTime}
                 duration={duration}
                 onSeek={showQuestion ? () => {} : onVideoSeek}
-                questions={questions.map((question, index) => ({ ...question, id: `0-${index}` }))}
-                answeredQuestions={new Set(Array.from(answeredQuestions).map(index => `0-${index}`))}
+                questions={questions.map((question, index) => ({
+                  ...question,
+                  id: `0-${index}` // Simple ID for single segment structure
+                }))}
+                answeredQuestions={new Set(
+                  Array.from(answeredQuestions).map(index => `0-${index}`)
+                )}
                 formatTimestamp={formatTime}
                 className=""
               />

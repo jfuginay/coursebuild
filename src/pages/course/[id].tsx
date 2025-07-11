@@ -410,12 +410,28 @@ export default function CoursePage() {
              const pollData = await pollResponse.json();
              
              if (pollData.success && pollData.course.published) {
-               console.log('✅ Course processing complete!');
-               setCourse(pollData.course);
-               setIsProcessing(false);
-               clearInterval(pollInterval);
-               // Fetch questions now that course is published
-               fetchQuestions();
+               // IMPORTANT: Also verify questions exist before considering processing complete
+               const questionsResponse = await fetch(`/api/course/${id}/questions`);
+               const questionsData = await questionsResponse.json();
+               
+               if (questionsData.success && questionsData.questions && questionsData.questions.length > 0) {
+                 console.log(`✅ Course processing complete! Found ${questionsData.questions.length} questions`);
+                 setCourse(pollData.course);
+                 setIsProcessing(false);
+                 clearInterval(pollInterval);
+                 // Set questions immediately instead of calling fetchQuestions
+                 const parsedQuestions = questionsData.questions.map((q: any) => ({
+                   ...q,
+                   options: parseOptionsWithTrueFalse(q.options || [], q.type),
+                   correct: parseInt(q.correct_answer) || 0,
+                   correct_answer: parseInt(q.correct_answer) || 0
+                 }));
+                 setQuestions(parsedQuestions);
+               } else {
+                 console.log(`⚠️ Course marked as published but no questions found yet. Continuing to poll...`);
+                 // Continue polling even though course is marked as published
+                 // This handles the edge case where published=true but questions aren't ready yet
+               }
              } else if (checkCounter % 6 === 0) { // Only check segments every 30 seconds (6 * 5s)
                // Check segments less frequently to avoid overwhelming the orchestrator
                try {
@@ -1734,42 +1750,6 @@ export default function CoursePage() {
            <h1 className="text-3xl font-bold tracking-tight lg:text-4xl">
              {course.title}
            </h1>
-           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-             {course.description}
-           </p>
-           {/* Course Rating - Always show */}
-           <div className="flex items-center justify-center">
-             <CompactStarRating
-               rating={course.averageRating || 0}
-               totalRatings={course.totalRatings || 0}
-               size="md"
-               showRatingText={true}
-               className="text-yellow-500"
-             />
-           </div>
-           
-           {/* Course Stats */}
-           <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
-             <div className="flex items-center gap-2">
-               <BookOpen className="h-4 w-4" />
-               {questions.length} Questions
-             </div>
-             <div className="flex items-center gap-2">
-               <CheckCircle className="h-4 w-4" />
-               {correctAnswers}/{questions.length} Correct
-               {answeredQuestions.size > 0 && (
-                 <span className="text-primary font-medium">
-                   ({Math.round((correctAnswers / answeredQuestions.size) * 100)}%)
-                 </span>
-               )}
-             </div>
-             {duration > 0 && (
-               <div className="flex items-center gap-2">
-                 <Clock className="h-4 w-4" />
-                 {formatTime(duration)}
-               </div>
-             )}
-           </div>
          </div>
 
                  {/* Video Player with Flip Support */}

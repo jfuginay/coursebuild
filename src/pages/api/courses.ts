@@ -18,12 +18,13 @@ export default async function handler(
 
   try {
     // Refresh the materialized view to ensure rating stats are up-to-date
-    const { error: refreshError } = await supabase.rpc('refresh_course_rating_stats');
-    if (refreshError) {
-      console.error('Error refreshing course_rating_stats:', refreshError);
-      // Decide if this should be a hard error or just a warning
-      // For now, let's log it and continue, as courses can still be fetched
-    }
+    // COMMENTED OUT: course_rating_stats table does not exist
+    // const { error: refreshError } = await supabase.rpc('refresh_course_rating_stats');
+    // if (refreshError) {
+    //   console.error('Error refreshing course_rating_stats:', refreshError);
+    //   // Decide if this should be a hard error or just a warning
+    //   // For now, let's log it and continue, as courses can still be fetched
+    // }
 
     // Get basic course data first (reliable baseline)
     let query = supabase
@@ -60,37 +61,55 @@ export default async function handler(
       });
     }
 
-    // Try to enhance with rating data (non-blocking)
+    // Try to enhance with rating data and question counts (non-blocking)
     const coursesWithRatings = await Promise.all(
       coursesData.map(async (course) => {
         let averageRating = 0;
         let totalRatings = 0;
+        let questionCount = 0;
+
+        // COMMENTED OUT: course_rating_stats table does not exist
+        // try {
+        //   // Try to get rating stats for this course
+        //   const { data: ratingStats, error: ratingError } = await supabase
+        //     .from('course_rating_stats')
+        //     .select('average_rating, total_ratings')
+        //     .eq('course_id', course.id)
+        //     .maybeSingle(); // Use maybeSingle to handle no results gracefully
+
+        //   if (!ratingError && ratingStats) {
+        //     averageRating = Number(ratingStats.average_rating) || 0;
+        //     totalRatings = Number(ratingStats.total_ratings) || 0;
+            
+        //     // Debug: Log rating data for courses that have ratings
+        //     if (totalRatings > 0) {
+        //       console.log(`⭐ Course "${course.title}" has ratings:`, {
+        //         averageRating,
+        //         totalRatings,
+        //         courseId: course.id
+        //       });
+        //     }
+        //   } else if (ratingError) {
+        //     console.warn(`❌ Rating error for course ${course.id}:`, ratingError);
+        //   }
+        // } catch (ratingError) {
+        //   console.warn(`❌ Rating fetch error for course ${course.id}:`, ratingError);
+        // }
 
         try {
-          // Try to get rating stats for this course
-          const { data: ratingStats, error: ratingError } = await supabase
-            .from('course_rating_stats')
-            .select('average_rating, total_ratings')
-            .eq('course_id', course.id)
-            .maybeSingle(); // Use maybeSingle to handle no results gracefully
+          // Get question count for this course
+          const { count, error: questionError } = await supabase
+            .from('questions')
+            .select('id', { count: 'exact' })
+            .eq('course_id', course.id);
 
-          if (!ratingError && ratingStats) {
-            averageRating = Number(ratingStats.average_rating) || 0;
-            totalRatings = Number(ratingStats.total_ratings) || 0;
-            
-            // Debug: Log rating data for courses that have ratings
-            if (totalRatings > 0) {
-              console.log(`⭐ Course "${course.title}" has ratings:`, {
-                averageRating,
-                totalRatings,
-                courseId: course.id
-              });
-            }
-          } else if (ratingError) {
-            console.warn(`❌ Rating error for course ${course.id}:`, ratingError);
+          if (!questionError && count !== null) {
+            questionCount = count;
+          } else if (questionError) {
+            console.warn(`❌ Question count error for course ${course.id}:`, questionError);
           }
-        } catch (ratingError) {
-          console.warn(`❌ Rating fetch error for course ${course.id}:`, ratingError);
+        } catch (questionError) {
+          console.warn(`❌ Question count fetch error for course ${course.id}:`, questionError);
         }
 
         return {
@@ -101,7 +120,8 @@ export default async function handler(
           created_at: course.created_at,
           published: course.published,
           averageRating,
-          totalRatings
+          totalRatings,
+          questionCount
         };
       })
     );

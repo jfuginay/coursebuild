@@ -30,49 +30,36 @@ export default async function handler(
 
     console.log('📊 Fetching dashboard data for user:', user.id);
 
-    // 1. Get user profile - fallback to basic profile if view doesn't exist
-    let dashboardStats = null;
-    try {
-      const { data: statsData, error: statsError } = await supabase
-        .from('user_dashboard_stats')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
+    // 1. Get user profile and calculate stats from actual tables
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
 
-      if (statsError) {
-        console.log('Dashboard stats view not available, falling back to basic profile');
-        // Fallback: get basic profile data
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-
-        if (profileError) {
-          console.error('Error fetching user profile:', profileError);
-          return res.status(500).json({ error: 'Failed to fetch user profile' });
-        }
-
-        // Create basic stats structure
-        dashboardStats = {
-          user_id: user.id,
-          email: profile.email,
-          display_name: profile.display_name,
-          subscription_tier: profile.subscription_tier || 'free',
-          courses_enrolled: 0,
-          courses_completed: 0,
-          total_correct_answers: 0,
-          total_questions_attempted: 0,
-          total_points: 0,
-          total_achievements: 0
-        };
-      } else {
-        dashboardStats = statsData;
-      }
-    } catch (error) {
-      console.error('Error in dashboard stats fallback:', error);
-      return res.status(500).json({ error: 'Failed to fetch dashboard data' });
+    if (profileError) {
+      console.error('Error fetching user profile:', profileError);
+      return res.status(500).json({ error: 'Failed to fetch user profile' });
     }
+
+    // Calculate stats from actual data
+    const dashboardStats = {
+      user_id: user.id,
+      email: user.email,
+      display_name: profile.display_name,
+      subscription_tier: 'free', // No subscription_tier in profiles schema
+      bio: profile.bio,
+      preferred_difficulty: profile.preferred_difficulty,
+      created_at: profile.created_at,
+      courses_enrolled: profile.total_courses_taken || 0,
+      courses_completed: 0, // Will calculate below
+      total_correct_answers: profile.total_questions_correct || 0,
+      total_questions_attempted: profile.total_questions_answered || 0,
+      total_points: 0, // Will calculate from responses
+      total_achievements: 0, // Will calculate below
+      current_streak: profile.current_streak || 0,
+      longest_streak: profile.longest_streak || 0
+    };
 
     // 2. Get enrolled courses with progress (with fallback)
     let enrollments = [];
@@ -104,22 +91,22 @@ export default async function handler(
       enrollments = [];
     }
 
-    // 3. Get recent question attempts (last 10) (with fallback)
+    // 3. Get recent question attempts (last 10) using actual table
     let recentAttempts = [];
     try {
       const { data: attemptData, error: attemptsError } = await supabase
-        .from('user_question_attempts')
+        .from('user_question_responses')
         .select(`
           *,
           questions (
             id,
             question,
             type,
-            timestamp
-          ),
-          courses (
-            id,
-            title
+            timestamp,
+            courses (
+              id,
+              title
+            )
           )
         `)
         .eq('user_id', user.id)
@@ -127,65 +114,54 @@ export default async function handler(
         .limit(10);
 
       if (attemptsError) {
-        console.log('Question attempts table not available:', attemptsError.message);
+        console.log('Question responses table error:', attemptsError.message);
         recentAttempts = [];
       } else {
         recentAttempts = attemptData || [];
       }
     } catch (error) {
-      console.log('Question attempts query failed, using empty array');
+      console.log('Question responses query failed, using empty array');
       recentAttempts = [];
     }
 
-    // 4. Get recent achievements (last 5) (with fallback)
+    // 4. Calculate points and achievements from actual responses
+    let totalPoints = 0;
+    let totalAchievements = 0;
     let recentAchievements = [];
+    
+    // Calculate total points from user responses
     try {
-      const { data: achievementData, error: achievementsError } = await supabase
-        .from('user_achievements')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('earned_at', { ascending: false })
-        .limit(5);
-
-      if (achievementsError) {
-        console.log('Achievements table not available:', achievementsError.message);
-        recentAchievements = [];
-      } else {
-        recentAchievements = achievementData || [];
+      const { data: pointsData } = await supabase
+        .from('user_question_responses')
+        .select('points_earned')
+        .eq('user_id', user.id);
+      
+      if (pointsData) {
+        totalPoints = pointsData.reduce((sum, response) => sum + (response.points_earned || 0), 0);
       }
     } catch (error) {
-      console.log('Achievements query failed, using empty array');
-      recentAchievements = [];
+      console.log('Points calculation failed, using 0');
     }
 
-    // 5. Get learning streak data (with fallback)
-    let currentStreak = 0;
-    let longestStreak = 0;
+    // Update calculated values
+    dashboardStats.total_points = totalPoints;
+    dashboardStats.total_achievements = totalAchievements;
+
+    // 5. Calculate streak and weekly data from user responses
+    let currentStreak = dashboardStats.current_streak;
+    let longestStreak = dashboardStats.longest_streak;
     let weeklyQuestions = 0;
 
     try {
       const { data: streakData, error: streakError } = await supabase
-        .from('user_question_attempts')
+        .from('user_question_responses')
         .select('attempted_at, is_correct')
         .eq('user_id', user.id)
         .order('attempted_at', { ascending: false })
-        .limit(30); // Last 30 attempts for streak calculation
+        .limit(30);
 
       if (!streakError && streakData && streakData.length > 0) {
-        let tempStreak = 0;
-        // Calculate current streak (consecutive correct answers from most recent)
-        for (let i = 0; i < streakData.length; i++) {
-          if (streakData[i].is_correct) {
-            if (i === currentStreak) currentStreak++;
-            tempStreak++;
-          } else {
-            if (tempStreak > longestStreak) longestStreak = tempStreak;
-            tempStreak = 0;
-          }
-        }
-        if (tempStreak > longestStreak) longestStreak = tempStreak;
-
-        // 6. Calculate weekly activity
+        // Calculate weekly activity
         const oneWeekAgo = new Date();
         oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
         
@@ -193,35 +169,44 @@ export default async function handler(
           new Date(attempt.attempted_at) >= oneWeekAgo
         );
         weeklyQuestions = weeklyData.length;
-      }
-    } catch (error) {
-      console.log('Streak calculation failed, using defaults');
-    }
-
-    // 7. Get course progress details for enrolled courses (with fallback)
-    const courseProgressDetails = [];
-    if (enrollments && enrollments.length > 0) {
-      for (const enrollment of enrollments) {
-        try {
-          const { data: courseProgress } = await supabase
-            .from('user_course_progress')
-            .select('*')
-            .eq('user_id', user.id)
-            .eq('course_id', enrollment.course_id);
-
-          courseProgressDetails.push({
-            ...enrollment,
-            segmentProgress: courseProgress || []
-          });
-        } catch (error) {
-          console.log('Course progress query failed for enrollment:', enrollment.id);
-          courseProgressDetails.push({
-            ...enrollment,
-            segmentProgress: []
-          });
+        
+        // If profile streaks are 0, calculate them
+        if (currentStreak === 0 && longestStreak === 0) {
+          let tempStreak = 0;
+          for (let i = 0; i < streakData.length; i++) {
+            if (streakData[i].is_correct) {
+              if (i === currentStreak) currentStreak++;
+              tempStreak++;
+            } else {
+              if (tempStreak > longestStreak) longestStreak = tempStreak;
+              tempStreak = 0;
+            }
+          }
+          if (tempStreak > longestStreak) longestStreak = tempStreak;
         }
       }
+    } catch (error) {
+      console.log('Streak calculation failed, using profile defaults');
     }
+
+    // 6. Calculate completion for each enrollment
+    const courseProgressDetails = [];
+    let completedCourses = 0;
+    
+    if (enrollments && enrollments.length > 0) {
+      for (const enrollment of enrollments) {
+        if (enrollment.is_completed) {
+          completedCourses++;
+        }
+        courseProgressDetails.push({
+          ...enrollment,
+          segmentProgress: [] // No segment progress table exists yet
+        });
+      }
+    }
+    
+    // Update completed courses count
+    dashboardStats.courses_completed = completedCourses;
 
     console.log('✅ Dashboard data fetched successfully');
 

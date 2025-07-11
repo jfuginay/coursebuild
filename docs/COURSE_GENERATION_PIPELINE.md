@@ -18,6 +18,7 @@
 10. [Current Implementation Status](#current-implementation-status)
 11. [Technical Specifications](#technical-specifications)
 12. [LangSmith Monitoring](#langsmith-monitoring)
+13. [Race Condition Prevention](#race-condition-prevention)
 
 ---
 
@@ -996,4 +997,86 @@ The system automatically fetches video metadata from YouTube's oEmbed API to pro
 
 ---
 
-*This documentation reflects the current v5.0 implementation with full transcript generation, intelligent timestamp optimization, atomic segment processing, backend orchestration, complete metadata storage, and enhanced educational context awareness.* 
+## 12. Race Condition Prevention
+
+### Course Publishing Timing
+
+**Problem**: The course page was redirecting to content display when question plans were generated, not when actual questions were inserted into the database.
+
+**Root Cause**: Multiple race conditions where:
+1. Various endpoints marked `course.published = true` without verifying questions exist
+2. The course page polling (every 5 seconds) immediately saw this and redirected
+3. Questions were still being inserted into the database
+4. Users saw an incomplete course with missing questions
+
+**Solution**: Comprehensive verification ensures courses are only published when questions exist:
+
+#### 1. Segment Processor Verification
+```typescript
+// In process-video-segment/index.ts
+if (isLastSegment) {
+  // Verify questions exist before marking as published
+  const { count: questionCount } = await supabase
+    .from('questions')
+    .select('*', { count: 'exact', head: true })
+    .eq('course_id', course_id);
+  
+  if (questionCount && questionCount > 0) {
+    await supabase
+      .from('courses')
+      .update({ published: true })
+      .eq('id', course_id);
+  }
+}
+```
+
+#### 2. Course Page Verification
+```typescript
+// In src/pages/course/[id].tsx
+if (pollData.course.published) {
+  // Also verify questions exist before stopping processing UI
+  const questionsResponse = await fetch(`/api/course/${id}/questions`);
+  const questionsData = await questionsResponse.json();
+  
+  if (questionsData.questions && questionsData.questions.length > 0) {
+    // Only then stop the processing UI
+  }
+}
+```
+
+#### 3. Quiz Generation Pipeline Publishing
+```typescript
+// In quiz-generation-v5/index.ts
+// After storing questions, verify they exist
+const { count: questionCount } = await supabaseClient
+  .from('questions')
+  .select('*', { count: 'exact', head: true })
+  .eq('course_id', request.course_id);
+
+if (questionCount && questionCount > 0) {
+  // Only mark as published if questions exist
+  await supabaseClient
+    .from('courses')
+    .update({ published: true })
+    .eq('id', request.course_id);
+}
+```
+
+#### 4. Fixed All Publishing Paths
+- **Removed premature publishing from**:
+  - `check-segment-processing.ts` - No longer marks courses as published
+  - `init-segmented-processing/index.ts` - No longer publishes short videos automatically
+  - `orchestrate-segment-processing/index.ts` - Already didn't publish (good)
+  
+- **Added verification to**:
+  - `analyze-video-smart.ts` - Verifies questions exist when using cache
+  - `process-video-segment/index.ts` - Verifies questions before publishing last segment
+  - `quiz-generation-v5/index.ts` - Added publishing logic with verification
+
+### Result
+Courses are now **ONLY** marked as published after:
+1. All database operations are complete
+2. Questions are verified to exist in the database
+3. The course page also double-checks questions exist before stopping processing UI
+
+This ensures users only see course content when generation is truly complete. 

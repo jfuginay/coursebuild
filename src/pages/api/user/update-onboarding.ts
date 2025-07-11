@@ -24,9 +24,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     // First check if user profile exists
     const { data: existingProfile, error: fetchError } = await supabase
-      .from('user_profiles')
-      .select('id')
-      .eq('user_id', user_id)
+      .from('profiles')
+      .select('id, notification_preferences')
+      .eq('id', user_id)
       .single();
 
     if (fetchError && fetchError.code !== 'PGRST116') {
@@ -34,12 +34,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (!existingProfile) {
-      // Create profile if it doesn't exist
+      // Profile doesn't exist, create it with onboarding status
       const { error: createError } = await supabase
-        .from('user_profiles')
+        .from('profiles')
         .insert({
-          user_id,
-          onboarding_completed,
+          id: user_id,
+          email: '', // Will be updated when user logs in
+          notification_preferences: {
+            email: true,
+            new_features: false,
+            course_updates: true,
+            onboarding_completed: onboarding_completed
+          },
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         });
@@ -54,14 +60,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // Update existing profile
+    // Update existing profile's notification preferences
+    const currentPrefs = existingProfile.notification_preferences || {
+      email: true,
+      new_features: false,
+      course_updates: true
+    };
+
+    const updatedPrefs = {
+      ...currentPrefs,
+      onboarding_completed: onboarding_completed
+    };
+
     const { error: updateError } = await supabase
-      .from('user_profiles')
+      .from('profiles')
       .update({
-        onboarding_completed,
+        notification_preferences: updatedPrefs,
         updated_at: new Date().toISOString()
       })
-      .eq('user_id', user_id);
+      .eq('id', user_id);
 
     if (updateError) {
       throw updateError;

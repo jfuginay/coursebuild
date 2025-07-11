@@ -474,18 +474,7 @@ export default function QuestionOverlay({
   // Standard multiple choice / true-false question UI
   const questionCard = (
     <Card className={isInline ? "w-full" : "w-full max-w-2xl mx-auto"}>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">Time to Test Your Knowledge!</CardTitle>
-          <Badge variant="secondary" className="text-xs">
-            {formatTimestamp(question.timestamp)}
-          </Badge>
-        </div>
-        <CardDescription>
-          Answer this question to continue watching the video
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-6 pt-6">
         <div>
           <p className="text-lg font-medium mb-4">{question.question}</p>
           
