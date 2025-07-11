@@ -8,18 +8,32 @@
  * Usage: node scripts/update-course-metadata.js [--dry-run]
  */
 
-require('dotenv').config();
+// Try to load environment variables
+try {
+  require('dotenv').config({ path: '.env.local' });
+} catch (error) {
+  console.log('⚠️  Note: dotenv not found, reading from process.env only');
+}
+
 const { createClient } = require('@supabase/supabase-js');
 
-// Initialize Supabase client
+// Initialize Supabase client - support multiple environment variable options
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 
+                   process.env.SUPABASE_ANON_KEY || 
+                   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
   console.error('❌ Missing required environment variables:');
   console.error('   - SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL');
-  console.error('   - SUPABASE_SERVICE_ROLE_KEY');
+  console.error('   - SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY, or NEXT_PUBLIC_SUPABASE_ANON_KEY');
   process.exit(1);
+}
+
+if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  console.warn('⚠️  Warning: Using ANON_KEY instead of SERVICE_ROLE_KEY.');
+  console.warn('   Some operations may be restricted. For full access, use SERVICE_ROLE_KEY.');
+  console.warn('');
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey);

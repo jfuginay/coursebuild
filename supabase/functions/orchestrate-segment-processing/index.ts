@@ -85,60 +85,52 @@ serve(async (req: Request) => {
     if (allCompleted) {
       console.log('✅ All segments completed!');
       
-      // Mark course as published if not already
+      // NOTE: Course publishing is now handled by the last segment processor
+      // after all database operations are complete. This prevents race conditions
+      // where the course page sees published=true before questions are inserted.
+      
+      // Try to update course description with AI-generated summary from transcript
       if (!course.published) {
-        const { error: publishError } = await supabase
-          .from('courses')
-          .update({ published: true })
-          .eq('id', course_id);
-          
-        if (publishError) {
-          console.error('Failed to publish course:', publishError);
-        } else {
-          console.log('✅ Course marked as published');
-          
-          // Try to update course description with AI-generated summary from transcript
-          try {
-            // Check if current description is generic
-            const isGenericDescription = course.description && (
-              course.description.includes('Interactive course from') ||
-              course.description.includes('AI-powered interactive course') ||
-              course.description.includes('AI Generated Course')
-            );
+        try {
+          // Check if current description is generic
+          const isGenericDescription = course.description && (
+            course.description.includes('Interactive course from') ||
+            course.description.includes('AI-powered interactive course') ||
+            course.description.includes('AI Generated Course')
+          );
 
-            if (isGenericDescription) {
-              // Fetch the latest transcript for this course
-              const { data: transcript, error: transcriptError } = await supabase
-                .from('video_transcripts')
-                .select('video_summary')
-                .eq('course_id', course_id)
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .single();
+          if (isGenericDescription) {
+            // Fetch the latest transcript for this course
+            const { data: transcript, error: transcriptError } = await supabase
+              .from('video_transcripts')
+              .select('video_summary')
+              .eq('course_id', course_id)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .single();
 
-              if (!transcriptError && transcript && transcript.video_summary) {
-                // Update the course with the AI-generated summary
-                const { error: updateError } = await supabase
-                  .from('courses')
-                  .update({ 
-                    description: transcript.video_summary 
-                  })
-                  .eq('id', course_id);
+            if (!transcriptError && transcript && transcript.video_summary) {
+              // Update the course with the AI-generated summary
+              const { error: updateError } = await supabase
+                .from('courses')
+                .update({ 
+                  description: transcript.video_summary 
+                })
+                .eq('id', course_id);
 
-                if (!updateError) {
-                  console.log('✅ Course description updated with AI-generated summary');
-                } else {
-                  console.error('Failed to update course description:', updateError);
-                }
+              if (!updateError) {
+                console.log('✅ Course description updated with AI-generated summary');
               } else {
-                console.log('No transcript or video summary available for description update');
+                console.error('Failed to update course description:', updateError);
               }
             } else {
-              console.log('Course already has a custom description, skipping update');
+              console.log('No transcript or video summary available for description update');
             }
-          } catch (error) {
-            console.error('Error updating course description:', error);
+          } else {
+            console.log('Course already has a custom description, skipping update');
           }
+        } catch (error) {
+          console.error('Error updating course description:', error);
         }
       }
       
