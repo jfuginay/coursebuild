@@ -34,6 +34,8 @@ interface DashboardData {
     display_name?: string;
     subscription_tier: string;
     created_at?: string;
+    bio?: string;
+    preferred_difficulty?: 'easy' | 'medium' | 'hard';
   };
   stats: {
     coursesEnrolled: number;
@@ -321,28 +323,11 @@ export default function DashboardPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {recentActivity.achievements.length > 0 ? (
-                      <div className="space-y-3">
-                        {recentActivity.achievements.slice(0, 3).map((achievement, index) => (
-                          <div key={achievement.id} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                            <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
-                              <Star className="h-4 w-4 text-yellow-600" />
-                            </div>
-                            <div className="flex-1">
-                              <p className="font-medium text-sm">{achievement.achievement_name}</p>
-                              <p className="text-xs text-muted-foreground">{achievement.description}</p>
-                            </div>
-                            <Badge variant="secondary" className="text-xs">
-                              +{achievement.points_awarded}
-                            </Badge>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-center text-muted-foreground py-4">
-                        No achievements yet. Start learning to earn your first achievement!
-                      </p>
-                    )}
+                    <div className="text-center text-muted-foreground py-4">
+                      <Star className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">Achievement system coming soon!</p>
+                      <p className="text-xs">Keep answering questions to build your progress.</p>
+                    </div>
                   </CardContent>
                 </Card>
               </div>
@@ -367,17 +352,27 @@ export default function DashboardPage() {
                             <span>{userData.email}</span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-4 flex-wrap">
                           <Badge 
                             variant={userData.subscription_tier === 'premium' ? 'default' : 'secondary'}
                             className="capitalize"
                           >
                             {userData.subscription_tier} Plan
                           </Badge>
+                          {userData.preferred_difficulty && (
+                            <Badge variant="outline" className="capitalize">
+                              {userData.preferred_difficulty} Difficulty
+                            </Badge>
+                          )}
                           <div className="text-sm text-muted-foreground">
                             Member since {formatDate(userData.created_at || new Date().toISOString())}
                           </div>
                         </div>
+                        {userData.bio && (
+                          <p className="text-sm text-muted-foreground mt-2">
+                            {userData.bio}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -532,17 +527,17 @@ export default function DashboardPage() {
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
                             <span>Progress</span>
-                            <span>{Math.round(enrollment.completion_percentage)}%</span>
+                            <span>{Math.round(enrollment.progress_percentage || 0)}%</span>
                           </div>
-                          <Progress value={enrollment.completion_percentage} className="h-2" />
+                          <Progress value={enrollment.progress_percentage || 0} className="h-2" />
                         </div>
 
                         <div className="flex items-center justify-between pt-2">
                           <Badge 
-                            variant={enrollment.enrollment_type === 'premium' ? 'default' : 'secondary'}
+                            variant={enrollment.courses?.published ? 'default' : 'secondary'}
                             className="text-xs"
                           >
-                            {enrollment.enrollment_type}
+                            {enrollment.courses?.published ? 'Published' : 'Draft'}
                           </Badge>
                           <Button 
                             size="sm" 
@@ -584,37 +579,16 @@ export default function DashboardPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {recentActivity.achievements.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {recentActivity.achievements.map((achievement) => (
-                        <div key={achievement.id} className="p-4 border rounded-lg space-y-2">
-                          <div className="flex items-center gap-2">
-                            <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
-                              <Trophy className="h-5 w-5 text-yellow-600" />
-                            </div>
-                            <div className="flex-1">
-                              <h4 className="font-medium">{achievement.achievement_name}</h4>
-                              <p className="text-sm text-muted-foreground">{achievement.description}</p>
-                            </div>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <Badge variant="secondary">+{achievement.points_awarded} points</Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {formatDate(achievement.earned_at)}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
+                  <div className="text-center py-8">
+                    <Award className="h-12 w-12 mx-auto text-muted-foreground mb-4 opacity-50" />
+                    <h3 className="text-lg font-medium mb-2">Achievement System Coming Soon</h3>
+                    <p className="text-muted-foreground">
+                      We're building an exciting achievement system to recognize your learning progress!
+                    </p>
+                    <div className="mt-4 text-sm text-muted-foreground">
+                      <p>Current points: <span className="font-medium">{stats.totalPoints}</span></p>
                     </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <Award className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                      <h3 className="text-lg font-medium mb-2">No achievements yet</h3>
-                      <p className="text-muted-foreground">
-                        Start answering questions to earn your first achievement!
-                      </p>
-                    </div>
-                  )}
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -644,7 +618,7 @@ export default function DashboardPage() {
                               {attempt.questions?.question || 'Question'}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {attempt.courses?.title} • {formatDate(attempt.attempted_at)}
+                              {attempt.questions?.courses?.title} • {formatDate(attempt.attempted_at)}
                             </p>
                           </div>
                           <Badge variant={attempt.is_correct ? 'default' : 'destructive'}>
