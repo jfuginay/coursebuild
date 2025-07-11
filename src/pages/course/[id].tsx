@@ -18,6 +18,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { useAuth } from '@/contexts/AuthContext';
 import { useAnalytics } from '@/hooks/useAnalytics';
 import { supabase } from '@/lib/supabase';
+import { useGuidedTour } from '@/hooks/useGuidedTour';
+import { learnerTourSteps } from '@/config/tours';
+import ChatBubble from '@/components/ChatBubble';
 
 interface Course {
  id: string;
@@ -122,12 +125,17 @@ export default function CoursePage() {
  const [isEnrolled, setIsEnrolled] = useState(false); // Track enrollment status
  const [autoGenerationTriggered, setAutoGenerationTriggered] = useState(false); // Track if auto-generation was triggered
  const [nextCourseModalShown, setNextCourseModalShown] = useState(false); // Track if modal has been shown
+ const [isProcessing, setIsProcessing] = useState(false); // Track if course is still processing
  
  // Rating state
  const [showRatingModal, setShowRatingModal] = useState(false);
  const [hasRated, setHasRated] = useState(false);
  const [engagementScore, setEngagementScore] = useState(0);
  const [courseStartTime] = useState(Date.now());
+ 
+ // Guided tour state
+ const [shouldRunTour, setShouldRunTour] = useState(false);
+ const [hasCheckedOnboarding, setHasCheckedOnboarding] = useState(false);
 
  // Free questions limit
  const FREE_QUESTIONS_LIMIT = 2;
@@ -139,9 +147,62 @@ export default function CoursePage() {
  useEffect(() => {
    if (id) {
      fetchCourse();
-     fetchQuestions();
    }
  }, [id]);
+ 
+ // Check if user has completed onboarding and show tour if needed
+ useEffect(() => {
+   const checkOnboarding = async () => {
+     if (!user || hasCheckedOnboarding || !isVideoReady) return;
+     
+     try {
+       const response = await fetch(`/api/user/check-onboarding?user_id=${user.id}`);
+       const data = await response.json();
+       
+       if (!data.onboarding_completed) {
+         setShouldRunTour(true);
+       }
+       setHasCheckedOnboarding(true);
+     } catch (error) {
+       console.error('Error checking onboarding status:', error);
+       setHasCheckedOnboarding(true);
+     }
+   };
+   
+   checkOnboarding();
+ }, [user, hasCheckedOnboarding, isVideoReady]);
+ 
+ // Initialize guided tour for learner journey
+ useGuidedTour('learner', learnerTourSteps, shouldRunTour, {
+   delay: 2000, // Wait for video to load
+   onComplete: async () => {
+     setShouldRunTour(false);
+     // Update onboarding status in database
+     if (user) {
+       try {
+         await fetch('/api/user/update-onboarding', {
+           method: 'POST',
+           headers: {
+             'Content-Type': 'application/json',
+           },
+           body: JSON.stringify({
+             user_id: user.id,
+             onboarding_completed: true
+           }),
+         });
+       } catch (error) {
+         console.error('Error updating onboarding status:', error);
+       }
+     }
+   }
+ });
+
+ useEffect(() => {
+   // Only fetch questions if course is loaded and published
+   if (course && course.published && id) {
+     fetchQuestions();
+   }
+ }, [course, id]);
 
  useEffect(() => {
    console.log('🔍 Checking YouTube API availability...');
@@ -274,6 +335,68 @@ export default function CoursePage() {
      const data = await response.json();
 
      if (data.success) {
+       setCourse(data.course);
+       
+       // Check if course is still processing
+       if (!data.course.published) {
+         setIsProcessing(true);
+         console.log('📊 Course is still processing, will check again...');
+         
+         // Also check for stuck segments
+         try {
+           const checkResponse = await fetch('/api/course/check-segment-processing', {
+             method: 'POST',
+             headers: {
+               'Content-Type': 'application/json',
+             },
+             body: JSON.stringify({ course_id: id })
+           });
+           
+           if (checkResponse.ok) {
+             const checkData = await checkResponse.json();
+             console.log('🔄 Segment check result:', checkData);
+           }
+         } catch (error) {
+           console.error('Failed to check segments:', error);
+         }
+         
+         // Set up polling to check for completion
+         const pollInterval = setInterval(async () => {
+           const pollResponse = await fetch(`/api/course/${id}`);
+           const pollData = await pollResponse.json();
+           
+           if (pollData.success && pollData.course.published) {
+             console.log('✅ Course processing complete!');
+             setCourse(pollData.course);
+             setIsProcessing(false);
+             clearInterval(pollInterval);
+             // Fetch questions now that course is published
+             fetchQuestions();
+           } else {
+             // Check segments again
+             try {
+               const checkResponse = await fetch('/api/course/check-segment-processing', {
+                 method: 'POST',
+                 headers: {
+                   'Content-Type': 'application/json',
+                 },
+                 body: JSON.stringify({ course_id: id })
+               });
+               
+               if (checkResponse.ok) {
+                 const checkData = await checkResponse.json();
+                 console.log('🔄 Segment check result:', checkData);
+               }
+             } catch (error) {
+               console.error('Failed to check segments:', error);
+             }
+           }
+         }, 5000); // Poll every 5 seconds
+         
+         // Clean up interval on unmount
+         return () => clearInterval(pollInterval);
+       }
+       
        // Enhance course data with rating information
       let courseWithRating = { ...data.course };
       
@@ -302,6 +425,7 @@ export default function CoursePage() {
          title: data.course.title,
          youtubeUrl: data.course.youtube_url,
          extractedVideoId: extractedVideoId,
+         published: data.course.published,
          hasRatings: courseWithRating.totalRatings > 0,
          averageRating: courseWithRating.averageRating
        });
@@ -312,6 +436,8 @@ export default function CoursePage() {
    } catch (err) {
      setError('Error loading course');
      console.error('Error fetching course:', err);
+   } finally {
+     setIsLoading(false);
    }
  };
 
@@ -368,7 +494,7 @@ export default function CoursePage() {
        const visualQuestions = parsedQuestions.filter((q: Question) => q.type === 'hotspot' || q.type === 'matching' || q.requires_video_overlay);
        console.log('👁️ Visual questions found:', visualQuestions.length);
        if (visualQuestions.length > 0) {
-         console.log('🖼️ First visual question:', visualQuestions[0]);
+         console.log('🖼️ First visual q:', visualQuestions[0]);
        }
        
        setQuestions(parsedQuestions);
@@ -1055,6 +1181,44 @@ export default function CoursePage() {
    };
  };
 
+ // Get active question data for chat bubble
+ const getActiveQuestion = () => {
+   if (!showQuestion || !questions[currentQuestionIndex]) {
+     return null;
+   }
+
+   const question = questions[currentQuestionIndex];
+   
+   // Parse options - handle both array and JSON string formats
+   const parseOptions = (options: string[] | string): string[] => {
+     if (Array.isArray(options)) {
+       return options;
+     }
+     
+     if (typeof options === 'string') {
+       try {
+         const parsed = JSON.parse(options);
+         return Array.isArray(parsed) ? parsed : [options];
+       } catch (e) {
+         return [options];
+       }
+     }
+     
+     return [];
+   };
+
+   const parsedOptions = parseOptions(question.options || []);
+   const finalOptions = parsedOptions.length === 0 && (question.type === 'true-false' || question.type === 'true_false') 
+     ? ['True', 'False'] 
+     : parsedOptions;
+
+   return {
+     question: question.question,
+     type: question.type,
+     options: finalOptions
+   };
+ };
+
  // Convert answeredQuestions Set<number> to Set<string> format expected by curriculum card
  const getAnsweredQuestionsForCurriculum = (): Set<string> => {
    return new Set(Array.from(answeredQuestions).map(index => `0-${index}`));
@@ -1095,6 +1259,69 @@ export default function CoursePage() {
                <Skeleton className="aspect-video w-full" />
              </CardContent>
            </Card>
+         </div>
+       </div>
+     </div>
+   );
+ }
+
+ if (isProcessing) {
+   return (
+     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+       <Header />
+       <div className="container mx-auto px-4 py-8">
+         <div className="max-w-4xl mx-auto space-y-8">
+           <Button variant="ghost" onClick={handleBackToHome} className="mb-4">
+             <ArrowLeft className="mr-2 h-4 w-4" />
+             Back to Home
+           </Button>
+           
+           <div className="text-center space-y-4">
+             <h1 className="text-3xl font-bold tracking-tight lg:text-4xl">
+               {course?.title || 'Processing Course'}
+             </h1>
+             <p className="text-lg text-muted-foreground">
+               Your course is being generated. This may take a few minutes.
+             </p>
+           </div>
+           
+           <Card>
+             <CardContent className="p-6">
+               <div className="aspect-video w-full bg-muted flex items-center justify-center">
+                 <div className="text-center space-y-4">
+                   <div className="flex justify-center">
+                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                   </div>
+                   <p className="text-muted-foreground">
+                     Analyzing video and generating interactive questions...
+                   </p>
+                   <p className="text-sm text-muted-foreground">
+                     The page will refresh automatically when ready.
+                   </p>
+                 </div>
+               </div>
+             </CardContent>
+           </Card>
+           
+           {course?.youtube_url && (
+             <Card>
+               <CardHeader>
+                 <CardTitle>Video Preview</CardTitle>
+               </CardHeader>
+               <CardContent>
+                 <div className="aspect-video">
+                   <iframe
+                     src={`https://www.youtube.com/embed/${extractVideoId(course.youtube_url)}`}
+                     title="YouTube video player"
+                     frameBorder="0"
+                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                     allowFullScreen
+                     className="w-full h-full rounded-lg"
+                   />
+                 </div>
+               </CardContent>
+             </Card>
+           )}
          </div>
        </div>
      </div>
@@ -1380,6 +1607,13 @@ export default function CoursePage() {
        courseTitle={course?.title}
        position="center"
        autoHide={8000}
+     />
+
+     {/* Chat Bubble */}
+     <ChatBubble 
+       courseId={id as string}
+       currentVideoTime={currentTime}
+       activeQuestion={getActiveQuestion()}
      />
    </div>
  );
