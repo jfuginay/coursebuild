@@ -5,24 +5,42 @@
  * Usage: node scripts/test-connection.js
  */
 
-require('dotenv').config();
+// Try to load environment variables
+try {
+  require('dotenv').config({ path: '.env.local' });
+} catch (error) {
+  console.log('⚠️  Note: dotenv not found, reading from process.env only');
+}
+
 const { createClient } = require('@supabase/supabase-js');
 
 console.log('🔧 Testing Supabase Connection...\n');
 
-// Check environment variables
+// Check environment variables - support multiple options
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 
+                   process.env.SUPABASE_ANON_KEY || 
+                   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 console.log('📋 Environment Check:');
 console.log(`   SUPABASE_URL: ${supabaseUrl ? '✅ Set' : '❌ Missing'}`);
-console.log(`   SUPABASE_SERVICE_ROLE_KEY: ${supabaseKey ? '✅ Set' : '❌ Missing'}`);
+console.log(`   SUPABASE_KEY: ${supabaseKey ? '✅ Set' : '❌ Missing'}`);
+
+if (supabaseKey && !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  console.log('   ⚠️  Using ANON_KEY - some operations may be restricted');
+}
 
 if (!supabaseUrl || !supabaseKey) {
   console.error('\n❌ Missing required environment variables!');
-  console.error('   Please ensure you have a .env.local file with:');
+  console.error('\n📝 To fix this:');
+  console.error('   1. Make sure .env.local exists with your Supabase credentials');
+  console.error('   2. Install dotenv: npm install --save-dev dotenv');
+  console.error('   3. Or export variables directly:');
+  console.error('      export NEXT_PUBLIC_SUPABASE_URL=your-url-here');
+  console.error('      export NEXT_PUBLIC_SUPABASE_ANON_KEY=your-key-here');
+  console.error('\n   Required variables:');
   console.error('   - NEXT_PUBLIC_SUPABASE_URL or SUPABASE_URL');
-  console.error('   - SUPABASE_SERVICE_ROLE_KEY');
+  console.error('   - SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY, or NEXT_PUBLIC_SUPABASE_ANON_KEY');
   process.exit(1);
 }
 

@@ -666,6 +666,9 @@ serve(async (req: Request) => {
       console.error('Error checking for next segment:', nextSegmentError);
     }
 
+    // Check if this is the last segment BEFORE triggering next segment or marking as published
+    const isLastSegment = !nextSegment;
+    
     if (nextSegment && nextSegment.status === 'pending') {
       console.log(`🔄 Next segment ${nextSegment.segment_index + 1} is ready`);
       console.log(`   🎼 Triggering orchestrator to handle next segment`);
@@ -696,8 +699,18 @@ serve(async (req: Request) => {
       } catch (err) {
         console.error('Failed to trigger orchestrator:', err);
       }
-    } else if (!nextSegment) {
-      console.log(`✅ This was the LAST segment (${segment_index + 1}/${total_segments})! Finalizing course...`);
+    } else if (isLastSegment) {
+      console.log(`✅ This was the LAST segment (${segment_index + 1}/${total_segments})! Will finalize course after all DB operations complete...`);
+      
+      // IMPORTANT: Course publishing is now moved to AFTER all DB operations are complete
+      // This prevents the race condition where the course page sees published=true before questions are inserted
+    } else {
+      console.log(`📝 Segment ${segment_index + 1} has a next segment but it's not pending (status: ${nextSegment?.status})`);
+    }
+
+    // If this is the last segment, publish the course AFTER all operations are complete
+    if (isLastSegment) {
+      console.log(`🏁 All database operations complete for last segment. Now finalizing course...`);
       
       // Update course as fully processed
       const { error: courseUpdateError } = await supabase
@@ -740,8 +753,6 @@ serve(async (req: Request) => {
         - Questions generated: ${generationResult.generated_questions.length}
         - Questions inserted: ${insertedQuestions.length}
         - Course published: ${!courseUpdateError}`);
-    } else {
-      console.log(`📝 Segment ${segment_index + 1} has a next segment but it's not pending (status: ${nextSegment?.status})`);
     }
 
     return new Response(
