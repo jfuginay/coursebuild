@@ -160,11 +160,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           if (!insertError) {
             console.log('✅ Cached questions copied to new course');
             
-            // Update course status
-            await supabase
-              .from('courses')
-              .update({ published: true })
-              .eq('id', course_id);
+            // Verify questions were actually inserted before marking as published
+            const { count: questionCount } = await supabase
+              .from('questions')
+              .select('*', { count: 'exact', head: true })
+              .eq('course_id', course_id);
+            
+            if (questionCount && questionCount > 0) {
+              // Update course status only if questions exist
+              await supabase
+                .from('courses')
+                .update({ published: true })
+                .eq('id', course_id);
+              
+              console.log(`✅ Course marked as published (${questionCount} questions verified)`);
+            } else {
+              console.warn('⚠️ No questions found after copy, not marking as published');
+            }
 
             // Return success with cached flag
             return res.status(200).json({
