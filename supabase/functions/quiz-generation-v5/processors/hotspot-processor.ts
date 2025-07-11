@@ -66,7 +66,7 @@ export const generateHotspotQuestion = async (
       type: 'hotspot',
       question: boundingBoxes.question,
       target_objects: plan.target_objects,
-      frame_timestamp: frameTimestamp,
+      frame_timestamp: boundingBoxes.exact_frame_timestamp || frameTimestamp, // Use exact timestamp from LLM
       question_context: plan.question_context,
       explanation: boundingBoxes.explanation,
       bloom_level: plan.bloom_level,
@@ -82,7 +82,7 @@ export const generateHotspotQuestion = async (
     console.log(`✅ Hotspot generated successfully: ${plan.question_id}`);
     console.log(`   🎯 Question: ${hotspotQuestion.question.substring(0, 60)}...`);
     console.log(`   📦 Target Objects: ${plan.target_objects.join(', ')}`);
-    console.log(`   🎬 Frame Timestamp: ${formatSecondsForDisplay(frameTimestamp)}`);
+    console.log(`   🎬 Frame Timestamp: ${formatSecondsForDisplay(hotspotQuestion.frame_timestamp)} (exact: ${hotspotQuestion.frame_timestamp}s)`);
     console.log(`   📍 Bounding Boxes: ${boundingBoxes.elements.length} options generated`);
     
     return hotspotQuestion;
@@ -106,7 +106,7 @@ const generateBoundingBoxes = async (
   plan: QuestionPlan,
   frameTimestamp: number,
   transcriptContext?: any
-): Promise<{question: string, explanation: string, elements: any[]}> => {
+): Promise<{question: string, explanation: string, elements: any[], exact_frame_timestamp: number}> => {
   const maxRetries = 3;
   const baseDelay = 1000; // 1 second base delay
   
@@ -121,9 +121,9 @@ const generateBoundingBoxes = async (
         await new Promise(resolve => setTimeout(resolve, delay));
       }
       
-      // Create 0.5-second window around the frame timestamp for precise analysis
-      const startOffset = Math.max(0, frameTimestamp - 0.5);
-      const endOffset = frameTimestamp;
+      // Create 2-second window around the frame timestamp for precise analysis
+      const startOffset = Math.max(0, frameTimestamp - 1);
+      const endOffset = frameTimestamp + 1;
       
       
       console.log(`📹 Analyzing video segment: ${formatSecondsForDisplay(startOffset)} to ${formatSecondsForDisplay(endOffset)}`);
@@ -131,6 +131,8 @@ const generateBoundingBoxes = async (
       
       const objectDetectionPrompt = `
 You are creating a visual hotspot question for educational purposes. Generate appropriate question text, explanation, and bounding boxes for all visible objects in this frame.
+
+IMPORTANT: You are analyzing a 2-second window (from ${startOffset}s to ${endOffset}s). Select the EXACT timestamp within this window where the target objects are most clearly visible and generate bounding boxes for that specific frame. Return this exact timestamp in the exact_frame_timestamp field.
 
 LEARNING OBJECTIVE: ${plan.learning_objective}
 VISUAL LEARNING OBJECTIVE: ${plan.visual_learning_objective}
@@ -150,11 +152,12 @@ Use this transcript context to:
 ` : ''}
 
 Requirements:
-1. Generate clear, educational question text that asks students to identify ONE SINGLE target object
-2. Generate a comprehensive explanation that explains why identifying this object is important
-3. Find and mark all other visible objects in the frame with minimal overlap with the target object (minimum 3-5 bounding boxes)
-4. Mark the target object as correct answers
-5. Choose educational distractors that test understanding
+1. Analyze the 2-second window and select the EXACT timestamp where target objects are clearest
+2. Generate clear, educational question text that asks students to identify ONE SINGLE target object
+3. Generate a comprehensive explanation that explains why identifying this object is important
+4. Find and mark all other visible objects in the selected frame with minimal overlap with the target object (minimum 3-5 bounding boxes)
+5. Mark the target object as correct answers
+6. Choose educational distractors that test understanding
 
 Guidelines for question text:
 - Be specific about what to identify
@@ -168,6 +171,7 @@ Guidelines for explanation:
 - Be educational and informative
 
 Guidelines for bounding boxes:
+- Generate bounding boxes for the EXACT frame timestamp you selected
 - ALWAYS return at least two bounding boxes minimum for interactive selection
 - Mark is_correct_answer=true ONLY for: the target object
 - Mark is_correct_answer=false for all other objects
@@ -238,9 +242,13 @@ Guidelines for bounding boxes:
                   },
                   required: ["box_2d", "label", "is_correct_answer"]
                 }
+              },
+              exact_frame_timestamp: {
+                type: "number",
+                description: "The exact timestamp in seconds where the question and bounding boxes are most relevant. Must be within the analyzed window."
               }
             },
-            required: ["question", "explanation", "bounding_boxes"]
+            required: ["question", "explanation", "bounding_boxes", "exact_frame_timestamp"]
           }
         }
       };
@@ -430,11 +438,13 @@ Guidelines for bounding boxes:
 
       console.log(`✅ Generated ${normalizedElements.length} bounding boxes successfully on attempt ${attempt}`);
       console.log(`📦 Elements: ${normalizedElements.map((el: any) => `${el.label}(${el.is_correct_answer ? 'CORRECT' : 'distractor'})`).join(', ')}`);
+      console.log(`🎯 Exact frame selected: ${hotspotResult.exact_frame_timestamp}s (from window ${startOffset}s-${endOffset}s)`);
       
       return {
         question: hotspotResult.question,
         explanation: hotspotResult.explanation,
-        elements: normalizedElements
+        elements: normalizedElements,
+        exact_frame_timestamp: hotspotResult.exact_frame_timestamp || frameTimestamp // Use exact timestamp from LLM or fallback
       };
       
     } catch (error: unknown) {
