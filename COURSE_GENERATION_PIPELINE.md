@@ -18,6 +18,7 @@
 10. [Current Implementation Status](#current-implementation-status)
 11. [Technical Specifications](#technical-specifications)
 12. [LangSmith Monitoring](#langsmith-monitoring)
+13. [Race Condition Prevention](#race-condition-prevention)
 
 ---
 
@@ -993,6 +994,64 @@ The system automatically fetches video metadata from YouTube's oEmbed API to pro
      - Replaces generic descriptions with AI-generated summaries
      - Uses video_summary from transcript analysis
      - Only updates if description is generic
+
+---
+
+## 12. Race Condition Prevention
+
+### Course Publishing Timing
+
+**Problem**: The course page was redirecting to content display when question plans were generated, not when actual questions were inserted into the database.
+
+**Root Cause**: A race condition where:
+1. The orchestrator or segment processor marked `course.published = true`
+2. The course page polling (every 5 seconds) immediately saw this and redirected
+3. Questions were still being inserted into the database
+4. Users saw an incomplete course with missing questions
+
+**Solution**: Course publishing now happens AFTER all database operations complete:
+
+```typescript
+// In process-video-segment/index.ts
+// OLD: Course marked as published immediately after segment completion
+// NEW: Course marked as published after all DB operations
+
+if (isLastSegment) {
+  // All questions and bounding boxes have been inserted
+  console.log(`🏁 All database operations complete for last segment. Now finalizing course...`);
+  
+  // NOW it's safe to mark as published
+  await supabase
+    .from('courses')
+    .update({ 
+      published: true,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', course_id);
+}
+```
+
+**Key Points**:
+- The last segment processor handles course publishing
+- Publishing happens AFTER all questions and bounding boxes are inserted
+- The orchestrator no longer marks courses as published
+- Course page only redirects when all content is guaranteed to be ready
+
+### Polling and State Management
+
+The course page (`src/pages/course/[id].tsx`) polls for completion:
+```typescript
+// Polls every 5 seconds
+if (pollData.success && pollData.course.published) {
+  console.log('✅ Course processing complete!');
+  setCourse(pollData.course);
+  setIsProcessing(false);
+  clearInterval(pollInterval);
+  fetchQuestions(); // Now guaranteed to find all questions
+}
+```
+
+This ensures users only see the course content when generation is truly complete.
 
 ---
 
