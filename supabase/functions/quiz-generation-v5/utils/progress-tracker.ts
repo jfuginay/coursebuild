@@ -65,6 +65,26 @@ export class ProgressTracker {
   }
 
   // =============================================================================
+  // Initialization Method
+  // =============================================================================
+  
+  async initialize(): Promise<void> {
+    // Create initial progress entry
+    await this.updateProgress({
+      stage: 'initialization',
+      stage_progress: 0.0,
+      overall_progress: 0.0,
+      current_step: 'Starting quiz generation pipeline',
+      details: {
+        initialized_at: new Date().toISOString(),
+        session_id: this.sessionId,
+        course_id: this.courseId
+      }
+    });
+    console.log(`✅ Progress tracker initialized for session ${this.sessionId}`);
+  }
+
+  // =============================================================================
   // Main Progress Tracking Methods
   // =============================================================================
 
@@ -76,7 +96,7 @@ export class ProgressTracker {
       this.currentStage = update.stage;
       
       const { error } = await this.supabaseClient
-        .from('processing_progress')
+        .from('quiz_generation_progress')
         .upsert({
           course_id: this.courseId,
           session_id: this.sessionId,
@@ -84,7 +104,7 @@ export class ProgressTracker {
           stage_progress: update.stage_progress,
           overall_progress: update.overall_progress,
           current_step: update.current_step,
-          details: update.details || {}
+          metadata: update.details || {}
         }, {
           onConflict: 'course_id,session_id'
         });
@@ -98,6 +118,9 @@ export class ProgressTracker {
   }
 
   async updateQuestionProgress(update: QuestionProgressUpdate): Promise<void> {
+    // TODO: Create question_progress table if we want to track individual question progress
+    // For now, commenting out to prevent errors
+    /*
     try {
       console.log(`📝 Question Progress [${update.question_id}]: ${update.status} - ${Math.round(update.progress * 100)}%`);
       if (update.reasoning) {
@@ -127,6 +150,13 @@ export class ProgressTracker {
       }
     } catch (error) {
       console.error('❌ Question progress tracking error:', error);
+    }
+    */
+    
+    // For now, just log the progress
+    console.log(`📝 Question Progress [${update.question_id}]: ${update.status} - ${Math.round(update.progress * 100)}%`);
+    if (update.reasoning) {
+      console.log(`   🤔 Reasoning: ${update.reasoning.substring(0, 100)}...`);
     }
   }
 
@@ -309,10 +339,16 @@ export class ProgressTracker {
 // Factory Function
 // =============================================================================
 
-export const createProgressTracker = (supabaseClient: any, courseId: string, sessionId?: string): ProgressTracker => {
+export const createProgressTracker = async (supabaseClient: any, courseId: string, sessionId?: string): Promise<ProgressTracker> => {
   const finalSessionId = sessionId || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   console.log(`🚀 Creating progress tracker for course ${courseId} with session ${finalSessionId}`);
-  return new ProgressTracker(supabaseClient, courseId, finalSessionId);
+  
+  const tracker = new ProgressTracker(supabaseClient, courseId, finalSessionId);
+  
+  // Initialize the tracker to create the initial database entry
+  await tracker.initialize();
+  
+  return tracker;
 };
 
 // =============================================================================

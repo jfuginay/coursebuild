@@ -18,6 +18,7 @@ First, transcribe the audio from this video, giving timestamps for salient event
 
 ### Transcription Requirements:
 - **Full Audio Transcript**: Complete transcription of all spoken content with precise timestamps
+- **Timestamp Format**: ALL timestamps MUST be in MM:SS format (e.g., "1:45" for 1 minute 45 seconds, "10:30" for 10 minutes 30 seconds)
 - **Salient Event Markers**: Mark important transitions, key concept introductions, and learning moments
 - **Visual Descriptions**: Describe what's shown on screen, especially for code, diagrams, demonstrations
 - **Content Structure**: Identify natural sections and topic transitions in the video
@@ -91,16 +92,15 @@ Using the transcript and visual analysis from Phase 1, create strategic question
 - **Difficulty Progression**: Start accessible, build to more challenging concepts
 - **Visual Integration**: Include 2-3 visual questions when transcript shows visual content
 
-### Quality Planning Criteria
-- **Educational Significance**: Every question should advance meaningful learning
-- **Conceptual Depth**: Move beyond surface-level recall to understanding
-- **Assessment Validity**: Question format should match learning objectives
-- **Student-Centered Design**: Consider learner perspective and cognitive load
-- **Real-World Relevance**: Connect to practical applications when possible
-
 ## OUTPUT REQUIREMENTS
 
 Generate a comprehensive response that includes both the video transcript and question plans.
+
+### TIMESTAMP FORMAT SPECIFICATION
+**CRITICAL REQUIREMENT**: ALL timestamps in your response MUST use the MM:SS string format.
+- Format examples: "0:45" (45 seconds), "1:30" (1 minute 30 seconds), "10:05" (10 minutes 5 seconds)
+- Always use this format for all timestamps in the transcript and question plans
+- Do NOT use decimal formats, seconds-only formats, or any other format
 
 Each question plan should reference specific transcript segments and demonstrate:
 - **Clear Educational Purpose**: Why this question advances learning
@@ -258,6 +258,11 @@ export const CONTENT_ANALYSIS_FRAMEWORK = {
 export const PLANNING_RESPONSE_SCHEMA = {
   type: "object",
   properties: {
+    timestamp_format: {
+      type: "string",
+      enum: ["mm:ss"],
+      description: "Format of all timestamps in this response. Must be 'mm:ss' format (e.g., '1:45' for 1 minute 45 seconds)"
+    },
     video_transcript: {
       type: "object",
       properties: {
@@ -267,12 +272,12 @@ export const PLANNING_RESPONSE_SCHEMA = {
             type: "object",
             properties: {
               timestamp: { 
-                type: "number", 
-                description: "Start time in seconds for this segment" 
+                type: "string", 
+                description: "Start time in MM:SS format (e.g., '1:30')" 
               },
               end_timestamp: { 
-                type: "number", 
-                description: "End time in seconds for this segment" 
+                type: "string", 
+                description: "End time in MM:SS format (e.g., '2:45')" 
               },
               text: { 
                 type: "string", 
@@ -302,11 +307,11 @@ export const PLANNING_RESPONSE_SCHEMA = {
             type: "object",
             properties: {
               concept: { type: "string" },
-              first_mentioned: { type: "number", description: "Timestamp when first introduced" },
+              first_mentioned: { type: "string", description: "Timestamp in MM:SS format when first introduced" },
               explanation_timestamps: {
                 type: "array",
-                items: { type: "number" },
-                description: "All timestamps where this concept is explained or referenced"
+                items: { type: "string" },
+                description: "All timestamps in MM:SS format where this concept is explained or referenced"
               }
             },
             required: ["concept", "first_mentioned", "explanation_timestamps"]
@@ -330,12 +335,12 @@ export const PLANNING_RESPONSE_SCHEMA = {
             description: "Unique identifier like q1_multiple-choice_45" 
           },
           timestamp: { 
-            type: "number", 
-            description: "Target timestamp for question placement" 
+            type: "string", 
+            description: "Target timestamp in MM:SS format for question placement" 
           },
           frame_timestamp: {
-            type: "number",
-            description: "Specific frame timestamp for visual questions"
+            type: "string",
+            description: "Specific frame timestamp in MM:SS format for visual questions"
           },
           question_type: { 
             type: "string",
@@ -352,8 +357,8 @@ export const PLANNING_RESPONSE_SCHEMA = {
           transcript_reference: {
             type: "object",
             properties: {
-              start_timestamp: { type: "number" },
-              end_timestamp: { type: "number" },
+              start_timestamp: { type: "string", description: "Start time in MM:SS format" },
+              end_timestamp: { type: "string", description: "End time in MM:SS format" },
               relevant_text: { type: "string" },
               visual_context: { type: "string" }
             },
@@ -401,7 +406,7 @@ export const PLANNING_RESPONSE_SCHEMA = {
       description: "Strategic question plans based on transcript analysis"
     }
   },
-  required: ["video_transcript", "question_plans"]
+  required: ["timestamp_format", "video_transcript", "question_plans"]
 };
 
 export const promptConfig = {

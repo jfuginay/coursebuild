@@ -423,7 +423,7 @@ Example good distractors for electronic components: similar-looking components, 
       };
     
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
         {
       method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -604,7 +604,7 @@ async function storeEnhancedQuestions(
       options = options || ["True", "False"];
       // Convert boolean to array index
       if (typeof correctAnswer === 'boolean') {
-        correctAnswer = correctAnswer ? 1 : 0;
+        correctAnswer = correctAnswer ? 0 : 1;
       }
     }
     
