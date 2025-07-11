@@ -280,7 +280,7 @@ export default function TranscriptDisplay({
   const visibleSegments = getVisibleSegments();
 
   return (
-    <Card className={cn("overflow-hidden", className)}>
+    <Card id="transcript-display" className={cn("overflow-hidden", className)}>
       <CardHeader className="pb-3">
         <CardTitle className="text-lg flex items-center gap-2">
           <FileText className="h-5 w-5" />

@@ -16,6 +16,8 @@ import Header from '@/components/Header';
 import CoursesShowcase from '@/components/CoursesShowcase';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
+import { useGuidedTour, hasTourBeenCompleted } from '@/hooks/useGuidedTour';
+import { newcomerTourSteps } from '@/config/tours';
 
 // YouTube URL validation schema
 const courseGenerationSchema = z.object({
@@ -97,6 +99,9 @@ export default function Home() {
       content: "We're working on visual questions that can identify objects, diagrams, and text directly from video frames."
     }
   ]);
+  
+  // Guided tour state
+  const [shouldRunTour, setShouldRunTour] = useState(false);
 
   const {
     register,
@@ -218,15 +223,21 @@ export default function Home() {
         timeoutRefs.current.push(timeout);
       });
 
-      const response = await fetch('/api/analyze-video', {
+      // Use the smart analysis endpoint that supports segmentation
+      const response = await fetch('/api/course/analyze-video-smart', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          youtubeUrl: data.youtubeUrl,
-          useEnhanced: useEnhanced,
+          course_id: null, // Will be created by the endpoint
+          youtube_url: data.youtubeUrl,
+          session_id: `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          max_questions: 10, // 10 questions per segment for longer videos
+          enable_quality_verification: false,
+          segment_duration: 300, // 5 minutes per segment
           useCache: useCache,
+          useEnhanced: useEnhanced
         }),
       });
 
@@ -235,40 +246,52 @@ export default function Home() {
         throw new Error(errorData.error || 'Failed to generate course');
       }
 
-      const result: ApiResponse = await response.json();
+      const result = await response.json();
       
       if (result.success) {
-        // Show different toast messages based on cache usage
-        if (result.processing_summary?.cached) {
-          toast.success('Course loaded from cache! ⚡');
-        } else {
-          toast.success('Course generated successfully!');
-        }
-        reset();
-        
-        // Track course creation for logged-in users
-        if (result.course_id && result.data) {
-          await trackCourseCreation(result.course_id, result.data, data.youtubeUrl);
-        }
-        
-        // Try main branch approach first (with courseId)
-        if (result.course_id) {
-          // Navigate to create page with course data and courseId
-          router.push({
-            pathname: '/create',
-            query: {
-              data: JSON.stringify(result.data),
-              youtubeUrl: data.youtubeUrl,
-              courseId: result.course_id
-            }
-          });
-        } else {
-          // Fallback to sessionStorage approach (feature branch compatibility)
-          sessionStorage.setItem('courseData', JSON.stringify(result.data));
-          sessionStorage.setItem('youtubeUrl', data.youtubeUrl);
+        // Handle background processing (timeout scenario)
+        if (result.background_processing) {
+          toast.info('Processing started in background. You will be redirected to track progress.');
           
-          // Navigate with clean URL
-          router.push('/create');
+          // Navigate to course page to watch progress
+          if (result.course_id) {
+            router.push(`/course/${result.course_id}`);
+          }
+          return;
+        }
+        
+        // For segmented processing, redirect directly to course page
+        if (result.segmented) {
+          toast.info(`Video will be processed in ${result.total_segments} segments in the background.`);
+          
+          // Track course creation for logged-in users
+          if (result.course_id && result.data) {
+            await trackCourseCreation(result.course_id, result.data, data.youtubeUrl);
+          }
+          
+          // Navigate directly to course page
+          if (result.course_id) {
+            router.push(`/course/${result.course_id}`);
+          }
+        } else {
+          // Non-segmented processing completed immediately
+          if (result.cached) {
+            toast.success('Course loaded from cache! ⚡');
+          } else {
+            toast.success('Course generated successfully!');
+          }
+          
+          reset();
+          
+          // Track course creation for logged-in users
+          if (result.course_id && result.data) {
+            await trackCourseCreation(result.course_id, result.data, data.youtubeUrl);
+          }
+          
+          // Navigate to course page
+          if (result.course_id) {
+            router.push(`/course/${result.course_id}`);
+          }
         }
       } else {
         throw new Error('Failed to generate course');
@@ -310,6 +333,23 @@ export default function Home() {
       return () => clearInterval(interval);
     }
   }, [isLoading, tips.length]);
+  
+  // Check if tour should run
+  useEffect(() => {
+    if (!hasTourBeenCompleted('newcomer') && !isLoading) {
+      setShouldRunTour(true);
+    }
+  }, [isLoading]);
+  
+  // Initialize guided tour
+  useGuidedTour('newcomer', newcomerTourSteps, shouldRunTour, {
+    delay: 1000, // Wait 1 second after page load
+    onComplete: () => {
+      setShouldRunTour(false);
+      // Optionally track tour completion in analytics
+      console.log('Newcomer tour completed');
+    }
+  });
 
   return (
     <>
@@ -483,7 +523,7 @@ export default function Home() {
             <div className="max-w-4xl mx-auto space-y-8">
               {/* Hero Section */}
               <div className="text-center space-y-4">
-                <h1 className="text-4xl font-bold tracking-tight lg:text-5xl">
+                <h1 id="main-headline" className="text-4xl font-bold tracking-tight lg:text-5xl">
                   Transform YouTube Videos into 
                   <span className="text-primary"> Interactive Courses</span>
                 </h1>
@@ -509,7 +549,7 @@ export default function Home() {
                     <div className="space-y-2">
                       <Label htmlFor="youtubeUrl">YouTube URL</Label>
                       <Input
-                        id="youtubeUrl"
+                        id="youtube-url-input"
                         type="url"
                         placeholder="https://www.youtube.com/watch?v=..."
                         {...register('youtubeUrl')}
@@ -540,6 +580,7 @@ export default function Home() {
 
                     <div className="flex gap-3">
                       <Button 
+                        id="generate-course-button"
                         type="button"
                         onClick={handleSubmit(handleGenerateCoursePro)}
                         className="flex-1" 

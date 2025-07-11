@@ -41,7 +41,7 @@ serve(async (req)=>{
     console.log('🔑 Gemini and SerpAPI keys loaded');
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash'
+      model: 'gemini-2.0-flash'
     });
     const prompt = `You are an expert educational guide.
 

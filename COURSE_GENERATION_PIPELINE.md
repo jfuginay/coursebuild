@@ -110,7 +110,55 @@ interface TranscriptSegment {
 }
 ```
 
-### 3.2 Timestamp Format Handling
+### 3.2 Dynamic Frame Sampling
+
+**NEW**: v5.0 now includes intelligent frame sampling that processes exactly 300 frames per video:
+
+- **YouTube API Integration**: Fetches video duration to calculate optimal fps
+- **Constant Frame Count**: All videos analyzed with exactly 300 frames
+- **Adaptive Sampling**: Frame rate automatically adjusts (fps = 300 / duration_seconds)
+- **Token Optimization**: Predictable visual token usage across all videos
+
+```typescript
+// Frame sampling calculation
+const TARGET_FRAMES = 300; // Constant for all videos
+const fps = Math.min(TARGET_FRAMES / durationInSeconds, 1.0); // Cap at 1 fps
+
+// Example frame rates:
+// 5-minute video: 300 frames / 300 seconds = 1.0 fps
+// 10-minute video: 300 frames / 600 seconds = 0.5 fps
+// 30-minute video: 300 frames / 1800 seconds = 0.167 fps
+// 60-minute video: 300 frames / 3600 seconds = 0.083 fps
+```
+
+### 3.3 Segmented Processing for Long Videos
+
+**NEW**: v5.0 introduces automatic video segmentation for videos longer than 10 minutes to avoid Edge Function timeouts:
+
+- **Automatic Segmentation**: Videos >10 minutes split into manageable segments
+- **Context Continuity**: Each segment receives context from previous segments
+- **Video Clipping**: Uses Gemini's videoMetadata startOffset/endOffset
+- **Buffer Handling**: 5-second buffer added to endOffset to avoid mid-sentence cutoffs
+- **Unified Storage**: Single transcript entry progressively built across segments
+
+```typescript
+// Segment processing with buffer
+const END_OFFSET_BUFFER = 5; // seconds
+const bufferedEndTime = segmentInfo.index < segmentInfo.totalSegments - 1 
+  ? segmentInfo.endTime + END_OFFSET_BUFFER 
+  : segmentInfo.endTime; // No buffer for last segment
+
+// Gemini video clipping
+videoMetadata: {
+  fps: frameSamplingRate,
+  startOffset: `${segmentInfo.startTime}s`,
+  endOffset: `${bufferedEndTime}s`
+}
+
+// Transcript filtered back to actual boundaries after generation
+```
+
+### 3.4 Timestamp Format Handling
 
 **Base-60 Conversion**: Gemini uses a unique timestamp format where 100 = 1:00 = 60 seconds
 
@@ -126,7 +174,7 @@ export const convertBase60ToSeconds = (base60: number): number => {
 // Example: 230 → 2:30 → 150 seconds
 ```
 
-### 3.3 Intelligent Timestamp Optimization
+### 3.5 Intelligent Timestamp Optimization
 
 **LLM-Based Timing**: Each question processor asks the LLM to determine optimal placement:
 
@@ -145,7 +193,7 @@ Return an 'optimal_timestamp' field (in seconds) in your response."
 }
 ```
 
-### 3.4 Transcript Context Extraction
+### 3.6 Transcript Context Extraction
 
 Enhanced context extraction with intelligent segment boundary handling:
 
@@ -348,9 +396,15 @@ Content-Type: application/json
 
 **Stage 1 - Planning Phase:**
 1. Gemini analyzes full video with transcript generation
-2. Timestamps converted from base-60 to seconds
-3. Transcript saved to database for reuse
-4. Question plans created with transcript awareness
+2. Dynamic frame sampling based on video duration (if YouTube API key available)
+3. Timestamps converted from base-60 to seconds
+4. Transcript saved to database for reuse
+5. Question plans created with transcript awareness
+
+**Frame Sampling Optimization:**
+- Automatic video duration detection via YouTube Data API v3
+- Intelligent fps adjustment to balance quality and performance
+- Graceful fallback to 1 fps if API key not available
 
 **Stage 2 - Generation Phase:**
 1. Transcript context extracted for each question
@@ -365,6 +419,28 @@ Content-Type: application/json
 - JSON fixing attempts for truncated responses
 - Reduced token limits to prevent truncation
 - Comprehensive error context in logs
+
+### 9.3 Environment Configuration
+
+**Required Environment Variables:**
+```bash
+GEMINI_API_KEY       # Gemini 2.5 Flash API access
+OPENAI_API_KEY       # OpenAI GPT-4o access
+SUPABASE_URL         # Your Supabase project URL
+SUPABASE_SERVICE_ROLE_KEY  # Service role key for database access
+```
+
+**Optional Environment Variables:**
+```bash
+YOUTUBE_API_KEY      # YouTube Data API v3 access (for dynamic frame sampling)
+```
+
+**Setting up YouTube API Key:**
+1. Go to [Google Cloud Console](https://console.cloud.google.com)
+2. Create or select a project
+3. Enable YouTube Data API v3
+4. Create credentials (API Key)
+5. Set in Supabase: `npx supabase secrets set YOUTUBE_API_KEY=your_key`
 
 ---
 

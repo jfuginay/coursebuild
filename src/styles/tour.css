@@ -1,0 +1,171 @@
+/* Custom styles for CourseForge AI guided tours */
+
+/* Override driver.js default styles - Light theme for better contrast in dark mode */
+.courseforge-tour-popover {
+  background: rgba(255, 255, 255, 0.98) !important;
+  color: rgb(23, 23, 23) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.2) !important;
+  max-width: 380px !important;
+  margin: 15px !important;
+}
+
+.courseforge-tour-popover .driver-popover-title {
+  color: rgb(23, 23, 23) !important;
+  font-size: 18px !important;
+  font-weight: 600 !important;
+  margin-bottom: 8px !important;
+}
+
+.courseforge-tour-popover .driver-popover-description {
+  color: rgb(64, 64, 64) !important;
+  font-size: 15px !important;
+  line-height: 1.6 !important;
+}
+
+.courseforge-tour-popover .driver-popover-footer {
+  margin-top: 16px !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+}
+
+.courseforge-tour-popover .driver-popover-progress-text {
+  color: rgb(115, 115, 115) !important;
+  font-size: 13px !important;
+}
+
+.courseforge-tour-popover button {
+  background: transparent !important;
+  border: 1px solid rgb(229, 229, 229) !important;
+  color: rgb(64, 64, 64) !important;
+  padding: 8px 16px !important;
+  border-radius: 6px !important;
+  font-size: 14px !important;
+  cursor: pointer !important;
+  transition: all 0.2s !important;
+}
+
+.courseforge-tour-popover button:hover {
+  background: rgb(245, 245, 245) !important;
+  border-color: rgb(204, 204, 204) !important;
+}
+
+.courseforge-tour-popover .driver-popover-next-btn {
+  background: rgb(59, 130, 246) !important;
+  border-color: rgb(59, 130, 246) !important;
+  color: white !important;
+  margin-left: 8px !important;
+}
+
+.courseforge-tour-popover .driver-popover-next-btn:hover {
+  background: rgb(37, 99, 235) !important;
+  border-color: rgb(37, 99, 235) !important;
+}
+
+.courseforge-tour-popover .driver-popover-close-btn {
+  position: absolute !important;
+  top: 12px !important;
+  right: 12px !important;
+  background: transparent !important;
+  border: none !important;
+  color: rgb(156, 163, 175) !important;
+  font-size: 20px !important;
+  width: 30px !important;
+  height: 30px !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.courseforge-tour-popover .driver-popover-close-btn:hover {
+  color: rgb(64, 64, 64) !important;
+  background: rgb(245, 245, 245) !important;
+  border-radius: 50% !important;
+}
+
+/* Arrow styles */
+.courseforge-tour-popover .driver-popover-arrow {
+  background: rgba(255, 255, 255, 0.98) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Highlight overlay */
+.driver-highlighted-element {
+  z-index: 10001 !important;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.5) !important;
+}
+
+/* Semi-transparent overlay with minimal blur */
+.driver-overlay {
+  background-color: rgba(0, 0, 0, 0.25) !important;
+  backdrop-filter: blur(0.5px) !important;
+  -webkit-backdrop-filter: blur(0.5px) !important;
+}
+
+/* Ensure arrow is visible and properly styled */
+.driver-popover-arrow {
+  background: rgba(255, 255, 255, 0.98) !important;
+  width: 20px !important;
+  height: 20px !important;
+  transform: rotate(45deg) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  z-index: 1 !important;
+}
+
+/* Make sure the driver popover has proper z-index */
+.driver-popover {
+  z-index: 10002 !important;
+}
+
+/* Ensure only the active popover is visible */
+.driver-popover-item {
+  display: none !important;
+}
+
+.driver-popover-item-active {
+  display: block !important;
+}
+
+/* Arrow positioning based on popover position */
+.driver-popover-arrow-side-top {
+  bottom: -10px !important;
+  border-top: none !important;
+  border-left: none !important;
+}
+
+.driver-popover-arrow-side-bottom {
+  top: -10px !important;
+  border-bottom: none !important;
+  border-right: none !important;
+}
+
+.driver-popover-arrow-side-left {
+  right: -10px !important;
+  border-left: none !important;
+  border-bottom: none !important;
+}
+
+.driver-popover-arrow-side-right {
+  left: -10px !important;
+  border-right: none !important;
+  border-top: none !important;
+}
+
+/* Mobile responsive styles */
+@media (max-width: 640px) {
+  .courseforge-tour-popover {
+    max-width: 320px !important;
+    margin: 10px !important;
+  }
+  
+  .courseforge-tour-popover .driver-popover-title {
+    font-size: 16px !important;
+  }
+  
+  .courseforge-tour-popover .driver-popover-description {
+    font-size: 14px !important;
+  }
+}

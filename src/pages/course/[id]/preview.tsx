@@ -29,6 +29,7 @@ interface Question {
   frame_timestamp?: number;
   bounding_boxes?: any[];
   detected_objects?: any[];
+  target_objects?: any[];
   matching_pairs?: any[];
   sequence_items?: string[];
   requires_video_overlay?: boolean;
@@ -275,9 +276,9 @@ export default function CoursePreviewPage() {
       console.log('Questions data:', questionsData);
 
       if (questionsData.success && questionsData.questions.length > 0) {
-        // Filter out questions with null options (except visual questions) and very early questions
+        // Filter out questions with null options (except visual questions)
         const validQuestions = questionsData.questions.filter((q: any) => 
-          (q.options !== null || q.type === 'hotspot' || q.type === 'matching' || q.type === 'sequencing') && q.timestamp >= 10
+          q.options !== null || q.type === 'hotspot' || q.type === 'matching' || q.type === 'sequencing'
         );
         
         // Enhanced function to handle true/false questions
@@ -337,6 +338,7 @@ export default function CoursePreviewPage() {
             frame_timestamp: processedQuestion.frame_timestamp,
             bounding_boxes: processedQuestion.bounding_boxes || [],
             detected_objects: processedQuestion.detected_objects || [],
+            target_objects: processedQuestion.target_objects || [],
             matching_pairs: processedQuestion.matching_pairs || [],
             sequence_items: processedQuestion.sequence_items || [],
             requires_video_overlay: processedQuestion.requires_video_overlay || false,

@@ -628,7 +628,7 @@ const executeQuizGenerationPipeline = async (
     
     // Create a progress tracker with proper parameters
     const sessionId = request.session_id || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const generationTracker = createProgressTracker(supabaseClient, request.course_id, sessionId);
+    const generationTracker = await createProgressTracker(supabaseClient, request.course_id, sessionId);
     
     // Use transcript from stage 1 or fetch from database as fallback
     let transcript: VideoTranscript | undefined = planningTranscript;
@@ -922,3 +922,9 @@ serve(async (req: Request) => {
     );
   }
 }); 
+
+// =============================================================================
+// Exports for use by other modules (e.g., segment processing)
+// =============================================================================
+
+export { generateQuestionsFromPlans, createProgressTracker }; 

@@ -1388,7 +1388,6 @@ export default function CoursePage() {
            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
              {course.description}
            </p>
-           
            {/* Course Rating - Always show */}
            <div className="flex items-center justify-center">
              <CompactStarRating

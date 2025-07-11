@@ -4,6 +4,7 @@ import posthog from 'posthog-js';
 import { PostHogProvider } from 'posthog-js/react';
 import { Analytics } from '@vercel/analytics/react';
 import '../styles/globals.css';
+import '../styles/tour.css';
 import { ThemeProvider } from '../components/ThemeProvider';
 import { AuthProvider } from '../contexts/AuthContext';
 import { Toaster } from 'sonner';
