@@ -122,8 +122,8 @@ const generateBoundingBoxes = async (
       }
       
       // Create 2-second window around the frame timestamp for precise analysis
-      const startOffset = Math.max(0, frameTimestamp - 1);
-      const endOffset = frameTimestamp + 1;
+      const startOffset = Math.max(0, frameTimestamp - 2);
+      const endOffset = frameTimestamp + 2;
       
       
       console.log(`📹 Analyzing video segment: ${formatSecondsForDisplay(startOffset)} to ${formatSecondsForDisplay(endOffset)}`);
@@ -132,7 +132,7 @@ const generateBoundingBoxes = async (
       const objectDetectionPrompt = `
 You are creating a visual hotspot question for educational purposes. Generate appropriate question text, explanation, and bounding boxes for all visible objects in this frame.
 
-IMPORTANT: You are analyzing a 2-second window (from ${startOffset}s to ${endOffset}s). Select the EXACT timestamp within this window where the target objects are most clearly visible and generate bounding boxes for that specific frame. Return this exact timestamp in the exact_frame_timestamp field.
+IMPORTANT: You are analyzing a 4-second window (from ${startOffset}s to ${endOffset}s). Select the EXACT timestamp within this window where the target objects are most clearly visible and generate bounding boxes for that specific frame. Return this exact timestamp in the exact_frame_timestamp field.
 
 LEARNING OBJECTIVE: ${plan.learning_objective}
 VISUAL LEARNING OBJECTIVE: ${plan.visual_learning_objective}
@@ -153,7 +153,7 @@ Use this transcript context to:
 
 Requirements:
 1. Analyze the 2-second window and select the EXACT timestamp where target objects are clearest.
-2. Make sure the scene in the selected timestamp stays is visible for at least 1 second before and after the timestamp.
+2. Make sure the scene in the selected timestamp is visible for at least 1 second before and after the timestamp.
 3. Generate clear, educational question text that asks students to identify ONE SINGLE target object
 4. Generate a comprehensive explanation that explains why identifying this object is important
 5. Find and mark all other visible objects in the selected frame with minimal overlap with the target object (minimum 3-5 bounding boxes)
