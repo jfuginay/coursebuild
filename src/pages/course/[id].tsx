@@ -302,9 +302,7 @@ export default function CoursePage() {
        console.log('🎬 Course loaded:', {
          title: data.course.title,
          youtubeUrl: data.course.youtube_url,
-         extractedVideoId: extractedVideoId,
-         hasRatings: courseWithRating.totalRatings > 0,
-         averageRating: courseWithRating.averageRating
+         extractedVideoId: extractedVideoId
        });
        setVideoId(extractedVideoId);
      } else {
