@@ -137,12 +137,17 @@ export default function CoursePage() {
  const [autonomyLevel, setAutonomyLevel] = useState(1); // Default to "Help" mode
  const [isPlaying, setIsPlaying] = useState(false);
 
+ // Player reload state
+ const [playerKey, setPlayerKey] = useState(0); // Key to force remount
+ const [savedTimestamp, setSavedTimestamp] = useState<number | null>(null);
+
  // Free questions limit
  const FREE_QUESTIONS_LIMIT = 2;
 
  const playerRef = useRef<YTPlayer | null>(null);
  const intervalRef = useRef<NodeJS.Timeout | null>(null);
  const questionStartTime = useRef<number | null>(null); // Track when question was shown
+ const lastQuestionTimestamp = useRef<number | null>(null); // Track video time when last question appeared
 
  // InfoBite hook
  const {
@@ -239,16 +244,7 @@ export default function CoursePage() {
     }
   }, [currentTime, questions, currentQuestionIndex, answeredQuestions]);
 
-  // Ensure YouTube player is accessible after flipping back
-  useEffect(() => {
-    if (!showQuestion && playerRef.current && isVideoReady) {
-      // Check if the player element is still in the DOM
-      const playerElement = document.getElementById('youtube-player');
-      if (playerElement && !playerElement.querySelector('iframe')) {
-        console.warn('YouTube player iframe missing after flip, may need re-initialization');
-      }
-    }
-  }, [showQuestion, isVideoReady]);
+
 
  // Adjust question timestamps when video duration becomes available
  useEffect(() => {
@@ -596,159 +592,178 @@ export default function CoursePage() {
    return states[state] || `UNKNOWN(${state})`;
  };
 
- const initializePlayer = (retryCount = 0) => {
-   console.log(`🎯 initializePlayer called (attempt ${retryCount + 1})`, {
-     hasYT: !!window.YT,
-     hasPlayer: !!(window.YT && window.YT.Player),
-     videoId: videoId,
-     domReady: document.readyState,
-     elementExists: !!document.getElementById('youtube-player')
-   });
+   const initializePlayer = (retryCount = 0) => {
+    console.log(`🎯 initializePlayer called (attempt ${retryCount + 1})`, {
+      hasYT: !!window.YT,
+      hasPlayer: !!(window.YT && window.YT.Player),
+      videoId: videoId,
+      domReady: document.readyState,
+      elementExists: !!document.getElementById('youtube-player')
+    });
 
-   if (!window.YT || !window.YT.Player || !videoId) {
-     console.warn('⚠️ YouTube API not ready or no video ID:', {
-       hasYT: !!window.YT,
-       hasPlayer: !!(window.YT && window.YT.Player),
-       videoId: videoId
-     });
-     return;
-   }
+    if (!window.YT || !window.YT.Player || !videoId) {
+      console.warn('⚠️ YouTube API not ready or no video ID:', {
+        hasYT: !!window.YT,
+        hasPlayer: !!(window.YT && window.YT.Player),
+        videoId: videoId
+      });
+      return;
+    }
 
-   // Check if the target element exists
-   const targetElement = document.getElementById('youtube-player');
-   if (!targetElement) {
-     console.warn(`⚠️ YouTube player target element not found (attempt ${retryCount + 1})`);
-     console.log('🔍 DOM elements check:', {
-       bodyChildren: document.body.children.length,
-       hasYouTubePlayer: !!document.getElementById('youtube-player'),
-       allElementsWithId: Array.from(document.querySelectorAll('[id]')).map(el => el.id)
-     });
-     
-     // Retry up to 5 times with increasing delays
-     if (retryCount < 5) {
-       setTimeout(() => {
-         initializePlayer(retryCount + 1);
-       }, 200 * (retryCount + 1)); // 200ms, 400ms, 600ms, 800ms, 1000ms
-       return;
-     } else {
-       console.error('❌ YouTube player target element not found after 5 attempts');
-       setError('Video player container not found after multiple attempts');
-       return;
-     }
-   }
+    // Check if player already exists
+    if (playerRef.current) {
+      console.log('⚠️ Player already exists, skipping initialization');
+      return;
+    }
 
-   try {
-     console.log('🚀 Initializing YouTube player for video:', videoId);
-     console.log('🎯 Target element found:', {
-       id: targetElement.id,
-       className: targetElement.className,
-       clientWidth: targetElement.clientWidth,
-       clientHeight: targetElement.clientHeight,
-       style: targetElement.getAttribute('style')
-     });
+    // Check if the target element exists
+    const targetElement = document.getElementById('youtube-player');
+    if (!targetElement) {
+      console.warn(`⚠️ YouTube player target element not found (attempt ${retryCount + 1})`);
+      console.log('🔍 DOM elements check:', {
+        bodyChildren: document.body.children.length,
+        hasYouTubePlayer: !!document.getElementById('youtube-player'),
+        allElementsWithId: Array.from(document.querySelectorAll('[id]')).map(el => el.id)
+      });
+      
+      // Retry up to 5 times with increasing delays
+      if (retryCount < 5) {
+        setTimeout(() => {
+          initializePlayer(retryCount + 1);
+        }, 200 * (retryCount + 1)); // 200ms, 400ms, 600ms, 800ms, 1000ms
+        return;
+      } else {
+        console.error('❌ YouTube player target element not found after 5 attempts');
+        setError('Video player container not found after multiple attempts');
+        return;
+      }
+    }
 
-   const newPlayer = new window.YT.Player('youtube-player', {
-     videoId: videoId,
-       width: '100%',
-       height: '100%',
-     playerVars: {
-       autoplay: 0,
-       controls: 1, // Enable YouTube controls (play/pause, progress bar, volume, etc.)
-       disablekb: 0,
-       enablejsapi: 1,
-       modestbranding: 1,
-       playsinline: 1,
-       rel: 0,
-         origin: window.location.origin
-     },
-     events: {
-       onReady: (event: any) => {
-           console.log('✅ YouTube player ready');
-         setPlayer(event.target);
-         playerRef.current = event.target;
-         setIsVideoReady(true);
-         startTimeTracking();
-       },
-       onStateChange: async (event: any) => {
-         console.log('🎬 Player state changed:', {
-           stateCode: event.data,
-           stateName: getPlayerStateName(event.data),
-           YT_ENDED: window.YT?.PlayerState?.ENDED,
-           nextCourse: !!nextCourse,
-           isLoadingNextCourse: isLoadingNextCourse,
-           showNextCourseModal: showNextCourseModal
-         });
-         
-         if (event.data === window.YT.PlayerState.PLAYING) {
-           startTimeTracking();
-           setIsPlaying(true);
-           
-           // If a question is showing and user resumes via YouTube controls,
-           // treat it as if they skipped the question
-           if (showQuestion) {
-             console.log('📺 Video resumed while question showing - treating as skip');
-             handleSkipQuestion();
-           }
-         } else if (event.data === window.YT.PlayerState.PAUSED) {
-           stopTimeTracking();
-           setIsPlaying(false);
-           // Track pause engagement with error handling
-           try {
-             trackEngagement(id as string, { type: 'video_paused' });
-           } catch (error) {
-             console.warn('Failed to track pause engagement:', error);
-           }
-         } else if (event.data === window.YT.PlayerState.ENDED || event.data === 0) {
-           console.log('🏁 Video ended - stopping time tracking');
-           stopTimeTracking();
-           setIsPlaying(false);
-           
-           // Track course completion with error handling
-           if (id && typeof id === 'string') {
-             try {
-               trackCourse({
-                 courseId: id,
-                 action: 'complete',
-                 duration: Math.round(duration),
-                 questionsAnswered: answeredQuestions.size,
-                 completionPercentage: 100
-               });
-             } catch (error) {
-               console.warn('Failed to track course completion:', error);
-             }
-             
-             // Trigger rating modal on completion
-             triggerRatingModal('completion');
-           }
-           
-           // Modal should already be shown 3 seconds before the end
-           // This is just a fallback in case the modal wasn't shown for some reason
-           if (!nextCourseModalShown) {
-             console.log('⚠️ Fallback: Showing next course modal at video end');
-             setNextCourseModalShown(true);
-             setShowNextCourseModal(true);
-           }
-         }
-       },
-         onError: (event: any) => {
-           console.error('❌ YouTube player error:', event.data);
-           const errorMessages = {
-             2: 'Invalid video ID',
-             5: 'HTML5 player error',
-             100: 'Video not found or private',
-             101: 'Video not allowed to be embedded',
-             150: 'Video not allowed to be embedded'
-           };
-           const errorMessage = errorMessages[event.data as keyof typeof errorMessages] || 'Unknown video error';
-           setError(`Video error: ${errorMessage}`);
-         }
-     },
-   });
-   } catch (error) {
-     console.error('❌ Error initializing YouTube player:', error);
-     setError('Failed to initialize video player');
-   }
- };
+    // Check if iframe already exists (player was already initialized)
+    if (targetElement.querySelector('iframe')) {
+      console.log('⚠️ YouTube iframe already exists, skipping initialization');
+      return;
+    }
+
+    try {
+      console.log('🚀 Initializing YouTube player for video:', videoId);
+      console.log('🎯 Target element found:', {
+        id: targetElement.id,
+        className: targetElement.className,
+        clientWidth: targetElement.clientWidth,
+        clientHeight: targetElement.clientHeight,
+        style: targetElement.getAttribute('style')
+      });
+
+    const newPlayer = new window.YT.Player('youtube-player', {
+      videoId: videoId,
+        width: '100%',
+        height: '100%',
+      playerVars: {
+        autoplay: 0,
+        controls: 1, // Enable YouTube controls (play/pause, progress bar, volume, etc.)
+        disablekb: 0,
+        enablejsapi: 1,
+        modestbranding: 1,
+        playsinline: 1,
+        rel: 0,
+          origin: window.location.origin
+      },
+      events: {
+        onReady: (event: any) => {
+            console.log('✅ YouTube player ready');
+          setPlayer(event.target);
+          playerRef.current = event.target;
+          setIsVideoReady(true);
+          startTimeTracking();
+          
+          // If we have a saved timestamp, seek to it
+          if (savedTimestamp !== null && savedTimestamp > 0) {
+            console.log('⏩ Seeking to saved timestamp:', savedTimestamp);
+            event.target.seekTo(savedTimestamp);
+            setSavedTimestamp(null); // Clear after using
+          }
+        },
+        onStateChange: async (event: any) => {
+          console.log('🎬 Player state changed:', {
+            stateCode: event.data,
+            stateName: getPlayerStateName(event.data),
+            YT_ENDED: window.YT?.PlayerState?.ENDED,
+            nextCourse: !!nextCourse,
+            isLoadingNextCourse: isLoadingNextCourse,
+            showNextCourseModal: showNextCourseModal
+          });
+          
+          if (event.data === window.YT.PlayerState.PLAYING) {
+            startTimeTracking();
+            setIsPlaying(true);
+            
+            // If a question is showing and user resumes via YouTube controls,
+            // treat it as if they skipped the question
+            if (showQuestion) {
+              console.log('📺 Video resumed while question showing - treating as skip');
+              handleSkipQuestion();
+            }
+          } else if (event.data === window.YT.PlayerState.PAUSED) {
+            stopTimeTracking();
+            setIsPlaying(false);
+            // Track pause engagement with error handling
+            try {
+              trackEngagement(id as string, { type: 'video_paused' });
+            } catch (error) {
+              console.warn('Failed to track pause engagement:', error);
+            }
+          } else if (event.data === window.YT.PlayerState.ENDED || event.data === 0) {
+            console.log('🏁 Video ended - stopping time tracking');
+            stopTimeTracking();
+            setIsPlaying(false);
+            
+            // Track course completion with error handling
+            if (id && typeof id === 'string') {
+              try {
+                trackCourse({
+                  courseId: id,
+                  action: 'complete',
+                  duration: Math.round(duration),
+                  questionsAnswered: answeredQuestions.size,
+                  completionPercentage: 100
+                });
+              } catch (error) {
+                console.warn('Failed to track course completion:', error);
+              }
+              
+              // Trigger rating modal on completion
+              triggerRatingModal('completion');
+            }
+            
+            // Modal should already be shown 3 seconds before the end
+            // This is just a fallback in case the modal wasn't shown for some reason
+            if (!nextCourseModalShown) {
+              console.log('⚠️ Fallback: Showing next course modal at video end');
+              setNextCourseModalShown(true);
+              setShowNextCourseModal(true);
+            }
+          }
+        },
+          onError: (event: any) => {
+            console.error('❌ YouTube player error:', event.data);
+            const errorMessages = {
+              2: 'Invalid video ID',
+              5: 'HTML5 player error',
+              100: 'Video not found or private',
+              101: 'Video not allowed to be embedded',
+              150: 'Video not allowed to be embedded'
+            };
+            const errorMessage = errorMessages[event.data as keyof typeof errorMessages] || 'Unknown video error';
+            setError(`Video error: ${errorMessage}`);
+          }
+      },
+    });
+    } catch (error) {
+      console.error('❌ Error initializing YouTube player:', error);
+      setError('Failed to initialize video player');
+    }
+  };
 
  const startTimeTracking = () => {
    if (intervalRef.current) clearInterval(intervalRef.current);
@@ -773,15 +788,24 @@ export default function CoursePage() {
  const checkForQuestions = () => {
    if (showQuestion || questions.length === 0) return;
 
-   const nextQuestion = questions.find((q, index) => {
-     return !answeredQuestions.has(index) && currentTime >= q.timestamp;
-   });
+   // Find all unanswered questions that should have been shown by now
+   const missedQuestions = questions
+     .map((q, index) => ({ question: q, index }))
+     .filter(({ index }) => !answeredQuestions.has(index) && currentTime >= questions[index].timestamp);
 
-   if (nextQuestion) {
-     const questionIndex = questions.indexOf(nextQuestion);
+   if (missedQuestions.length > 0) {
+     // If multiple questions were skipped, show the first one
+     const { index: questionIndex } = missedQuestions[0];
+     
+     // Log if we're catching up on multiple questions
+     if (missedQuestions.length > 1) {
+       console.log(`⚠️ Found ${missedQuestions.length} unanswered questions. Showing first one.`);
+     }
+     
      setCurrentQuestionIndex(questionIndex);
      setShowQuestion(true);
      questionStartTime.current = Date.now(); // Track when question was shown
+     lastQuestionTimestamp.current = questions[questionIndex].timestamp; // Save the question's intended timestamp
      playerRef.current?.pauseVideo(); // Auto-pause video when question appears
      
      // Track enrollment when user first interacts with a question (fire and forget)
@@ -843,16 +867,38 @@ export default function CoursePage() {
     setAnsweredQuestions(prev => new Set(prev).add(currentQuestionIndex));
     setShowQuestion(false);
     
-    // Small delay to ensure the flip animation completes before resuming
+    // Save the timestamp to restore after reload
+    const resumeTimestamp = lastQuestionTimestamp.current || currentTime;
+    setSavedTimestamp(resumeTimestamp);
+    
+    // Wait for the card to switch back to video, then trigger reload
     setTimeout(() => {
-      if (playerRef.current && typeof playerRef.current.playVideo === 'function') {
-        try {
-          playerRef.current.playVideo();
-        } catch (error) {
-          console.warn('Failed to resume video:', error);
+      console.log('🔄 Auto-reloading player after question...');
+      handleReloadPlayer();
+      
+      // After reload, wait for player to be ready and resume
+      const waitForPlayerAndResume = (attempts = 0) => {
+        if (attempts > 20) {
+          console.error('Failed to resume after reload');
+          return;
         }
-      }
-    }, 300); // Half of the flip animation duration
+        
+        if (playerRef.current && isVideoReady) {
+          try {
+            playerRef.current.playVideo();
+            console.log('✅ Video resumed after reload');
+          } catch (error) {
+            console.warn('Failed to resume, retrying...', error);
+            setTimeout(() => waitForPlayerAndResume(attempts + 1), 200);
+          }
+        } else {
+          setTimeout(() => waitForPlayerAndResume(attempts + 1), 200);
+        }
+      };
+      
+      // Start checking for player after reload delay
+      setTimeout(() => waitForPlayerAndResume(), 1000);
+    }, 100); // Small delay to ensure card has switched
   };
 
  const handleSkipQuestion = async () => {
@@ -911,16 +957,35 @@ export default function CoursePage() {
     setAnsweredQuestions(prev => new Set(prev).add(currentQuestionIndex)); // Mark as answered to prevent re-showing
     setShowQuestion(false);
     
-    // Small delay to ensure the flip animation completes before resuming
+    // Use the same reload approach as handleContinueVideo
+    const resumeTimestamp = lastQuestionTimestamp.current || currentTime;
+    setSavedTimestamp(resumeTimestamp);
+    
     setTimeout(() => {
-      if (playerRef.current && typeof playerRef.current.playVideo === 'function') {
-        try {
-          playerRef.current.playVideo();
-        } catch (error) {
-          console.warn('Failed to resume video after skip:', error);
+      console.log('🔄 Auto-reloading player after skip...');
+      handleReloadPlayer();
+      
+      const waitForPlayerAndResume = (attempts = 0) => {
+        if (attempts > 20) {
+          console.error('Failed to resume after skip reload');
+          return;
         }
-      }
-    }, 300); // Half of the flip animation duration
+        
+        if (playerRef.current && isVideoReady) {
+          try {
+            playerRef.current.playVideo();
+            console.log('✅ Video resumed after skip reload');
+          } catch (error) {
+            console.warn('Failed to resume after skip, retrying...', error);
+            setTimeout(() => waitForPlayerAndResume(attempts + 1), 200);
+          }
+        } else {
+          setTimeout(() => waitForPlayerAndResume(attempts + 1), 200);
+        }
+      };
+      
+      setTimeout(() => waitForPlayerAndResume(), 1000);
+    }, 100);
  };
 
  // Rating trigger logic
@@ -1132,6 +1197,32 @@ export default function CoursePage() {
    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
  };
 
+ const handleReloadPlayer = () => {
+   console.log('🔄 Reloading player component...');
+   
+   // Save current timestamp (use last question timestamp if available, otherwise current time)
+   const timestampToSave = lastQuestionTimestamp.current || currentTime;
+   setSavedTimestamp(timestampToSave);
+   console.log('💾 Saved timestamp:', timestampToSave);
+   
+   // Destroy current player
+   if (playerRef.current && typeof playerRef.current.destroy === 'function') {
+     try {
+       playerRef.current.destroy();
+     } catch (error) {
+       console.warn('Error destroying player:', error);
+     }
+   }
+   
+   // Clear references
+   setPlayer(null);
+   playerRef.current = null;
+   setIsVideoReady(false);
+   
+   // Force remount by changing key
+   setPlayerKey(prev => prev + 1);
+ };
+
  // Convert questions to courseData format for curriculum card
  const getCourseData = (): CourseData => {
    if (!course || questions.length === 0) {
@@ -1319,6 +1410,7 @@ export default function CoursePage() {
  
            return (
              <InteractiveVideoPlayer
+               key={playerKey}
                videoId={videoId}
                youtubeUrl={course.youtube_url}
                isYTApiLoaded={isYTApiLoaded}
@@ -1337,6 +1429,8 @@ export default function CoursePage() {
                showQuestion={showQuestion}
                isFlipped={showQuestion && currentQuestion && !isHotspotQuestion}
                flipContent={flipContent}
+               onReloadPlayer={handleReloadPlayer}
+               savedTimestamp={savedTimestamp}
              />
            );
          })()}
