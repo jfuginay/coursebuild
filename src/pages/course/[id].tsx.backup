@@ -13,16 +13,14 @@ import CourseCurriculumCard from '@/components/CourseCurriculumCard';
 import VideoProgressBar from '@/components/VideoProgressBar';
 import TranscriptDisplay from '@/components/TranscriptDisplay';
 import InteractiveVideoPlayer from '@/components/InteractiveVideoPlayer';
-import InfoBiteCard from '@/components/InfoBiteCard';
-import { RatingModal, CompactStarRating } from '@/components/StarRating';
+import InfoBiteToast from '@/components/InfoBiteToast';
+import AutonomySlider from '@/components/AutonomySlider';
+import { RatingModal } from '@/components/StarRating';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAnalytics } from '@/hooks/useAnalytics';
 import { useInfoBite } from '@/hooks/useInfoBite';
 import { supabase } from '@/lib/supabase';
-import { useGuidedTour } from '@/hooks/useGuidedTour';
-import { learnerTourSteps } from '@/config/tours';
-import ChatBubble from '@/components/ChatBubble';
 
 interface Course {
  id: string;
@@ -35,9 +33,6 @@ interface Course {
  questionsGenerated?: boolean;
  questions?: Question[];
  videoId?: string;
- averageRating?: number;
- totalRatings?: number;
- topic?: string;
 }
 
 interface Question {
@@ -131,25 +126,16 @@ export default function CoursePage() {
  const [isEnrolled, setIsEnrolled] = useState(false); // Track enrollment status
  const [autoGenerationTriggered, setAutoGenerationTriggered] = useState(false); // Track if auto-generation was triggered
  const [nextCourseModalShown, setNextCourseModalShown] = useState(false); // Track if modal has been shown
- const [isProcessing, setIsProcessing] = useState(false); // Track if course is still processing
  
  // Rating state
  const [showRatingModal, setShowRatingModal] = useState(false);
  const [hasRated, setHasRated] = useState(false);
  const [engagementScore, setEngagementScore] = useState(0);
  const [courseStartTime] = useState(Date.now());
- 
- // Guided tour state
- const [shouldRunTour, setShouldRunTour] = useState(false);
- const [hasCheckedOnboarding, setHasCheckedOnboarding] = useState(false);
 
  // InfoBite state
- const [autonomyLevel, setAutonomyLevel] = useState(2); // Guide Me mode - active InfoBites
+ const [autonomyLevel, setAutonomyLevel] = useState(1); // Default to "Help" mode
  const [isPlaying, setIsPlaying] = useState(false);
-
- // Player reload state
- const [playerKey, setPlayerKey] = useState(0); // Key to force remount
- const [savedTimestamp, setSavedTimestamp] = useState<number | null>(null);
 
  // Free questions limit
  const FREE_QUESTIONS_LIMIT = 2;
@@ -157,7 +143,6 @@ export default function CoursePage() {
  const playerRef = useRef<YTPlayer | null>(null);
  const intervalRef = useRef<NodeJS.Timeout | null>(null);
  const questionStartTime = useRef<number | null>(null); // Track when question was shown
- const lastQuestionTimestamp = useRef<number | null>(null); // Track video time when last question appeared
 
  // InfoBite hook
  const {
@@ -175,62 +160,9 @@ export default function CoursePage() {
  useEffect(() => {
    if (id) {
      fetchCourse();
-   }
- }, [id]);
- 
- // Check if user has completed onboarding and show tour if needed
- useEffect(() => {
-   const checkOnboarding = async () => {
-     if (!user || hasCheckedOnboarding || !isVideoReady) return;
-     
-     try {
-       const response = await fetch(`/api/user/check-onboarding?user_id=${user.id}`);
-       const data = await response.json();
-       
-       if (!data.onboarding_completed) {
-         setShouldRunTour(true);
-       }
-       setHasCheckedOnboarding(true);
-     } catch (error) {
-       console.error('Error checking onboarding status:', error);
-       setHasCheckedOnboarding(true);
-     }
-   };
-   
-   checkOnboarding();
- }, [user, hasCheckedOnboarding, isVideoReady]);
- 
- // Initialize guided tour for learner journey
- useGuidedTour('learner', learnerTourSteps, shouldRunTour, {
-   delay: 2000, // Wait for video to load
-   onComplete: async () => {
-     setShouldRunTour(false);
-     // Update onboarding status in database
-     if (user) {
-       try {
-         await fetch('/api/user/update-onboarding', {
-           method: 'POST',
-           headers: {
-             'Content-Type': 'application/json',
-           },
-           body: JSON.stringify({
-             user_id: user.id,
-             onboarding_completed: true
-           }),
-         });
-       } catch (error) {
-         console.error('Error updating onboarding status:', error);
-       }
-     }
-   }
- });
-
- useEffect(() => {
-   // Only fetch questions if course is loaded and published
-   if (course && course.published && id) {
      fetchQuestions();
    }
- }, [course, id]);
+ }, [id]);
 
  useEffect(() => {
    console.log('🔍 Checking YouTube API availability...');
@@ -282,41 +214,30 @@ export default function CoursePage() {
    };
  }, [isYTApiLoaded]);
 
-  // Initialize YouTube player when API is ready and video ID is available
-  useEffect(() => {
-    console.log('🎬 YouTube Player useEffect triggered:', {
-      videoId: videoId,
-      isYTApiLoaded: isYTApiLoaded,
-      hasWindowYT: !!(window.YT && window.YT.Player),
-      hasPlayer: !!player,
-      isProcessing: isProcessing
-    });
-    
-    // Reset player if transitioning from processing to published
-    if (!isProcessing && player && !document.getElementById('youtube-player')) {
-      console.log('🔄 Resetting player due to state transition');
-      setPlayer(null);
-      playerRef.current = null;
-    }
-    
-    if (videoId && isYTApiLoaded && window.YT && window.YT.Player && !player && !isProcessing) {
-      console.log('🚀 Attempting to initialize player...');
-      // Add small delay to ensure DOM is ready
-      const timer = setTimeout(() => {
-      initializePlayer();
-      }, 100);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [videoId, isYTApiLoaded, player, isProcessing]);
+ useEffect(() => {
+   console.log('🎯 Player initialization check:', {
+     videoId: videoId,
+     isYTApiLoaded: isYTApiLoaded,
+     hasWindowYT: !!(window.YT && window.YT.Player),
+     hasPlayer: !!player
+   });
+   
+   if (videoId && isYTApiLoaded && window.YT && window.YT.Player && !player) {
+     console.log('🚀 Attempting to initialize player...');
+     // Add small delay to ensure DOM is ready
+     const timer = setTimeout(() => {
+     initializePlayer();
+     }, 100);
+     
+     return () => clearTimeout(timer);
+   }
+ }, [videoId, isYTApiLoaded, player]);
 
-   useEffect(() => {
-    if (player && questions.length > 0) {
-      checkForQuestions();
-    }
-  }, [currentTime, questions, currentQuestionIndex, answeredQuestions]);
-
-
+ useEffect(() => {
+   if (player && questions.length > 0) {
+     checkForQuestions();
+   }
+ }, [currentTime, questions, currentQuestionIndex, answeredQuestions]);
 
  // Adjust question timestamps when video duration becomes available
  useEffect(() => {
@@ -375,130 +296,11 @@ export default function CoursePage() {
 
      if (data.success) {
        setCourse(data.course);
-       
-       // Check if course is processing
-       if (data.course && !data.course.published) {
-         console.log('Course is still processing');
-         setIsProcessing(true);
-         
-         // Check if the course has a generic description that needs updating
-         const hasGenericDescription = data.course.description && (
-           data.course.description.includes('Interactive course from') ||
-           data.course.description.includes('AI-powered interactive course') ||
-           data.course.description.includes('AI Generated Course')
-         );
-         
-         if (hasGenericDescription) {
-           // Try to update the description with AI-generated summary
-           try {
-             const updateResponse = await fetch('/api/course/update-summary', {
-               method: 'POST',
-               headers: { 'Content-Type': 'application/json' },
-               body: JSON.stringify({ course_id: data.course.id })
-             });
-             
-             if (updateResponse.ok) {
-               const updateResult = await updateResponse.json();
-               if (updateResult.success && updateResult.description) {
-                 // Update local state with the new description
-                 setCourse(prev => prev ? { ...prev, description: updateResult.description } : null);
-                 console.log('✅ Course description updated with AI-generated summary');
-               }
-             }
-           } catch (error) {
-             console.log('Could not update course description:', error);
-           }
-         }
-         
-         // Set up progress tracking
-         if (typeof window !== 'undefined') {
-           // Set up polling to check for completion
-           let checkCounter = 0;
-           const pollInterval = setInterval(async () => {
-             const pollResponse = await fetch(`/api/course/${id}`);
-             const pollData = await pollResponse.json();
-             
-             if (pollData.success && pollData.course.published) {
-               // IMPORTANT: Also verify questions exist before considering processing complete
-               const questionsResponse = await fetch(`/api/course/${id}/questions`);
-               const questionsData = await questionsResponse.json();
-               
-               if (questionsData.success && questionsData.questions && questionsData.questions.length > 0) {
-                 console.log(`✅ Course processing complete! Found ${questionsData.questions.length} questions`);
-                 setCourse(pollData.course);
-                 setIsProcessing(false);
-                 clearInterval(pollInterval);
-                 // Set questions immediately instead of calling fetchQuestions
-                 const parsedQuestions = questionsData.questions.map((q: any) => ({
-                   ...q,
-                   options: parseOptionsWithTrueFalse(q.options || [], q.type),
-                   correct: parseInt(q.correct_answer) || 0,
-                   correct_answer: parseInt(q.correct_answer) || 0
-                 }));
-                 setQuestions(parsedQuestions);
-               } else {
-                 console.log(`⚠️ Course marked as published but no questions found yet. Continuing to poll...`);
-                 // Continue polling even though course is marked as published
-                 // This handles the edge case where published=true but questions aren't ready yet
-               }
-             } else if (checkCounter % 6 === 0) { // Only check segments every 30 seconds (6 * 5s)
-               // Check segments less frequently to avoid overwhelming the orchestrator
-               try {
-                 const checkResponse = await fetch('/api/course/check-segment-processing', {
-                   method: 'POST',
-                   headers: {
-                     'Content-Type': 'application/json',
-                   },
-                   body: JSON.stringify({ course_id: id })
-                 });
-                 
-                 if (checkResponse.ok) {
-                   const checkData = await checkResponse.json();
-                   console.log('🔄 Periodic segment check result:', checkData);
-                 }
-               } catch (error) {
-                 console.error('Failed to check segments:', error);
-               }
-             }
-             checkCounter++;
-           }, 5000); // Poll course status every 5 seconds
-           
-           // Clean up interval on unmount
-           return () => clearInterval(pollInterval);
-         }
-       }
-       
-       // Enhance course data with rating information
-      let courseWithRating = { ...data.course };
-      
-      try {
-        // Fetch rating data for this course
-        const ratingResponse = await fetch(`/api/courses/${id}/rating`);
-        if (ratingResponse.ok) {
-          const ratingData = await ratingResponse.json();
-          if (ratingData.success && ratingData.stats) {
-            courseWithRating.averageRating = ratingData.stats.average_rating || 0;
-            courseWithRating.totalRatings = ratingData.stats.total_ratings || 0;
-            console.log('⭐ Rating data loaded:', {
-              averageRating: courseWithRating.averageRating,
-              totalRatings: courseWithRating.totalRatings
-            });
-          }
-        }
-      } catch (ratingError) {
-        console.warn('Failed to fetch rating data:', ratingError);
-        // Continue without rating data
-      }
-      
-      setCourse(courseWithRating);
        const extractedVideoId = extractVideoId(data.course.youtube_url);
        console.log('🎬 Course loaded:', {
          title: data.course.title,
          youtubeUrl: data.course.youtube_url,
-         extractedVideoId: extractedVideoId,
-         published: data.course.published,
-         hasRatings: courseWithRating.totalRatings > 0,
-         averageRating: courseWithRating.averageRating
+         extractedVideoId: extractedVideoId
        });
        setVideoId(extractedVideoId);
      } else {
@@ -507,8 +309,6 @@ export default function CoursePage() {
    } catch (err) {
      setError('Error loading course');
      console.error('Error fetching course:', err);
-   } finally {
-     setIsLoading(false);
    }
  };
 
@@ -565,7 +365,7 @@ export default function CoursePage() {
        const visualQuestions = parsedQuestions.filter((q: Question) => q.type === 'hotspot' || q.type === 'matching' || q.requires_video_overlay);
        console.log('👁️ Visual questions found:', visualQuestions.length);
        if (visualQuestions.length > 0) {
-         console.log('🖼️ First visual q:', visualQuestions[0]);
+         console.log('🖼️ First visual question:', visualQuestions[0]);
        }
        
        setQuestions(parsedQuestions);
@@ -674,172 +474,94 @@ export default function CoursePage() {
 
      console.log('📊 Sending wrong answers to next course API:', wrongAnswers);
 
-     // Step 1: Get course suggestions
-     const suggestionsResponse = await fetch('/api/course/suggestions', {
+     const response = await fetch(`/api/get-next-course`, {
        method: 'POST',
        headers: {
          'Content-Type': 'application/json',
        },
        body: JSON.stringify({
-         videoUrl: course?.youtube_url
+         currentCourseId: id,
+         videoUrl: course?.youtube_url,
+         wrongQuestions: wrongAnswers
        })
      });
      
-     if (!suggestionsResponse.ok) {
-       throw new Error('Failed to get course suggestions');
-     }
-     
-     const suggestionsData = await suggestionsResponse.json();
-     
-     if (!suggestionsData.topics || !Array.isArray(suggestionsData.topics) || suggestionsData.topics.length === 0) {
-       throw new Error('No course suggestions found');
-     }
-     
-     const firstTopic = suggestionsData.topics[0];
-     if (!firstTopic || !firstTopic.video) {
-       throw new Error('Invalid course suggestion');
-     }
-     
-     console.log('🎯 Got course suggestion:', {
-       topic: firstTopic.topic,
-       video: firstTopic.video
-     });
+     const data = await response.json();
 
-     // Step 2: Use analyze-video-smart for more robust processing
-     const sessionId = `next-course-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-     
-     const smartAnalysisResponse = await fetch('/api/course/analyze-video-smart', {
-       method: 'POST',
-       headers: {
-         'Content-Type': 'application/json',
-       },
-       body: JSON.stringify({
-         youtube_url: firstTopic.video,
-         session_id: sessionId,
-         max_questions: 5,
-         enable_quality_verification: true,
-         segment_duration: 300, // 5 minutes
-         useCache: true,
-         useEnhanced: true
-       })
-     });
-     
-     if (!smartAnalysisResponse.ok) {
-       const errorText = await smartAnalysisResponse.text();
-       console.error('Smart analysis failed:', errorText);
+     if (data.success) {
+       console.log('📚 Next course generated with questions:', {
+         courseId: data.courseId,
+         title: data.nextCourse.title,
+         hasQuestions: !!data.courseId
+       });
        
-       // Parse error response to check if it's a video duration error
-       let errorObj;
+       // Now fetch the actual course and questions from Supabase using the courseId
        try {
-         errorObj = JSON.parse(errorText);
-       } catch {
-         errorObj = { error: errorText };
-       }
-       
-       // Check if it's a video duration error
-       if (errorObj.video_duration && errorObj.max_duration) {
-         const videoDurationMinutes = Math.floor(errorObj.video_duration / 60);
-         const maxDurationMinutes = Math.floor(errorObj.max_duration / 60);
-         throw new Error(`The suggested video is ${videoDurationMinutes} minutes long. Maximum allowed duration is ${maxDurationMinutes} minutes. We'll find a shorter alternative.`);
-       }
-       
-       throw new Error(`Smart analysis failed: ${errorText}`);
-     }
-     
-     const smartAnalysisData = await smartAnalysisResponse.json();
-     
-     if (!smartAnalysisData.success) {
-       throw new Error(smartAnalysisData.error || 'Smart analysis failed');
-     }
-     
-     console.log('✅ Smart analysis completed:', {
-       courseId: smartAnalysisData.course_id,
-       segmented: smartAnalysisData.segmented,
-       cached: smartAnalysisData.cached,
-       backgroundProcessing: smartAnalysisData.background_processing
-     });
-
-     // Step 3: Fetch the generated course and questions
-     try {
-       // Fetch course data from database
-       const courseResponse = await fetch(`/api/course/${smartAnalysisData.course_id}`);
-       const courseData = await courseResponse.json();
-       
-       if (courseData.success) {
-         // Fetch questions for the course
-         const questionsResponse = await fetch(`/api/course/${smartAnalysisData.course_id}/questions`);
-         const questionsData = await questionsResponse.json();
+         // Fetch course data from database
+         const courseResponse = await fetch(`/api/course/${data.courseId}`);
+         const courseData = await courseResponse.json();
          
-         if (questionsData.success) {
-           // Parse questions like in the main fetchQuestions function
-           const parsedQuestions = questionsData.questions.map((q: any) => ({
-             ...q,
-             options: parseOptionsWithTrueFalse(q.options || [], q.type),
-             correct: parseInt(q.correct_answer) || 0,
-             correct_answer: parseInt(q.correct_answer) || 0
-           }));
+         if (courseData.success) {
+           // Fetch questions for the course
+           const questionsResponse = await fetch(`/api/course/${data.courseId}/questions`);
+           const questionsData = await questionsResponse.json();
            
-           // Store the next course with database-fetched data
-           setNextCourse({
-             ...courseData.course,
-             courseId: smartAnalysisData.course_id,
-             questionsGenerated: true,
-             questions: parsedQuestions,
-             videoId: extractVideoId(courseData.course.youtube_url),
-             topic: firstTopic.topic
-           });
-           
-           console.log('✅ Next course data fetched from database:', {
-             courseId: smartAnalysisData.course_id,
-             title: courseData.course.title,
-             questionsCount: parsedQuestions.length,
-             topic: firstTopic.topic
-           });
+           if (questionsData.success) {
+             // Parse questions like in the main fetchQuestions function
+             const parsedQuestions = questionsData.questions.map((q: any) => ({
+               ...q,
+               options: parseOptionsWithTrueFalse(q.options || [], q.type),
+               correct: parseInt(q.correct_answer) || 0,
+               correct_answer: parseInt(q.correct_answer) || 0
+             }));
+             
+             // Store the next course with database-fetched data
+             setNextCourse({
+               ...courseData.course,
+               courseId: data.courseId,
+               questionsGenerated: true,
+               questions: parsedQuestions, // Add questions to next course
+               videoId: extractVideoId(courseData.course.youtube_url)
+             });
+             
+             console.log('✅ Next course data fetched from database:', {
+               courseId: data.courseId,
+               title: courseData.course.title,
+               questionsCount: parsedQuestions.length
+             });
+           } else {
+             console.error('Failed to fetch questions for next course:', questionsData.error);
+             // Still set course without questions
+             setNextCourse({
+               ...courseData.course,
+               courseId: data.courseId,
+               questionsGenerated: false,
+               questions: [],
+               videoId: extractVideoId(courseData.course.youtube_url)
+             });
+           }
          } else {
-           console.error('Failed to fetch questions for next course:', questionsData.error);
-           // Still set course without questions
+           console.error('Failed to fetch next course from database:', courseData.error);
+           // Fallback to the original course data from API
            setNextCourse({
-             ...courseData.course,
-             courseId: smartAnalysisData.course_id,
-             questionsGenerated: false,
-             questions: [],
-             videoId: extractVideoId(courseData.course.youtube_url),
-             topic: firstTopic.topic
+             ...data.nextCourse,
+             courseId: data.courseId,
+             questionsGenerated: !!data.courseId
            });
          }
-       } else {
-         console.error('Failed to fetch next course from database:', courseData.error);
-         // Fallback to basic course data
+       } catch (fetchError) {
+         console.error('Error fetching next course from database:', fetchError);
+         // Fallback to the original course data from API
          setNextCourse({
-           id: smartAnalysisData.course_id,
-           title: firstTopic.topic,
-           description: `AI Generated Course about ${firstTopic.topic}`,
-           youtube_url: firstTopic.video,
-           created_at: new Date().toISOString(),
-           published: true,
-           courseId: smartAnalysisData.course_id,
-           questionsGenerated: smartAnalysisData.segmented || smartAnalysisData.cached || !smartAnalysisData.background_processing,
-           questions: [],
-           videoId: extractVideoId(firstTopic.video),
-           topic: firstTopic.topic
+           ...data.nextCourse,
+           courseId: data.courseId,
+           questionsGenerated: !!data.courseId
          });
        }
-     } catch (fetchError) {
-       console.error('Error fetching next course from database:', fetchError);
-       // Fallback to basic course data
-       setNextCourse({
-         id: smartAnalysisData.course_id,
-         title: firstTopic.topic,
-         description: `AI Generated Course about ${firstTopic.topic}`,
-         youtube_url: firstTopic.video,
-         created_at: new Date().toISOString(),
-         published: true,
-         courseId: smartAnalysisData.course_id,
-         questionsGenerated: smartAnalysisData.segmented || smartAnalysisData.cached || !smartAnalysisData.background_processing,
-         questions: [],
-         videoId: extractVideoId(firstTopic.video),
-         topic: firstTopic.topic
-       });
+     } else {
+       console.error('Failed to fetch next course:', data.error);
+       // Reset API called state on error so it can be retried
+       setNextCourseApiCalled(false);
      }
    } catch (err) {
      console.error('Error fetching next course:', err);
@@ -863,178 +585,159 @@ export default function CoursePage() {
    return states[state] || `UNKNOWN(${state})`;
  };
 
-   const initializePlayer = (retryCount = 0) => {
-    console.log(`🎯 initializePlayer called (attempt ${retryCount + 1})`, {
-      hasYT: !!window.YT,
-      hasPlayer: !!(window.YT && window.YT.Player),
-      videoId: videoId,
-      domReady: document.readyState,
-      elementExists: !!document.getElementById('youtube-player')
-    });
+ const initializePlayer = (retryCount = 0) => {
+   console.log(`🎯 initializePlayer called (attempt ${retryCount + 1})`, {
+     hasYT: !!window.YT,
+     hasPlayer: !!(window.YT && window.YT.Player),
+     videoId: videoId,
+     domReady: document.readyState,
+     elementExists: !!document.getElementById('youtube-player')
+   });
 
-    if (!window.YT || !window.YT.Player || !videoId) {
-      console.warn('⚠️ YouTube API not ready or no video ID:', {
-        hasYT: !!window.YT,
-        hasPlayer: !!(window.YT && window.YT.Player),
-        videoId: videoId
-      });
-      return;
-    }
+   if (!window.YT || !window.YT.Player || !videoId) {
+     console.warn('⚠️ YouTube API not ready or no video ID:', {
+       hasYT: !!window.YT,
+       hasPlayer: !!(window.YT && window.YT.Player),
+       videoId: videoId
+     });
+     return;
+   }
 
-    // Check if player already exists
-    if (playerRef.current) {
-      console.log('⚠️ Player already exists, skipping initialization');
-      return;
-    }
+   // Check if the target element exists
+   const targetElement = document.getElementById('youtube-player');
+   if (!targetElement) {
+     console.warn(`⚠️ YouTube player target element not found (attempt ${retryCount + 1})`);
+     console.log('🔍 DOM elements check:', {
+       bodyChildren: document.body.children.length,
+       hasYouTubePlayer: !!document.getElementById('youtube-player'),
+       allElementsWithId: Array.from(document.querySelectorAll('[id]')).map(el => el.id)
+     });
+     
+     // Retry up to 5 times with increasing delays
+     if (retryCount < 5) {
+       setTimeout(() => {
+         initializePlayer(retryCount + 1);
+       }, 200 * (retryCount + 1)); // 200ms, 400ms, 600ms, 800ms, 1000ms
+       return;
+     } else {
+       console.error('❌ YouTube player target element not found after 5 attempts');
+       setError('Video player container not found after multiple attempts');
+       return;
+     }
+   }
 
-    // Check if the target element exists
-    const targetElement = document.getElementById('youtube-player');
-    if (!targetElement) {
-      console.warn(`⚠️ YouTube player target element not found (attempt ${retryCount + 1})`);
-      console.log('🔍 DOM elements check:', {
-        bodyChildren: document.body.children.length,
-        hasYouTubePlayer: !!document.getElementById('youtube-player'),
-        allElementsWithId: Array.from(document.querySelectorAll('[id]')).map(el => el.id)
-      });
-      
-      // Retry up to 5 times with increasing delays
-      if (retryCount < 5) {
-        setTimeout(() => {
-          initializePlayer(retryCount + 1);
-        }, 200 * (retryCount + 1)); // 200ms, 400ms, 600ms, 800ms, 1000ms
-        return;
-      } else {
-        console.error('❌ YouTube player target element not found after 5 attempts');
-        setError('Video player container not found after multiple attempts');
-        return;
-      }
-    }
+   try {
+     console.log('🚀 Initializing YouTube player for video:', videoId);
+     console.log('🎯 Target element found:', {
+       id: targetElement.id,
+       className: targetElement.className,
+       clientWidth: targetElement.clientWidth,
+       clientHeight: targetElement.clientHeight,
+       style: targetElement.getAttribute('style')
+     });
 
-    // Check if iframe already exists (player was already initialized)
-    if (targetElement.querySelector('iframe')) {
-      console.log('⚠️ YouTube iframe already exists, skipping initialization');
-      return;
-    }
-
-    try {
-      console.log('🚀 Initializing YouTube player for video:', videoId);
-      console.log('🎯 Target element found:', {
-        id: targetElement.id,
-        className: targetElement.className,
-        clientWidth: targetElement.clientWidth,
-        clientHeight: targetElement.clientHeight,
-        style: targetElement.getAttribute('style')
-      });
-
-    const newPlayer = new window.YT.Player('youtube-player', {
-      videoId: videoId,
-        width: '100%',
-        height: '100%',
-      playerVars: {
-        autoplay: 0,
-        controls: 1, // Enable YouTube controls (play/pause, progress bar, volume, etc.)
-        disablekb: 0,
-        enablejsapi: 1,
-        modestbranding: 1,
-        playsinline: 1,
-        rel: 0,
-          origin: window.location.origin
-      },
-      events: {
-        onReady: (event: any) => {
-            console.log('✅ YouTube player ready');
-          setPlayer(event.target);
-          playerRef.current = event.target;
-          setIsVideoReady(true);
-          startTimeTracking();
-          
-          // If we have a saved timestamp, seek to it
-          if (savedTimestamp !== null && savedTimestamp > 0) {
-            console.log('⏩ Seeking to saved timestamp:', savedTimestamp);
-            event.target.seekTo(savedTimestamp);
-            setSavedTimestamp(null); // Clear after using
-          }
-        },
-        onStateChange: async (event: any) => {
-          console.log('🎬 Player state changed:', {
-            stateCode: event.data,
-            stateName: getPlayerStateName(event.data),
-            YT_ENDED: window.YT?.PlayerState?.ENDED,
-            nextCourse: !!nextCourse,
-            isLoadingNextCourse: isLoadingNextCourse,
-            showNextCourseModal: showNextCourseModal
-          });
-          
-          if (event.data === window.YT.PlayerState.PLAYING) {
-            startTimeTracking();
-            setIsPlaying(true);
-            
-            // If a question is showing and user resumes via YouTube controls,
-            // treat it as if they skipped the question
-            if (showQuestion) {
-              console.log('📺 Video resumed while question showing - treating as skip');
-              handleSkipQuestion();
-            }
-          } else if (event.data === window.YT.PlayerState.PAUSED) {
-            stopTimeTracking();
-            setIsPlaying(false);
-            // Track pause engagement with error handling
-            try {
-              trackEngagement(id as string, { type: 'video_paused' });
-            } catch (error) {
-              console.warn('Failed to track pause engagement:', error);
-            }
-          } else if (event.data === window.YT.PlayerState.ENDED || event.data === 0) {
-            console.log('🏁 Video ended - stopping time tracking');
-            stopTimeTracking();
-            setIsPlaying(false);
-            
-            // Track course completion with error handling
-            if (id && typeof id === 'string') {
-              try {
-                trackCourse({
-                  courseId: id,
-                  action: 'complete',
-                  duration: Math.round(duration),
-                  questionsAnswered: answeredQuestions.size,
-                  completionPercentage: 100
-                });
-              } catch (error) {
-                console.warn('Failed to track course completion:', error);
-              }
-              
-              // Trigger rating modal on completion
-              triggerRatingModal('completion');
-            }
-            
-            // Modal should already be shown 3 seconds before the end
-            // This is just a fallback in case the modal wasn't shown for some reason
-            if (!nextCourseModalShown) {
-              console.log('⚠️ Fallback: Showing next course modal at video end');
-              setNextCourseModalShown(true);
-              setShowNextCourseModal(true);
-            }
-          }
-        },
-          onError: (event: any) => {
-            console.error('❌ YouTube player error:', event.data);
-            const errorMessages = {
-              2: 'Invalid video ID',
-              5: 'HTML5 player error',
-              100: 'Video not found or private',
-              101: 'Video not allowed to be embedded',
-              150: 'Video not allowed to be embedded'
-            };
-            const errorMessage = errorMessages[event.data as keyof typeof errorMessages] || 'Unknown video error';
-            setError(`Video error: ${errorMessage}`);
-          }
-      },
-    });
-    } catch (error) {
-      console.error('❌ Error initializing YouTube player:', error);
-      setError('Failed to initialize video player');
-    }
-  };
+   const newPlayer = new window.YT.Player('youtube-player', {
+     videoId: videoId,
+       width: '100%',
+       height: '100%',
+     playerVars: {
+       autoplay: 0,
+       controls: 1, // Enable YouTube controls (play/pause, progress bar, volume, etc.)
+       disablekb: 0,
+       enablejsapi: 1,
+       modestbranding: 1,
+       playsinline: 1,
+       rel: 0,
+         origin: window.location.origin
+     },
+     events: {
+       onReady: (event: any) => {
+           console.log('✅ YouTube player ready');
+         setPlayer(event.target);
+         playerRef.current = event.target;
+         setIsVideoReady(true);
+         startTimeTracking();
+       },
+       onStateChange: async (event: any) => {
+         console.log('🎬 Player state changed:', {
+           stateCode: event.data,
+           stateName: getPlayerStateName(event.data),
+           YT_ENDED: window.YT?.PlayerState?.ENDED,
+           nextCourse: !!nextCourse,
+           isLoadingNextCourse: isLoadingNextCourse,
+           showNextCourseModal: showNextCourseModal
+         });
+         
+         if (event.data === window.YT.PlayerState.PLAYING) {
+           startTimeTracking();
+           setIsPlaying(true);
+           
+           // If a question is showing and user resumes via YouTube controls,
+           // treat it as if they skipped the question
+           if (showQuestion) {
+             console.log('📺 Video resumed while question showing - treating as skip');
+             handleSkipQuestion();
+           }
+         } else if (event.data === window.YT.PlayerState.PAUSED) {
+           stopTimeTracking();
+           setIsPlaying(false);
+           // Track pause engagement with error handling
+           try {
+             trackEngagement(id as string, { type: 'video_paused' });
+           } catch (error) {
+             console.warn('Failed to track pause engagement:', error);
+           }
+         } else if (event.data === window.YT.PlayerState.ENDED || event.data === 0) {
+           console.log('🏁 Video ended - stopping time tracking');
+           stopTimeTracking();
+           setIsPlaying(false);
+           
+           // Track course completion with error handling
+           if (id && typeof id === 'string') {
+             try {
+               trackCourse({
+                 courseId: id,
+                 action: 'complete',
+                 duration: Math.round(duration),
+                 questionsAnswered: answeredQuestions.size,
+                 completionPercentage: 100
+               });
+             } catch (error) {
+               console.warn('Failed to track course completion:', error);
+             }
+             
+             // Trigger rating modal on completion
+             triggerRatingModal('completion');
+           }
+           
+           // Modal should already be shown 3 seconds before the end
+           // This is just a fallback in case the modal wasn't shown for some reason
+           if (!nextCourseModalShown) {
+             console.log('⚠️ Fallback: Showing next course modal at video end');
+             setNextCourseModalShown(true);
+             setShowNextCourseModal(true);
+           }
+         }
+       },
+         onError: (event: any) => {
+           console.error('❌ YouTube player error:', event.data);
+           const errorMessages = {
+             2: 'Invalid video ID',
+             5: 'HTML5 player error',
+             100: 'Video not found or private',
+             101: 'Video not allowed to be embedded',
+             150: 'Video not allowed to be embedded'
+           };
+           const errorMessage = errorMessages[event.data as keyof typeof errorMessages] || 'Unknown video error';
+           setError(`Video error: ${errorMessage}`);
+         }
+     },
+   });
+   } catch (error) {
+     console.error('❌ Error initializing YouTube player:', error);
+     setError('Failed to initialize video player');
+   }
+ };
 
  const startTimeTracking = () => {
    if (intervalRef.current) clearInterval(intervalRef.current);
@@ -1059,24 +762,15 @@ export default function CoursePage() {
  const checkForQuestions = () => {
    if (showQuestion || questions.length === 0) return;
 
-   // Find all unanswered questions that should have been shown by now
-   const missedQuestions = questions
-     .map((q, index) => ({ question: q, index }))
-     .filter(({ index }) => !answeredQuestions.has(index) && currentTime >= questions[index].timestamp);
+   const nextQuestion = questions.find((q, index) => {
+     return !answeredQuestions.has(index) && currentTime >= q.timestamp;
+   });
 
-   if (missedQuestions.length > 0) {
-     // If multiple questions were skipped, show the first one
-     const { index: questionIndex } = missedQuestions[0];
-     
-     // Log if we're catching up on multiple questions
-     if (missedQuestions.length > 1) {
-       console.log(`⚠️ Found ${missedQuestions.length} unanswered questions. Showing first one.`);
-     }
-     
+   if (nextQuestion) {
+     const questionIndex = questions.indexOf(nextQuestion);
      setCurrentQuestionIndex(questionIndex);
      setShowQuestion(true);
      questionStartTime.current = Date.now(); // Track when question was shown
-     lastQuestionTimestamp.current = questions[questionIndex].timestamp; // Save the question's intended timestamp
      playerRef.current?.pauseVideo(); // Auto-pause video when question appears
      
      // Track enrollment when user first interacts with a question (fire and forget)
@@ -1103,8 +797,6 @@ export default function CoursePage() {
      });
    } else {
      reportWrongAnswer(); // Report to InfoBite
-     // Track engagement score but don't trigger rating modal during course
-     setEngagementScore(prev => prev + 10);
    }
    
    // Track question answered engagement with error handling
@@ -1136,72 +828,11 @@ export default function CoursePage() {
    }
  };
 
-   const handleContinueVideo = () => {
-    setAnsweredQuestions(prev => new Set(prev).add(currentQuestionIndex));
-    setShowQuestion(false);
-    
-    // Check if this is a hotspot question that needs special handling
-    const currentQuestion = questions[currentQuestionIndex];
-    if (currentQuestion && currentQuestion.type === 'hotspot' && currentQuestion.frame_timestamp && playerRef.current) {
-      // For hotspot questions, seek back to the original question timestamp
-      console.log('🎯 Returning to question timestamp from frame timestamp:', {
-        originalTimestamp: currentQuestion.timestamp,
-        frameTimestamp: currentQuestion.frame_timestamp
-      });
-      playerRef.current.seekTo(currentQuestion.timestamp);
-      playerRef.current?.playVideo();
-    } else {
-      // For non-hotspot questions, use the reload approach
-      // Save the timestamp to restore after reload
-      const resumeTimestamp = lastQuestionTimestamp.current || currentTime;
-      setSavedTimestamp(resumeTimestamp);
-      
-      // Wait for the card to switch back to video, then trigger reload
-      setTimeout(() => {
-        // Wait for the DOM to be ready with the player container
-        const waitForContainer = (attempts = 0) => {
-          if (attempts > 10) {
-            console.error('Player container not found after question');
-            return;
-          }
-          
-          const container = document.getElementById('youtube-player');
-          if (container) {
-            console.log('🔄 Container found, reloading player after question...');
-            handleReloadPlayer();
-            
-            // After reload, wait for player to be ready and resume
-            const waitForPlayerAndResume = (attempts = 0) => {
-              if (attempts > 20) {
-                console.error('Failed to resume after reload');
-                return;
-              }
-              
-              if (playerRef.current && isVideoReady) {
-                try {
-                  playerRef.current.playVideo();
-                  console.log('✅ Video resumed after reload');
-                } catch (error) {
-                  console.warn('Failed to resume, retrying...', error);
-                  setTimeout(() => waitForPlayerAndResume(attempts + 1), 200);
-                }
-              } else {
-                setTimeout(() => waitForPlayerAndResume(attempts + 1), 200);
-              }
-            };
-            
-            // Start checking for player after reload delay
-            setTimeout(() => waitForPlayerAndResume(), 1000);
-          } else {
-            console.log(`Waiting for container, attempt ${attempts + 1}`);
-            setTimeout(() => waitForContainer(attempts + 1), 100);
-          }
-        };
-        
-        waitForContainer();
-      }, 100); // Small delay to ensure card has switched
-    }
-  };
+ const handleContinueVideo = () => {
+   setAnsweredQuestions(prev => new Set(prev).add(currentQuestionIndex));
+   setShowQuestion(false);
+   playerRef.current?.playVideo(); // Resume video when continuing
+ };
 
  const handleSkipQuestion = async () => {
    console.log('⏭️ Skipping question at index:', currentQuestionIndex);
@@ -1255,67 +886,22 @@ export default function CoursePage() {
      }
    }
    
-       setSkippedQuestions(prev => new Set(prev).add(currentQuestionIndex));
-    setAnsweredQuestions(prev => new Set(prev).add(currentQuestionIndex)); // Mark as answered to prevent re-showing
-    setShowQuestion(false);
-    
-    // Use the same reload approach as handleContinueVideo
-    const resumeTimestamp = lastQuestionTimestamp.current || currentTime;
-    setSavedTimestamp(resumeTimestamp);
-    
-    setTimeout(() => {
-      // Wait for the DOM to be ready with the player container
-      const waitForContainer = (attempts = 0) => {
-        if (attempts > 10) {
-          console.error('Player container not found after skip');
-          return;
-        }
-        
-        const container = document.getElementById('youtube-player');
-        if (container) {
-          console.log('🔄 Container found, reloading player after skip...');
-          handleReloadPlayer();
-          
-          const waitForPlayerAndResume = (attempts = 0) => {
-            if (attempts > 20) {
-              console.error('Failed to resume after skip reload');
-              return;
-            }
-            
-            if (playerRef.current && isVideoReady) {
-              try {
-                playerRef.current.playVideo();
-                console.log('✅ Video resumed after skip reload');
-              } catch (error) {
-                console.warn('Failed to resume after skip, retrying...', error);
-                setTimeout(() => waitForPlayerAndResume(attempts + 1), 200);
-              }
-            } else {
-              setTimeout(() => waitForPlayerAndResume(attempts + 1), 200);
-            }
-          };
-          
-          setTimeout(() => waitForPlayerAndResume(), 1000);
-        } else {
-          console.log(`Waiting for container after skip, attempt ${attempts + 1}`);
-          setTimeout(() => waitForContainer(attempts + 1), 100);
-        }
-      };
-      
-      waitForContainer();
-    }, 100);
+   setSkippedQuestions(prev => new Set(prev).add(currentQuestionIndex));
+   setAnsweredQuestions(prev => new Set(prev).add(currentQuestionIndex)); // Mark as answered to prevent re-showing
+   setShowQuestion(false);
+   playerRef.current?.playVideo(); // Resume video after skipping
  };
 
  // Rating trigger logic
- const triggerRatingModal = () => {
+ const triggerRatingModal = (context: 'completion' | 'question_success' | 'mid_course') => {
    if (hasRated || showRatingModal) return;
    
-   console.log(`⭐ Triggering rating modal on course completion`);
+   console.log(`⭐ Triggering rating modal: ${context}`);
    setShowRatingModal(true);
    
    if (id && typeof id === 'string') {
      try {
-       trackRatingModalShown(id, 'completion');
+       trackRatingModalShown(id, context);
      } catch (error) {
        console.warn('Failed to track rating modal shown:', error);
      }
@@ -1337,7 +923,7 @@ export default function CoursePage() {
        },
        body: JSON.stringify({
          rating,
-         context: 'completion', // Always completion since modal only shows at end
+         context: completionPercentage >= 90 ? 'completion' : 'mid_course',
          engagementData: {
            timeSpentMinutes,
            questionsAnswered: answeredQuestions.size,
@@ -1355,7 +941,7 @@ export default function CoursePage() {
          trackRating({
            courseId: id,
            rating,
-           context: 'completion', // Always completion since modal only shows at end
+           context: completionPercentage >= 90 ? 'completion' : 'mid_course',
            timeToRate: Date.now() - courseStartTime,
            engagementScore,
            platform: getPlatform()
@@ -1515,32 +1101,6 @@ export default function CoursePage() {
    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
  };
 
- const handleReloadPlayer = () => {
-   console.log('🔄 Reloading player component...');
-   
-   // Save current timestamp (use last question timestamp if available, otherwise current time)
-   const timestampToSave = lastQuestionTimestamp.current || currentTime;
-   setSavedTimestamp(timestampToSave);
-   console.log('💾 Saved timestamp:', timestampToSave);
-   
-   // Destroy current player
-   if (playerRef.current && typeof playerRef.current.destroy === 'function') {
-     try {
-       playerRef.current.destroy();
-     } catch (error) {
-       console.warn('Error destroying player:', error);
-     }
-   }
-   
-   // Clear references
-   setPlayer(null);
-   playerRef.current = null;
-   setIsVideoReady(false);
-   
-   // Force remount by changing key
-   setPlayerKey(prev => prev + 1);
- };
-
  // Convert questions to courseData format for curriculum card
  const getCourseData = (): CourseData => {
    if (!course || questions.length === 0) {
@@ -1568,44 +1128,6 @@ export default function CoursePage() {
      duration: duration > 0 ? formatTime(duration) : 'Variable',
      videoId: videoId,
      segments: [segment]
-   };
- };
-
- // Get active question data for chat bubble
- const getActiveQuestion = () => {
-   if (!showQuestion || !questions[currentQuestionIndex]) {
-     return null;
-   }
-
-   const question = questions[currentQuestionIndex];
-   
-   // Parse options - handle both array and JSON string formats
-   const parseOptions = (options: string[] | string): string[] => {
-     if (Array.isArray(options)) {
-       return options;
-     }
-     
-     if (typeof options === 'string') {
-       try {
-         const parsed = JSON.parse(options);
-         return Array.isArray(parsed) ? parsed : [options];
-       } catch (e) {
-         return [options];
-       }
-     }
-     
-     return [];
-   };
-
-   const parsedOptions = parseOptions(question.options || []);
-   const finalOptions = parsedOptions.length === 0 && (question.type === 'true-false' || question.type === 'true_false') 
-     ? ['True', 'False'] 
-     : parsedOptions;
-
-   return {
-     question: question.question,
-     type: question.type,
-     options: finalOptions
    };
  };
 
@@ -1649,69 +1171,6 @@ export default function CoursePage() {
                <Skeleton className="aspect-video w-full" />
              </CardContent>
            </Card>
-         </div>
-       </div>
-     </div>
-   );
- }
-
- if (isProcessing) {
-   return (
-     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
-       <Header />
-       <div className="container mx-auto px-4 py-8">
-         <div className="max-w-4xl mx-auto space-y-8">
-           <Button variant="ghost" onClick={handleBackToHome} className="mb-4">
-             <ArrowLeft className="mr-2 h-4 w-4" />
-             Back to Home
-           </Button>
-           
-           <div className="text-center space-y-4">
-             <h1 className="text-3xl font-bold tracking-tight lg:text-4xl">
-               {course?.title || 'Processing Course'}
-             </h1>
-             <p className="text-lg text-muted-foreground">
-               Your course is being generated. This may take a few minutes.
-             </p>
-           </div>
-           
-           <Card>
-             <CardContent className="p-6">
-               <div className="aspect-video w-full bg-muted flex items-center justify-center">
-                 <div className="text-center space-y-4">
-                   <div className="flex justify-center">
-                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-                   </div>
-                   <p className="text-muted-foreground">
-                     Analyzing video and generating interactive questions...
-                   </p>
-                   <p className="text-sm text-muted-foreground">
-                     The page will refresh automatically when ready.
-                   </p>
-                 </div>
-               </div>
-             </CardContent>
-           </Card>
-           
-           {course?.youtube_url && (
-             <Card>
-               <CardHeader>
-                 <CardTitle>Video Preview</CardTitle>
-               </CardHeader>
-               <CardContent>
-                 <div className="aspect-video">
-                   <iframe
-                     src={`https://www.youtube.com/embed/${extractVideoId(course.youtube_url)}`}
-                     title="YouTube video player"
-                     frameBorder="0"
-                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                     allowFullScreen
-                     className="w-full h-full rounded-lg"
-                   />
-                 </div>
-               </CardContent>
-             </Card>
-           )}
          </div>
        </div>
      </div>
@@ -1775,98 +1234,87 @@ export default function CoursePage() {
            <h1 className="text-3xl font-bold tracking-tight lg:text-4xl">
              {course.title}
            </h1>
+           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+             {course.description}
+           </p>
+           
+           {/* Course Stats */}
+           <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
+             <div className="flex items-center gap-2">
+               <BookOpen className="h-4 w-4" />
+               {questions.length} Questions
+             </div>
+             <div className="flex items-center gap-2">
+               <CheckCircle className="h-4 w-4" />
+               {correctAnswers}/{questions.length} Correct
+               {answeredQuestions.size > 0 && (
+                 <span className="text-primary font-medium">
+                   ({Math.round((correctAnswers / answeredQuestions.size) * 100)}%)
+                 </span>
+               )}
+             </div>
+             {duration > 0 && (
+               <div className="flex items-center gap-2">
+                 <Clock className="h-4 w-4" />
+                 {formatTime(duration)}
+               </div>
+             )}
+           </div>
          </div>
 
-                 {/* Video Player with Flip Support */}
-         {(() => {
-           const currentQuestion = questions[currentQuestionIndex];
-           const isHotspotQuestion = currentQuestion && (
-             currentQuestion.type === 'hotspot' || 
-             currentQuestion.requires_video_overlay ||
-             (currentQuestion.bounding_boxes && currentQuestion.bounding_boxes.length > 0)
-           );
-           
-           // For non-hotspot questions, create the flip content
-           const flipContent = showQuestion && currentQuestion && !isHotspotQuestion ? (
-             <QuestionOverlay
-               question={currentQuestion}
-               onAnswer={handleAnswer}
-               onContinue={handleContinueVideo}
-               onSkip={handleSkipQuestion}
-               isVisible={true}
-               player={player}
-               courseId={id as string}
-               segmentIndex={0}
-               isInline={true}
-             />
-           ) : undefined;
- 
-           return (
-             <InteractiveVideoPlayer
-               key={playerKey}
-               videoId={videoId}
-               youtubeUrl={course.youtube_url}
-               isYTApiLoaded={isYTApiLoaded}
-               error={error}
-               isVideoReady={isVideoReady}
-               currentTime={currentTime}
-               duration={duration}
-               questions={questions}
-               answeredQuestions={answeredQuestions}
-               onVideoSeek={handleVideoSeek}
-               formatTime={formatTime}
-               onFetchNextCourse={fetchNextCourse}
-               isLoadingNextCourse={isLoadingNextCourse}
-               nextCourse={nextCourse}
-               nextCourseApiCalled={nextCourseApiCalled}
-               showQuestion={showQuestion}
-               isFlipped={showQuestion && currentQuestion && !isHotspotQuestion}
-               flipContent={flipContent}
-               onReloadPlayer={handleReloadPlayer}
-               savedTimestamp={savedTimestamp}
-             />
-           );
-         })()}
+         {/* Video Player */}
+         <InteractiveVideoPlayer
+           videoId={videoId}
+           youtubeUrl={course.youtube_url}
+           isYTApiLoaded={isYTApiLoaded}
+           error={error}
+           isVideoReady={isVideoReady}
+           currentTime={currentTime}
+           duration={duration}
+           questions={questions}
+           answeredQuestions={answeredQuestions}
+           onVideoSeek={handleVideoSeek}
+           formatTime={formatTime}
+           onFetchNextCourse={fetchNextCourse}
+           isLoadingNextCourse={isLoadingNextCourse}
+           nextCourse={nextCourse}
+           nextCourseApiCalled={nextCourseApiCalled}
+           showQuestion={showQuestion}
+         />
 
-          
-          {/* Hotspot Questions and Transcript Display */}
-          {(() => {
-            const currentQuestion = questions[currentQuestionIndex];
-            const isHotspotQuestion = currentQuestion && (
-              currentQuestion.type === 'hotspot' || 
-              currentQuestion.requires_video_overlay ||
-              (currentQuestion.bounding_boxes && currentQuestion.bounding_boxes.length > 0)
-            );
- 
-            if (showQuestion && currentQuestion && isHotspotQuestion) {
-              // Only hotspot questions show as overlay
-              return (
-                <QuestionOverlay
-                  question={currentQuestion}
-                  onAnswer={handleAnswer}
-                  onContinue={handleContinueVideo}
-                  onSkip={handleSkipQuestion}
-                  isVisible={showQuestion}
-                  player={player}
-                  courseId={id as string}
-                  segmentIndex={0}
-                  isInline={false}
-                />
-              );
-            } else if (!showQuestion) {
-              // Show transcript when no question is showing
-              return (
-                <TranscriptDisplay
-                  courseId={id as string}
-                  currentTime={currentTime}
-                  onSeek={handleVideoSeek}
-                  formatTimestamp={formatTime}
-                />
-              );
-            }
-            
-            return null;
-          })()}
+         {/* Autonomy Slider */}
+         {user && (
+           <Card>
+             <CardContent className="p-4">
+               <AutonomySlider
+                 value={autonomyLevel}
+                 onChange={setAutonomyLevel}
+               />
+             </CardContent>
+           </Card>
+         )}
+
+         {/* Question or Transcript Display */}
+         {showQuestion && questions[currentQuestionIndex] ? (
+           <QuestionOverlay
+             question={questions[currentQuestionIndex]}
+             onAnswer={handleAnswer}
+             onContinue={handleContinueVideo}
+             onSkip={handleSkipQuestion}
+             isVisible={showQuestion}
+             player={player}
+             courseId={id as string}
+             segmentIndex={0}
+             isInline={true}
+           />
+         ) : (
+           <TranscriptDisplay
+             courseId={id as string}
+             currentTime={currentTime}
+             onSeek={handleVideoSeek}
+             formatTimestamp={formatTime}
+           />
+         )}
 
          {/* Course Curriculum Card */}
          <CourseCurriculumCard
@@ -2013,13 +1461,11 @@ export default function CoursePage() {
        autoHide={8000}
      />
 
-     {/* InfoBite Card - AI-generated insights */}
-     {currentHint && currentHint.type !== 'noop' && currentHint.text && (
-       <InfoBiteCard
-         type={currentHint.type as any}
+     {/* InfoBite Toast */}
+     {currentHint && currentHint.type === 'MICRO_LESSON' && currentHint.text && (
+       <InfoBiteToast
          text={currentHint.text}
          timestamp={currentHint.timestamp}
-         emphasis={currentHint.metadata?.emphasis}
          onDismiss={dismissHint}
          onTimestampClick={(timestamp) => {
            playerRef.current?.seekTo(timestamp);
@@ -2027,13 +1473,6 @@ export default function CoursePage() {
          }}
        />
      )}
-
-     {/* Chat Bubble */}
-     <ChatBubble 
-       courseId={id as string}
-       currentVideoTime={currentTime}
-       activeQuestion={getActiveQuestion()}
-     />
    </div>
  );
 }

@@ -75,6 +75,20 @@
 
 ### Active Issues 🔄
 
+- [x] **High Priority**: Question overlay persists when resuming video playback [FIXED]
+  - When a question appears and user answers it, then clicks play on YouTube video itself
+  - Expected: Question overlay should disappear and return to transcript view
+  - Actual: Question remains visible below while video continues playing
+  - Also causes video to not pause at next question timestamp
+  - Works correctly when using "Continue Watching" button on the question itself
+  - Fix implemented: 
+    - Hide question overlay when video resumed via YouTube controls
+    - Added "Skip Question" button for users who want to continue without answering
+    - YouTube player controls are now disabled when a question is showing
+    - Users must either answer or skip the question to continue
+    - Skipped questions are tracked in database with is_skipped=true and is_correct=NULL
+    - Created migration 007_add_skip_tracking.sql to add skip tracking support
+
 - [ ] **Critical Priority**: Authentication bypass in course completion flow
   - Unauthenticated users can complete entire courses without login
   - Expected: Login modal after first 2 questions, video progression blocked

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { ReactNode, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Play, BookOpen } from 'lucide-react';
@@ -39,6 +39,11 @@ interface InteractiveVideoPlayerProps {
   isLoadingNextCourse: boolean;
   nextCourse: any;
   nextCourseApiCalled: boolean;
+  showQuestion?: boolean;
+  isFlipped?: boolean;
+  flipContent?: ReactNode;
+  onReloadPlayer?: () => void;
+  savedTimestamp?: number;
 }
 
 const InteractiveVideoPlayer: React.FC<InteractiveVideoPlayerProps> = ({
@@ -56,84 +61,114 @@ const InteractiveVideoPlayer: React.FC<InteractiveVideoPlayerProps> = ({
   onFetchNextCourse,
   isLoadingNextCourse,
   nextCourse,
-  nextCourseApiCalled
+  nextCourseApiCalled,
+  showQuestion = false,
+  isFlipped = false,
+  flipContent,
+  onReloadPlayer,
+  savedTimestamp
 }) => {
+  const playerContainerRef = useRef<HTMLDivElement>(null);
+
+  // If we have flip content and should show it, replace the video card
+  if (flipContent !== undefined && isFlipped) {
+    // Return only the question card
+    return (
+      <div className="w-full">
+        {flipContent}
+      </div>
+    );
+  }
+
+  // Standard video player (no question showing)
   return (
-    <Card id="interactive-video-player">
-      <CardHeader>
-        <div className="flex items-center justify-between">
+    <div ref={playerContainerRef}>
+      <Card id="interactive-video-player" className="h-full">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Play className="h-5 w-5" />
+              Interactive Video Course
+            </CardTitle>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={onFetchNextCourse}
+              disabled={isLoadingNextCourse || !!nextCourse || nextCourseApiCalled || showQuestion}
+            >
+              {isLoadingNextCourse ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+              ) : (
+                <BookOpen className="mr-2 h-4 w-4" />
+              )}
+              {nextCourse ? 'Next Course Ready' : isLoadingNextCourse ? 'Generating...' : nextCourseApiCalled ? 'Generating...' : 'Generate Next Course'}
+            </Button>
+          </div>
           <CardDescription>
             Watch the video and answer questions as they appear
           </CardDescription>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={onFetchNextCourse}
-            disabled={isLoadingNextCourse || !!nextCourse || nextCourseApiCalled}
-          >
-            {isLoadingNextCourse ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
-            ) : (
-              <BookOpen className="mr-2 h-4 w-4" />
-            )}
-            {nextCourse ? 'Next Course Ready' : isLoadingNextCourse ? 'Generating...' : nextCourseApiCalled ? 'Generating...' : 'Generate Next Course'}
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div id="video-player-area" className="aspect-video bg-muted rounded-lg overflow-hidden relative">
-          {!isYTApiLoaded && !error && (
-            <div className="absolute inset-0 flex items-center justify-center bg-muted z-10">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
-                <p className="text-sm text-muted-foreground">Loading video player...</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div id="video-player-area" className="aspect-video bg-muted rounded-lg overflow-hidden relative">
+            {!isYTApiLoaded && !error && (
+              <div className="absolute inset-0 flex items-center justify-center bg-muted z-10">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                  <p className="text-sm text-muted-foreground">Loading video player...</p>
+                </div>
               </div>
-            </div>
-          )}
-          
-          {/* Fallback iframe if API fails */}
-          {error && videoId && (
-            <iframe
-              src={`https://www.youtube.com/embed/${videoId}?controls=0&modestbranding=1&rel=0&enablejsapi=1&origin=${window.location.origin}`}
-              title="YouTube video player"
-              frameBorder="0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
+            )}
+            
+            {/* Fallback iframe if API fails */}
+            {error && videoId && (
+              <iframe
+                src={`https://www.youtube.com/embed/${videoId}?controls=1&modestbranding=1&rel=0&enablejsapi=1&origin=${window.location.origin}`}
+                title="YouTube video player"
+                frameBorder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+                className="w-full h-full"
+              />
+            )}
+            
+            {/* Main YouTube API player */}
+            <div 
+              id="youtube-player" 
               className="w-full h-full"
-            />
-          )}
-          
-          {/* Main YouTube API player */}
-          <div 
-            id="youtube-player" 
-            className="w-full h-full" 
-            style={{ display: error ? 'none' : 'block' }} 
-          />
-        </div>
-        
-        {/* Progress Bar */}
-        {isVideoReady && duration > 0 && (
-          <div className="px-2">
-            <VideoProgressBar
-              currentTime={currentTime}
-              duration={duration}
-              onSeek={onVideoSeek}
-              questions={questions.map((question, index) => ({
-                ...question,
-                id: `0-${index}` // Simple ID for single segment structure
-              }))}
-              answeredQuestions={new Set(
-                Array.from(answeredQuestions).map(index => `0-${index}`)
-              )}
-              formatTimestamp={formatTime}
-              className=""
+              style={{ 
+                display: error ? 'none' : 'block',
+                opacity: 1,
+                visibility: 'visible'
+              }} 
             />
           </div>
-        )}
-
-
-      </CardContent>
-    </Card>
+          
+          {/* Progress Bar */}
+          {isVideoReady && duration > 0 && (
+            <div className="space-y-3 px-2">
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>{formatTime(currentTime)}</span>
+                <span>{formatTime(duration)}</span>
+              </div>
+              <VideoProgressBar
+                currentTime={currentTime}
+                duration={duration}
+                onSeek={showQuestion ? () => {} : onVideoSeek}
+                questions={questions.map((question, index) => ({
+                  ...question,
+                  id: `0-${index}` // Simple ID for single segment structure
+                }))}
+                answeredQuestions={new Set(
+                  Array.from(answeredQuestions).map(index => `0-${index}`)
+                )}
+                formatTimestamp={formatTime}
+                className=""
+              />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 

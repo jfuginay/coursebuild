@@ -32,6 +32,7 @@ interface QuestionOverlayProps {
   question: Question;
   onAnswer: (correct: boolean, selectedAnswer?: string) => void;
   onContinue: () => void;
+  onSkip?: () => void; // New prop for skipping questions
   isVisible: boolean;
   player?: any; // YouTube player instance
   courseId?: string; // For progress tracking
@@ -43,6 +44,7 @@ export default function QuestionOverlay({
   question, 
   onAnswer, 
   onContinue, 
+  onSkip,
   isVisible,
   player,
   courseId,
@@ -163,14 +165,25 @@ export default function QuestionOverlay({
               showAnswer={hasAnswered}
               disabled={hasAnswered}
             />
-            {hasAnswered && (
-              <div className="mt-4 flex justify-center">
-                <Button onClick={onContinue} className="flex items-center gap-2">
+            <div className="mt-4 flex justify-between">
+              <div>
+                {!hasAnswered && onSkip && (
+                  <Button
+                    onClick={onSkip}
+                    variant="outline"
+                    className="text-muted-foreground"
+                  >
+                    Skip Question
+                  </Button>
+                )}
+              </div>
+              {hasAnswered && (
+                <Button onClick={onContinue} className="flex items-center gap-2 ml-auto">
                   <Play className="h-4 w-4" />
                   Continue Video
                 </Button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -214,14 +227,25 @@ export default function QuestionOverlay({
           showAnswer={hasAnswered}
           disabled={hasAnswered}
         />
-        {hasAnswered && (
-          <div className="mt-4 flex justify-center">
-            <Button onClick={onContinue} className="flex items-center gap-2">
+        <div className="mt-4 flex justify-between">
+          <div>
+            {!hasAnswered && onSkip && (
+              <Button
+                onClick={onSkip}
+                variant="outline"
+                className="text-muted-foreground"
+              >
+                Skip Question
+              </Button>
+            )}
+          </div>
+          {hasAnswered && (
+            <Button onClick={onContinue} className="flex items-center gap-2 ml-auto">
               <Play className="h-4 w-4" />
               Continue Video
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     );
 
@@ -263,14 +287,25 @@ export default function QuestionOverlay({
           showAnswer={hasAnswered}
           disabled={hasAnswered}
         />
-        {hasAnswered && (
-          <div className="mt-4 flex justify-center">
-            <Button onClick={onContinue} className="flex items-center gap-2">
+        <div className="mt-4 flex justify-between">
+          <div>
+            {!hasAnswered && onSkip && (
+              <Button
+                onClick={onSkip}
+                variant="outline"
+                className="text-muted-foreground"
+              >
+                Skip Question
+              </Button>
+            )}
+          </div>
+          {hasAnswered && (
+            <Button onClick={onContinue} className="flex items-center gap-2 ml-auto">
               <Play className="h-4 w-4" />
               Continue Video
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     );
 
@@ -499,20 +534,33 @@ export default function QuestionOverlay({
           </Alert>
         )}
 
-        <div className="flex justify-end gap-3 pt-4">
-          {!showExplanation ? (
-            <Button
-              onClick={handleSubmit}
-              disabled={selectedAnswer === null}
-            >
-              Submit Answer
-            </Button>
-          ) : (
-            <Button onClick={handleContinue} className="flex items-center gap-2">
-              <Play className="h-4 w-4" />
-              Continue Watching
-            </Button>
-          )}
+        <div className="flex justify-between pt-4">
+          <div>
+            {!showExplanation && onSkip && (
+              <Button
+                onClick={onSkip}
+                variant="outline"
+                className="text-muted-foreground"
+              >
+                Skip Question
+              </Button>
+            )}
+          </div>
+          <div className="flex gap-3">
+            {!showExplanation ? (
+              <Button
+                onClick={handleSubmit}
+                disabled={selectedAnswer === null}
+              >
+                Submit Answer
+              </Button>
+            ) : (
+              <Button onClick={handleContinue} className="flex items-center gap-2">
+                <Play className="h-4 w-4" />
+                Continue Watching
+              </Button>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
