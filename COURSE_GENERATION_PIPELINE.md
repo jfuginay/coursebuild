@@ -1003,13 +1003,13 @@ The system automatically fetches video metadata from YouTube's oEmbed API to pro
 
 **Problem**: The course page was redirecting to content display when question plans were generated, not when actual questions were inserted into the database.
 
-**Root Cause**: A race condition where:
-1. The orchestrator or segment processor marked `course.published = true`
+**Root Cause**: Multiple race conditions where:
+1. Various endpoints marked `course.published = true` without verifying questions exist
 2. The course page polling (every 5 seconds) immediately saw this and redirected
 3. Questions were still being inserted into the database
 4. Users saw an incomplete course with missing questions
 
-**Solution**: Multi-level verification ensures courses are only published when questions exist:
+**Solution**: Comprehensive verification ensures courses are only published when questions exist:
 
 #### 1. Segment Processor Verification
 ```typescript
@@ -1021,53 +1021,62 @@ if (isLastSegment) {
     .select('*', { count: 'exact', head: true })
     .eq('course_id', course_id);
   
-  if (!questionCount || questionCount === 0) {
-    console.warn(`⚠️ No questions found. Not marking as published.`);
-    // Return without publishing
+  if (questionCount && questionCount > 0) {
+    await supabase
+      .from('courses')
+      .update({ published: true })
+      .eq('id', course_id);
   }
-  
-  // Only mark as published if questions exist
-  await supabase
-    .from('courses')
-    .update({ published: true })
-    .eq('id', course_id);
 }
 ```
 
 #### 2. Course Page Verification
 ```typescript
-// In src/pages/course/[id].tsx polling logic
+// In src/pages/course/[id].tsx
 if (pollData.course.published) {
-  // Also verify questions exist
+  // Also verify questions exist before stopping processing UI
   const questionsResponse = await fetch(`/api/course/${id}/questions`);
   const questionsData = await questionsResponse.json();
   
-  if (questionsData.questions?.length > 0) {
-    // Only stop processing UI when questions are confirmed
-    setIsProcessing(false);
-    setQuestions(questionsData.questions);
-  } else {
-    // Continue polling even if published=true
-    console.log('⚠️ Course published but no questions yet');
+  if (questionsData.questions && questionsData.questions.length > 0) {
+    // Only then stop the processing UI
   }
 }
 ```
 
-**Key Points**:
-- The last segment processor verifies questions exist before publishing
-- The course page double-checks questions exist before showing content
-- The orchestrator tracks question counts for monitoring
-- Users only see courses when questions are guaranteed to be ready
+#### 3. Quiz Generation Pipeline Publishing
+```typescript
+// In quiz-generation-v5/index.ts
+// After storing questions, verify they exist
+const { count: questionCount } = await supabaseClient
+  .from('questions')
+  .select('*', { count: 'exact', head: true })
+  .eq('course_id', request.course_id);
 
-### Safety Mechanisms
+if (questionCount && questionCount > 0) {
+  // Only mark as published if questions exist
+  await supabaseClient
+    .from('courses')
+    .update({ published: true })
+    .eq('id', request.course_id);
+}
+```
 
-1. **Database Verification**: Questions are counted directly from the database
-2. **Double-Check Pattern**: Both backend and frontend verify questions
-3. **Graceful Degradation**: Processing continues if questions aren't ready
-4. **Clear Logging**: Each step logs question counts for debugging
+#### 4. Fixed All Publishing Paths
+- **Removed premature publishing from**:
+  - `check-segment-processing.ts` - No longer marks courses as published
+  - `init-segmented-processing/index.ts` - No longer publishes short videos automatically
+  - `orchestrate-segment-processing/index.ts` - Already didn't publish (good)
+  
+- **Added verification to**:
+  - `analyze-video-smart.ts` - Verifies questions exist when using cache
+  - `process-video-segment/index.ts` - Verifies questions before publishing last segment
+  - `quiz-generation-v5/index.ts` - Added publishing logic with verification
 
-This ensures users never see an empty course page!
+### Result
+Courses are now **ONLY** marked as published after:
+1. All database operations are complete
+2. Questions are verified to exist in the database
+3. The course page also double-checks questions exist before stopping processing UI
 
----
-
-*This documentation reflects the current v5.0 implementation with full transcript generation, intelligent timestamp optimization, atomic segment processing, backend orchestration, complete metadata storage, and enhanced educational context awareness.* 
+This ensures users only see course content when generation is truly complete. 
