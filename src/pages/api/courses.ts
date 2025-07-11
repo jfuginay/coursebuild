@@ -60,11 +60,12 @@ export default async function handler(
       });
     }
 
-    // Try to enhance with rating data (non-blocking)
+    // Try to enhance with rating data and question counts (non-blocking)
     const coursesWithRatings = await Promise.all(
       coursesData.map(async (course) => {
         let averageRating = 0;
         let totalRatings = 0;
+        let questionCount = 0;
 
         try {
           // Try to get rating stats for this course
@@ -93,6 +94,22 @@ export default async function handler(
           console.warn(`❌ Rating fetch error for course ${course.id}:`, ratingError);
         }
 
+        try {
+          // Get question count for this course
+          const { count, error: questionError } = await supabase
+            .from('questions')
+            .select('id', { count: 'exact' })
+            .eq('course_id', course.id);
+
+          if (!questionError && count !== null) {
+            questionCount = count;
+          } else if (questionError) {
+            console.warn(`❌ Question count error for course ${course.id}:`, questionError);
+          }
+        } catch (questionError) {
+          console.warn(`❌ Question count fetch error for course ${course.id}:`, questionError);
+        }
+
         return {
           id: course.id,
           title: course.title,
@@ -101,7 +118,8 @@ export default async function handler(
           created_at: course.created_at,
           published: course.published,
           averageRating,
-          totalRatings
+          totalRatings,
+          questionCount
         };
       })
     );

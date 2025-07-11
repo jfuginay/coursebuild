@@ -62,10 +62,9 @@ const InteractiveVideoPlayer: React.FC<InteractiveVideoPlayerProps> = ({
     <Card id="interactive-video-player">
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <Play className="h-5 w-5" />
-            Interactive Video Course
-          </CardTitle>
+          <CardDescription>
+            Watch the video and answer questions as they appear
+          </CardDescription>
           <Button 
             variant="outline" 
             size="sm"
@@ -80,9 +79,6 @@ const InteractiveVideoPlayer: React.FC<InteractiveVideoPlayerProps> = ({
             {nextCourse ? 'Next Course Ready' : isLoadingNextCourse ? 'Generating...' : nextCourseApiCalled ? 'Generating...' : 'Generate Next Course'}
           </Button>
         </div>
-        <CardDescription>
-          Watch the video and answer questions as they appear
-        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div id="video-player-area" className="aspect-video bg-muted rounded-lg overflow-hidden relative">
