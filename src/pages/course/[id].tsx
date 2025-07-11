@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { useAuth } from '@/contexts/AuthContext';
 import { useAnalytics } from '@/hooks/useAnalytics';
 import { supabase } from '@/lib/supabase';
+import ChatBubble from '@/components/ChatBubble';
 
 interface Course {
  id: string;
@@ -370,10 +371,7 @@ export default function CoursePage() {
        console.log('🎬 Course loaded:', {
          title: data.course.title,
          youtubeUrl: data.course.youtube_url,
-         extractedVideoId: extractedVideoId,
-         published: data.course.published
-         hasRatings: courseWithRating.totalRatings > 0,
-         averageRating: courseWithRating.averageRating
+         extractedVideoId: extractedVideoId
        });
        setVideoId(extractedVideoId);
      } else {
@@ -440,7 +438,7 @@ export default function CoursePage() {
        const visualQuestions = parsedQuestions.filter((q: Question) => q.type === 'hotspot' || q.type === 'matching' || q.requires_video_overlay);
        console.log('👁️ Visual questions found:', visualQuestions.length);
        if (visualQuestions.length > 0) {
-         console.log('🖼️ First visual question:', visualQuestions[0]);
+         console.log('🖼️ First visual q:', visualQuestions[0]);
        }
        
        setQuestions(parsedQuestions);
@@ -1127,6 +1125,44 @@ export default function CoursePage() {
    };
  };
 
+ // Get active question data for chat bubble
+ const getActiveQuestion = () => {
+   if (!showQuestion || !questions[currentQuestionIndex]) {
+     return null;
+   }
+
+   const question = questions[currentQuestionIndex];
+   
+   // Parse options - handle both array and JSON string formats
+   const parseOptions = (options: string[] | string): string[] => {
+     if (Array.isArray(options)) {
+       return options;
+     }
+     
+     if (typeof options === 'string') {
+       try {
+         const parsed = JSON.parse(options);
+         return Array.isArray(parsed) ? parsed : [options];
+       } catch (e) {
+         return [options];
+       }
+     }
+     
+     return [];
+   };
+
+   const parsedOptions = parseOptions(question.options || []);
+   const finalOptions = parsedOptions.length === 0 && (question.type === 'true-false' || question.type === 'true_false') 
+     ? ['True', 'False'] 
+     : parsedOptions;
+
+   return {
+     question: question.question,
+     type: question.type,
+     options: finalOptions
+   };
+ };
+
  // Convert answeredQuestions Set<number> to Set<string> format expected by curriculum card
  const getAnsweredQuestionsForCurriculum = (): Set<string> => {
    return new Set(Array.from(answeredQuestions).map(index => `0-${index}`));
@@ -1517,6 +1553,13 @@ export default function CoursePage() {
        courseTitle={course?.title}
        position="center"
        autoHide={8000}
+     />
+
+     {/* Chat Bubble */}
+     <ChatBubble 
+       courseId={id as string}
+       currentVideoTime={currentTime}
+       activeQuestion={getActiveQuestion()}
      />
    </div>
  );
