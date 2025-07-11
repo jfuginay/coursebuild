@@ -121,24 +121,16 @@ Focus on creating questions that would genuinely help students learn and underst
 // =============================================================================
 
 export const QUESTION_TIMING_INSTRUCTION = `
-## IMPORTANT TIMING INSTRUCTION
-Based on the transcript segments above, determine the OPTIMAL TIMESTAMP for this question to appear. The question should appear AFTER all relevant concepts have been fully explained. Look for when explanations end, not when they begin.
+## TIMING INSTRUCTION
+Determine the optimal timestamp for this question based on the transcript. Return an "optimal_timestamp" field (in seconds).
 
-Return an "optimal_timestamp" field (in seconds) in your response that indicates when this question should appear. This should be:
-- After all necessary concepts are explained
-- After the end timestamp of the last relevant explanation  
-- At least 4-8 seconds after the explanation ends to give viewers time to process
-- Preferably at a natural pause in the video (between sentences or topics)
-- NOT in the middle of a new topic or ongoing explanation
-- NOT cutting off mid-sentence
+The question should appear:
+- AFTER all relevant concepts are fully explained (not during)
+- With 4-8 seconds delay for processing (minimum 2 seconds if no natural pause)
+- At natural pauses: gaps between segments, transitions ("Now let's...", "Next..."), or thought completions
+- NEVER mid-sentence, during active explanations, or when introducing new topics
 
-Look for these timing cues in the transcript:
-1. End timestamps of explanation segments
-2. Natural pauses between topics (gaps in timestamps)
-3. Transitions indicated by phrases like "Now let's move on to..." or "Next..."
-4. Completion of thought indicated by conclusive statements
-
-If no natural pause exists, add at least 4 seconds after the last explanation ends.`;
+Look for the END of explanations, not the beginning.`;
 
 // =============================================================================
 // Bloom's Taxonomy Level Definitions
