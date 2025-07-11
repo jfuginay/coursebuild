@@ -40,6 +40,29 @@ CourseForge AI transforms YouTube educational videos into comprehensive, interac
 
 ---
 
+## 1.1 System Constraints & Limitations
+
+### Video Duration Limit
+- **Maximum Video Duration**: 45 minutes (2,700 seconds)
+- **Error Handling**: Videos exceeding 45 minutes are rejected with a clear error message
+- **User Experience**: Frontend displays: "This video is X minutes long. Maximum allowed duration is 45 minutes. Please choose a shorter video."
+- **Automatic Cleanup**: Course records created for rejected videos are automatically deleted
+
+### Processing Constraints
+- **Segmented Processing**: Videos longer than 10 minutes are automatically segmented
+- **Segment Duration**: 5 minutes per segment (300 seconds) by default
+- **Questions per Segment**: Maximum 5 questions per segment
+- **Frame Sampling**: All videos analyzed with exactly 300 frames regardless of duration
+- **Timeout Protection**: Segment processing timeout after 5 minutes with automatic retry
+
+### API Rate Limits
+- **YouTube API**: Subject to YouTube Data API v3 quotas
+- **OpenAI**: Standard rate limits apply
+- **Gemini**: Subject to Google AI rate limits
+- **Cache Usage**: Previously analyzed videos can be loaded from cache to reduce API calls
+
+---
+
 ## 2. Pipeline Architecture v5.0
 
 ```mermaid

@@ -25,6 +25,7 @@ CourseBuilder leverages dual LLM providers with full video transcription and int
 - **Segmented processing** for long videos (>10 minutes) with context preservation (NEW)
 
 ### 🔧 **Advanced Processing Pipeline**
+- **Video Duration Limit**: Maximum 45 minutes per video (clear error messages for longer videos)
 - **Enhanced 3-stage processing**: 
   - Stage 1: Full transcript generation + planning with dynamic frame sampling
   - Stage 2: Context-aware question generation with optimal timing
