@@ -233,22 +233,11 @@ export default function CoursePage() {
    }
  }, [videoId, isYTApiLoaded, player]);
 
-   useEffect(() => {
-    if (player && questions.length > 0) {
-      checkForQuestions();
-    }
-  }, [currentTime, questions, currentQuestionIndex, answeredQuestions]);
-
-  // Ensure YouTube player is accessible after flipping back
-  useEffect(() => {
-    if (!showQuestion && playerRef.current && isVideoReady) {
-      // Check if the player element is still in the DOM
-      const playerElement = document.getElementById('youtube-player');
-      if (playerElement && !playerElement.querySelector('iframe')) {
-        console.warn('YouTube player iframe missing after flip, may need re-initialization');
-      }
-    }
-  }, [showQuestion, isVideoReady]);
+ useEffect(() => {
+   if (player && questions.length > 0) {
+     checkForQuestions();
+   }
+ }, [currentTime, questions, currentQuestionIndex, answeredQuestions]);
 
  // Adjust question timestamps when video duration becomes available
  useEffect(() => {
@@ -839,21 +828,11 @@ export default function CoursePage() {
    }
  };
 
-   const handleContinueVideo = () => {
-    setAnsweredQuestions(prev => new Set(prev).add(currentQuestionIndex));
-    setShowQuestion(false);
-    
-    // Small delay to ensure the flip animation completes before resuming
-    setTimeout(() => {
-      if (playerRef.current && typeof playerRef.current.playVideo === 'function') {
-        try {
-          playerRef.current.playVideo();
-        } catch (error) {
-          console.warn('Failed to resume video:', error);
-        }
-      }
-    }, 300); // Half of the flip animation duration
-  };
+ const handleContinueVideo = () => {
+   setAnsweredQuestions(prev => new Set(prev).add(currentQuestionIndex));
+   setShowQuestion(false);
+   playerRef.current?.playVideo(); // Resume video when continuing
+ };
 
  const handleSkipQuestion = async () => {
    console.log('⏭️ Skipping question at index:', currentQuestionIndex);
@@ -907,20 +886,10 @@ export default function CoursePage() {
      }
    }
    
-       setSkippedQuestions(prev => new Set(prev).add(currentQuestionIndex));
-    setAnsweredQuestions(prev => new Set(prev).add(currentQuestionIndex)); // Mark as answered to prevent re-showing
-    setShowQuestion(false);
-    
-    // Small delay to ensure the flip animation completes before resuming
-    setTimeout(() => {
-      if (playerRef.current && typeof playerRef.current.playVideo === 'function') {
-        try {
-          playerRef.current.playVideo();
-        } catch (error) {
-          console.warn('Failed to resume video after skip:', error);
-        }
-      }
-    }, 300); // Half of the flip animation duration
+   setSkippedQuestions(prev => new Set(prev).add(currentQuestionIndex));
+   setAnsweredQuestions(prev => new Set(prev).add(currentQuestionIndex)); // Mark as answered to prevent re-showing
+   setShowQuestion(false);
+   playerRef.current?.playVideo(); // Resume video after skipping
  };
 
  // Rating trigger logic
@@ -1293,53 +1262,25 @@ export default function CoursePage() {
            </div>
          </div>
 
-                 {/* Video Player with Flip Support */}
-         {(() => {
-           const currentQuestion = questions[currentQuestionIndex];
-           const isHotspotQuestion = currentQuestion && (
-             currentQuestion.type === 'hotspot' || 
-             currentQuestion.requires_video_overlay ||
-             (currentQuestion.bounding_boxes && currentQuestion.bounding_boxes.length > 0)
-           );
-           
-           // For non-hotspot questions, create the flip content
-           const flipContent = showQuestion && currentQuestion && !isHotspotQuestion ? (
-             <QuestionOverlay
-               question={currentQuestion}
-               onAnswer={handleAnswer}
-               onContinue={handleContinueVideo}
-               onSkip={handleSkipQuestion}
-               isVisible={true}
-               player={player}
-               courseId={id as string}
-               segmentIndex={0}
-               isInline={true}
-             />
-           ) : undefined;
- 
-           return (
-             <InteractiveVideoPlayer
-               videoId={videoId}
-               youtubeUrl={course.youtube_url}
-               isYTApiLoaded={isYTApiLoaded}
-               error={error}
-               isVideoReady={isVideoReady}
-               currentTime={currentTime}
-               duration={duration}
-               questions={questions}
-               answeredQuestions={answeredQuestions}
-               onVideoSeek={handleVideoSeek}
-               formatTime={formatTime}
-               onFetchNextCourse={fetchNextCourse}
-               isLoadingNextCourse={isLoadingNextCourse}
-               nextCourse={nextCourse}
-               nextCourseApiCalled={nextCourseApiCalled}
-               showQuestion={showQuestion}
-               isFlipped={showQuestion && currentQuestion && !isHotspotQuestion}
-               flipContent={flipContent}
-             />
-           );
-         })()}
+         {/* Video Player */}
+         <InteractiveVideoPlayer
+           videoId={videoId}
+           youtubeUrl={course.youtube_url}
+           isYTApiLoaded={isYTApiLoaded}
+           error={error}
+           isVideoReady={isVideoReady}
+           currentTime={currentTime}
+           duration={duration}
+           questions={questions}
+           answeredQuestions={answeredQuestions}
+           onVideoSeek={handleVideoSeek}
+           formatTime={formatTime}
+           onFetchNextCourse={fetchNextCourse}
+           isLoadingNextCourse={isLoadingNextCourse}
+           nextCourse={nextCourse}
+           nextCourseApiCalled={nextCourseApiCalled}
+           showQuestion={showQuestion}
+         />
 
          {/* Autonomy Slider */}
          {user && (
@@ -1351,46 +1292,29 @@ export default function CoursePage() {
                />
              </CardContent>
            </Card>
-                   )}
-          
-          {/* Hotspot Questions and Transcript Display */}
-          {(() => {
-            const currentQuestion = questions[currentQuestionIndex];
-            const isHotspotQuestion = currentQuestion && (
-              currentQuestion.type === 'hotspot' || 
-              currentQuestion.requires_video_overlay ||
-              (currentQuestion.bounding_boxes && currentQuestion.bounding_boxes.length > 0)
-            );
- 
-            if (showQuestion && currentQuestion && isHotspotQuestion) {
-              // Only hotspot questions show as overlay
-              return (
-                <QuestionOverlay
-                  question={currentQuestion}
-                  onAnswer={handleAnswer}
-                  onContinue={handleContinueVideo}
-                  onSkip={handleSkipQuestion}
-                  isVisible={showQuestion}
-                  player={player}
-                  courseId={id as string}
-                  segmentIndex={0}
-                  isInline={false}
-                />
-              );
-            } else if (!showQuestion) {
-              // Show transcript when no question is showing
-              return (
-                <TranscriptDisplay
-                  courseId={id as string}
-                  currentTime={currentTime}
-                  onSeek={handleVideoSeek}
-                  formatTimestamp={formatTime}
-                />
-              );
-            }
-            
-            return null;
-          })()}
+         )}
+
+         {/* Question or Transcript Display */}
+         {showQuestion && questions[currentQuestionIndex] ? (
+           <QuestionOverlay
+             question={questions[currentQuestionIndex]}
+             onAnswer={handleAnswer}
+             onContinue={handleContinueVideo}
+             onSkip={handleSkipQuestion}
+             isVisible={showQuestion}
+             player={player}
+             courseId={id as string}
+             segmentIndex={0}
+             isInline={true}
+           />
+         ) : (
+           <TranscriptDisplay
+             courseId={id as string}
+             currentTime={currentTime}
+             onSeek={handleVideoSeek}
+             formatTimestamp={formatTime}
+           />
+         )}
 
          {/* Course Curriculum Card */}
          <CourseCurriculumCard
