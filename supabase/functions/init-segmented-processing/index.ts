@@ -305,13 +305,12 @@ serve(async (req: Request) => {
         });
     }
 
-    // Trigger processing of the first segment
-    const firstSegment = createdSegments[0];
-    console.log(`🚀 Triggering processing for first segment`);
+    // Trigger the segment orchestrator instead of directly processing
+    console.log(`🎼 Triggering segment orchestrator`);
 
-    const segmentFunctionUrl = `${supabaseUrl}/functions/v1/process-video-segment`;
+    const orchestratorUrl = `${supabaseUrl}/functions/v1/orchestrate-segment-processing`;
     
-    const segmentResponse = await fetch(segmentFunctionUrl, {
+    const orchestratorResponse = await fetch(orchestratorUrl, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${supabaseKey}`,
@@ -319,25 +318,18 @@ serve(async (req: Request) => {
       },
       body: JSON.stringify({
         course_id,
-        segment_id: firstSegment.id,
-        segment_index: 0,
-        youtube_url,
-        start_time: firstSegment.start_time,
-        end_time: firstSegment.end_time,
-        session_id,
-        preferred_provider: 'gemini',
-        max_questions: max_questions_per_segment,
-        total_segments: createdSegments.length
+        check_only: false
       })
     });
 
-    if (!segmentResponse.ok) {
-      const errorText = await segmentResponse.text();
-      console.error('❌ Error triggering first segment:', errorText);
-      throw new Error(`Failed to trigger first segment: ${errorText}`);
+    if (!orchestratorResponse.ok) {
+      const errorText = await orchestratorResponse.text();
+      console.error('❌ Error triggering orchestrator:', errorText);
+      throw new Error(`Failed to trigger orchestrator: ${errorText}`);
     }
 
-    console.log('✅ First segment processing triggered successfully');
+    const orchestratorResult = await orchestratorResponse.json();
+    console.log('✅ Orchestrator triggered successfully:', orchestratorResult.status);
 
     return new Response(
       JSON.stringify({

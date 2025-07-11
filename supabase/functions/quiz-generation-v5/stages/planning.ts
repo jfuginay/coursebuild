@@ -244,6 +244,24 @@ ${contextPrompt}
 
 Target exactly ${maxQuestions} questions for this segment using the standard distribution.
 
+## CRITICAL TIMING REQUIREMENTS FOR QUESTIONS
+
+When placing questions within this segment:
+1. **After Explanations**: Place questions AFTER concepts are fully explained, not during
+2. **Processing Time**: Add 4-8 seconds after the end of explanations for viewer processing
+3. **Natural Pauses**: Look for these indicators of good question placement:
+   - Gaps between transcript segments (2+ seconds)
+   - Transitional phrases like "Now let's", "Moving on to", "Next we'll"
+   - End of a complete thought or example
+   - Before a new topic introduction
+4. **Avoid Interruptions**: DO NOT place questions:
+   - Mid-sentence or mid-explanation
+   - During active demonstrations
+   - When a new concept is just being introduced
+   - Within 5 seconds of starting a new topic
+
+The timestamp you provide should be when the question appears, not when the concept starts.
+
 Focus on content that appears within this time range while maintaining educational coherence.`;
     
     // Build video metadata with segment clipping
@@ -265,7 +283,7 @@ Focus on content that appears within this time range while maintaining education
     console.log(`   📍 Sending to Gemini: startOffset="${segmentInfo.startTime}s", endOffset="${bufferedEndTime}s"`);
     
     const response = await logGeminiCall(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
       {
         contents: [{
           parts: [
@@ -514,7 +532,7 @@ For hotspot questions: Include 2-3 sentences in visual_learning_objective descri
     };
     
     const response = await logGeminiCall(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
       {
           contents: [{
             parts: [
@@ -819,7 +837,7 @@ const calculateEducationalScore = (plan: QuestionPlan): number => {
 };
 
 const optimizeQuestionSpacing = (plans: QuestionPlan[], transcript?: any): QuestionPlan[] => {
-  const MIN_SPACING = 30; // seconds
+  const MIN_SPACING = 45; // Increased from 30 to 45 seconds for better cognitive spacing
   const spacedPlans: QuestionPlan[] = [];
   let lastTimestamp = -MIN_SPACING;
   

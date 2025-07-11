@@ -6,9 +6,14 @@
  * or categories through meaningful paired connections.
  */
 
+// =============================================================================
+// Imports
+// =============================================================================
+
 import { QuestionPlan, MatchingQuestion, QuestionGenerationError } from '../types/interfaces.ts';
-import LLMService from './llm-providers.ts';
 import { formatSecondsForDisplay } from '../utils/timestamp-converter.ts';
+import { LLMService } from './llm-providers.ts';
+import { QUESTION_TIMING_INSTRUCTION } from '../config/prompts.ts';
 
 // =============================================================================
 // Matching-Specific Prompt (Stage 2)
@@ -201,7 +206,7 @@ ${plan.key_concepts.map(concept => `- ${concept}`).join('\n')}
 **Suggested Timestamp**: ${plan.timestamp}s (${formatSecondsForDisplay(plan.timestamp)})`;
 
   // Add transcript context if available
-  if (transcriptContext) {
+  if (transcriptContext && transcriptContext.formattedContext) {
     prompt += `
 
 ## TRANSCRIPT CONTEXT
@@ -213,13 +218,7 @@ Key Concepts Nearby: ${transcriptContext.nearbyConcepts.join(', ')}
 Visual Context: ${transcriptContext.visualContext || 'N/A'}
 ${transcriptContext.isSalientMoment ? `This is a salient learning moment (${transcriptContext.eventType})` : ''}
 
-## IMPORTANT TIMING INSTRUCTION
-Based on the transcript segments above, determine the OPTIMAL TIMESTAMP for this question to appear. The question should appear AFTER all relevant concepts have been fully explained. Look for when explanations end, not when they begin.
-
-Return an "optimal_timestamp" field (in seconds) in your response that indicates when this question should appear. This should be:
-- After all necessary concepts and relationships are explained
-- After the end timestamp of the last relevant explanation
-- Before the video moves to unrelated topics
+${QUESTION_TIMING_INSTRUCTION}
 
 Use this transcript context to:
 1. Create pairs that directly relate to concepts discussed in the transcript

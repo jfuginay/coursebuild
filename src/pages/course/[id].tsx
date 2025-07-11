@@ -342,56 +342,58 @@ export default function CoursePage() {
          setIsProcessing(true);
          console.log('📊 Course is still processing, will check again...');
          
-         // Also check for stuck segments
-         try {
-           const checkResponse = await fetch('/api/course/check-segment-processing', {
-             method: 'POST',
-             headers: {
-               'Content-Type': 'application/json',
-             },
-             body: JSON.stringify({ course_id: id })
-           });
-           
-           if (checkResponse.ok) {
-             const checkData = await checkResponse.json();
-             console.log('🔄 Segment check result:', checkData);
-           }
-         } catch (error) {
-           console.error('Failed to check segments:', error);
-         }
+                 // Initial check for stuck segments (only once)
+        try {
+          const checkResponse = await fetch('/api/course/check-segment-processing', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ course_id: id })
+          });
+          
+          if (checkResponse.ok) {
+            const checkData = await checkResponse.json();
+            console.log('🔄 Initial segment check result:', checkData);
+          }
+        } catch (error) {
+          console.error('Failed to check segments:', error);
+        }
          
-         // Set up polling to check for completion
-         const pollInterval = setInterval(async () => {
-           const pollResponse = await fetch(`/api/course/${id}`);
-           const pollData = await pollResponse.json();
-           
-           if (pollData.success && pollData.course.published) {
-             console.log('✅ Course processing complete!');
-             setCourse(pollData.course);
-             setIsProcessing(false);
-             clearInterval(pollInterval);
-             // Fetch questions now that course is published
-             fetchQuestions();
-           } else {
-             // Check segments again
-             try {
-               const checkResponse = await fetch('/api/course/check-segment-processing', {
-                 method: 'POST',
-                 headers: {
-                   'Content-Type': 'application/json',
-                 },
-                 body: JSON.stringify({ course_id: id })
-               });
-               
-               if (checkResponse.ok) {
-                 const checkData = await checkResponse.json();
-                 console.log('🔄 Segment check result:', checkData);
-               }
-             } catch (error) {
-               console.error('Failed to check segments:', error);
-             }
-           }
-         }, 5000); // Poll every 5 seconds
+                 // Set up polling to check for completion
+        let checkCounter = 0;
+        const pollInterval = setInterval(async () => {
+          const pollResponse = await fetch(`/api/course/${id}`);
+          const pollData = await pollResponse.json();
+          
+          if (pollData.success && pollData.course.published) {
+            console.log('✅ Course processing complete!');
+            setCourse(pollData.course);
+            setIsProcessing(false);
+            clearInterval(pollInterval);
+            // Fetch questions now that course is published
+            fetchQuestions();
+          } else if (checkCounter % 6 === 0) { // Only check segments every 30 seconds (6 * 5s)
+            // Check segments less frequently to avoid overwhelming the orchestrator
+            try {
+              const checkResponse = await fetch('/api/course/check-segment-processing', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ course_id: id })
+              });
+              
+              if (checkResponse.ok) {
+                const checkData = await checkResponse.json();
+                console.log('🔄 Periodic segment check result:', checkData);
+              }
+            } catch (error) {
+              console.error('Failed to check segments:', error);
+            }
+          }
+          checkCounter++;
+        }, 5000); // Poll course status every 5 seconds
          
          // Clean up interval on unmount
          return () => clearInterval(pollInterval);

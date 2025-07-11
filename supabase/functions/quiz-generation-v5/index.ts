@@ -926,5 +926,3 @@ serve(async (req: Request) => {
 // =============================================================================
 // Exports for use by other modules (e.g., segment processing)
 // =============================================================================
-
-export { generateQuestionsFromPlans, createProgressTracker }; 

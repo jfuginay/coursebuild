@@ -17,19 +17,22 @@
 9. [Visualization Components](#visualization-components)
 10. [Current Implementation Status](#current-implementation-status)
 11. [Technical Specifications](#technical-specifications)
+12. [LangSmith Monitoring](#langsmith-monitoring)
 
 ---
 
 ## 1. Overview
 
-CourseForge AI transforms YouTube educational videos into comprehensive, interactive courses using advanced AI technologies with integrated transcript generation and intelligent question timing. The v5.0 system introduces **full video transcription**, **LLM-based timestamp optimization**, and **enhanced context awareness** for superior educational outcomes.
+CourseForge AI transforms YouTube educational videos into comprehensive, interactive courses using advanced AI technologies with integrated transcript generation and intelligent question timing. The v5.0 system introduces **full video transcription**, **LLM-based timestamp optimization**, **atomic segment processing**, and **enhanced context awareness** for superior educational outcomes.
 
 ### Key Capabilities
 - **Full Video Transcript Generation** in planning phase with visual descriptions
 - **Intelligent Timestamp Optimization** with LLM-based placement after concepts are explained
 - **Base-60 Timestamp Conversion** handling Gemini's unique timestamp format
 - **Enhanced Transcript Context** extraction with segment boundary intelligence
-- **Dual LLM Provider Support** with OpenAI GPT-4o and Google Gemini 2.5 Flash
+- **Dual LLM Provider Support** with OpenAI GPT-4o (default for text) and Google Gemini 2.5 Flash (visual)
+- **Atomic Segment Processing** with worker IDs preventing concurrent processing
+- **Backend Orchestration** for reliable sequential segment handling
 - **Real-time video analysis** with transcript-aware object detection
 - **Educational framework integration** with Bloom's taxonomy classification
 - **Quality-controlled generation** with automated assessment pipeline
@@ -41,45 +44,67 @@ CourseForge AI transforms YouTube educational videos into comprehensive, interac
 ```mermaid
 graph TD
     A[YouTube URL Input] --> B[Course Record Creation]
-    B --> C[Quiz Generation v5.0 Pipeline]
+    B --> C{Video Duration?}
     
-    C --> D[Stage 1: Planning + Transcription]
-    D --> E[Full Video Transcript Generation<br/>with Visual Descriptions]
-    E --> F[Base-60 to Seconds Conversion]
-    F --> G[Question Planning with<br/>Transcript Context]
+    C -->|< 10 minutes| D[Direct Pipeline]
+    C -->|>= 10 minutes| E[Segmented Pipeline]
     
-    G --> H[Stage 2: Question Generation]
-    H --> I[Transcript Context Extraction]
-    I --> J[LLM Provider Interface]
+    D --> F[Quiz Generation v5.0]
+    E --> G[Init Segmented Processing]
+    G --> H[Orchestrator]
     
-    J --> K{Provider Selection}
-    K -->|Text Questions| L[OpenAI GPT-4o<br/>with Optimal Timestamp]
-    K -->|Visual Questions| M[Gemini 2.5 Flash<br/>Vision API]
+    H --> I[Process Segment 1]
+    I --> J[Process Segment 2]
+    J --> K[Process Segment N]
     
-    L --> N[LLM Determines<br/>Optimal Timestamp]
-    M --> O[Visual Analysis<br/>with Transcript]
+    F --> L[Stage 1: Planning + Transcription]
+    I --> L
+    J --> L
+    K --> L
     
-    N --> P[Question Processing]
-    O --> P
+    L --> M[Full Video Transcript Generation<br/>with Visual Descriptions]
+    M --> N[Base-60 to Seconds Conversion]
+    N --> O[Question Planning with<br/>Transcript Context]
     
-    P --> Q[Database Storage<br/>with Transcript]
-    Q --> R[Frontend Rendering]
+    O --> P[Stage 2: Question Generation]
+    P --> Q[Transcript Context Extraction]
+    Q --> R[LLM Provider Interface]
+    
+    R --> S{Provider Selection}
+    S -->|Text Questions| T[OpenAI GPT-4o (Default)<br/>with Optimal Timestamp]
+    S -->|Visual Questions| U[Gemini 2.5 Flash<br/>Vision API]
+    
+    T --> V[LLM Determines<br/>Optimal Timestamp]
+    U --> W[Visual Analysis<br/>with Transcript]
+    
+    V --> X[Question Processing]
+    W --> X
+    
+    X --> Y[Database Storage<br/>with Full Metadata]
+    Y --> Z[Frontend Rendering]
+    
+    H -.->|Monitor| AA[LangSmith Logging]
+    T -.->|Log| AA
+    U -.->|Log| AA
     
     style C fill:#e8f5e8
-    style E fill:#ffecb3
-    style F fill:#fce4ec
-    style N fill:#e3f2fd
-    style R fill:#fff3e0
+    style H fill:#ffecb3
+    style N fill:#fce4ec
+    style V fill:#e3f2fd
+    style AA fill:#f3e5f5
+    style Z fill:#fff3e0
 ```
 
 ### Processing Stages
 
-1. **Planning + Transcription** - Full video transcript generation with visual descriptions
-2. **Timestamp Conversion** - Base-60 to seconds conversion for all timestamps
-3. **Question Generation** - Context-aware generation with LLM-determined timing
-4. **Quality Verification** - Optional comprehensive quality assessment
-5. **Database Storage** - Questions and transcripts stored with proper timestamps
-6. **Interactive Rendering** - Questions appear after concepts are explained
+1. **Video Segmentation** - Automatic splitting for videos ≥10 minutes
+2. **Atomic Claiming** - Worker IDs prevent concurrent segment processing
+3. **Planning + Transcription** - Full video transcript generation with visual descriptions
+4. **Timestamp Conversion** - Base-60 to seconds conversion for all timestamps
+5. **Question Generation** - Context-aware generation with LLM-determined timing
+6. **Quality Verification** - Optional comprehensive quality assessment
+7. **Database Storage** - Questions, transcripts, and complete metadata storage
+8. **Interactive Rendering** - Questions appear after concepts are explained
 
 ---
 
@@ -133,9 +158,12 @@ const fps = Math.min(TARGET_FRAMES / durationInSeconds, 1.0); // Cap at 1 fps
 
 ### 3.3 Segmented Processing for Long Videos
 
-**NEW**: v5.0 introduces automatic video segmentation for videos longer than 10 minutes to avoid Edge Function timeouts:
+**ENHANCED**: v5.0 now includes atomic processing with backend orchestration:
 
 - **Automatic Segmentation**: Videos >10 minutes split into manageable segments
+- **Atomic Claiming**: Worker IDs prevent concurrent processing of same segment
+- **Backend Orchestration**: Centralized control ensures sequential processing
+- **Automatic Recovery**: Stuck segments (>5 minutes) automatically reset and retried
 - **Context Continuity**: Each segment receives context from previous segments
 - **Video Clipping**: Uses Gemini's videoMetadata startOffset/endOffset
 - **Buffer Handling**: 5-second buffer added to endOffset to avoid mid-sentence cutoffs
@@ -158,6 +186,102 @@ videoMetadata: {
 // Transcript filtered back to actual boundaries after generation
 ```
 
+#### Segment Processing Architecture
+
+The segmented processing system uses dedicated Edge Functions with atomic claiming:
+
+```typescript
+interface SegmentProcessingRequest {
+  course_id: string;
+  segment_id: string;
+  segment_index: number;
+  youtube_url: string;
+  start_time: number;
+  end_time: number;
+  session_id?: string;
+  previous_segment_context?: SegmentContext;
+  total_segments: number;
+  max_questions?: number;
+}
+```
+
+#### Context Management Between Segments
+
+Each segment maintains educational continuity through a comprehensive context system:
+
+```typescript
+interface SegmentContext {
+  lastTranscriptSegments: TranscriptSegment[]; // Last ~2 minutes of transcript
+  keyConcepts: KeyConcept[]; // All key concepts introduced
+  lastQuestions: QuestionSummary[]; // Summary of last 2-3 questions
+  segmentSummary: string; // Brief summary of the segment
+  segmentIndex: number;
+  totalProcessedDuration: number; // Total duration of all processed segments
+}
+```
+
+#### Automatic Segment Chaining with Atomic Processing
+
+The system uses an orchestrator-based approach with atomic segment claiming:
+
+1. **Atomic Claiming**: Each segment processor generates a unique worker_id and atomically claims segments
+2. **Dependency Enforcement**: Segments verify previous segments are completed before processing
+3. **Orchestrator Management**: Backend orchestrator handles all segment sequencing
+4. **Automatic Recovery**: Stuck segments (>5 minutes) are automatically reset and retried
+
+```typescript
+// Atomic segment claiming with worker ID
+const workerId = `worker_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+const { data: claimedSegment } = await supabase
+  .from('course_segments')
+  .update({ 
+    status: 'processing',
+    processing_started_at: new Date().toISOString(),
+    worker_id: workerId,
+    retry_count: currentRetryCount  // Track retry attempts
+  })
+  .eq('id', segment_id)
+  .in('status', ['pending', 'failed']) // Only claim if not already processing
+  .select()
+  .single();
+```
+
+#### Orchestrator Architecture
+
+The `orchestrate-segment-processing` function manages the entire segmented processing flow:
+
+```typescript
+// Orchestrator logic flow
+1. Find and reset stuck segments (processing > 5 minutes)
+   - Clear worker_id
+   - Set status to 'failed'
+   - Increment retry_count
+
+2. Check all segments status
+   - If all completed: mark course as published
+   - If all failed: report error
+
+3. Find next eligible segment
+   - Previous segment must be completed
+   - Current segment must be pending/failed
+   
+4. Trigger segment processing
+   - Call process-video-segment function
+   - Pass cumulative context from previous segments
+   
+5. Return orchestration status
+   - Current processing state
+   - Segments completed/remaining
+   - Any errors encountered
+```
+
+This architecture ensures:
+- **No Duplicate Processing**: Worker IDs prevent concurrent processing
+- **Sequential Guarantee**: Dependency checks ensure order
+- **Backend-Only Control**: Works even if frontend disconnects
+- **Automatic Recovery**: Stuck segments are automatically retried
+- **Complete Reliability**: Every segment processes exactly once
+
 ### 3.4 Timestamp Format Handling
 
 **Base-60 Conversion**: Gemini uses a unique timestamp format where 100 = 1:00 = 60 seconds
@@ -172,6 +296,37 @@ export const convertBase60ToSeconds = (base60: number): number => {
 
 // Example: 145 → 1:45 → 105 seconds
 // Example: 230 → 2:30 → 150 seconds
+```
+
+#### Enhanced Timestamp Format Detection
+
+The system now supports multiple timestamp formats with automatic detection:
+
+```typescript
+// Gemini response now includes timestamp format specification
+interface PlanningResponse {
+  timestamp_format: 'seconds' | 'base60' | 'mm:ss' | 'decimal_minutes';
+  // ... other fields
+}
+
+// Enhanced conversion logic
+const convertTimestamp = (ts: number | string): number => {
+  if (timestampFormat === 'mm:ss') {
+    // Convert MM:SS string format to seconds
+    return typeof ts === 'string' ? convertMMSSToSeconds(ts) : ts;
+  } else if (timestampFormat === 'seconds') {
+    // Already in seconds, no conversion needed
+    return typeof ts === 'number' ? ts : parseFloat(ts);
+  } else if (timestampFormat === 'decimal_minutes') {
+    // Convert decimal minutes (e.g., 3.37 = 3m 37s)
+    const minutes = Math.floor(ts);
+    const seconds = Math.round((ts - minutes) * 100);
+    return minutes * 60 + seconds;
+  } else {
+    // Default to base-60 conversion
+    return convertBase60ToSeconds(ts);
+  }
+};
 ```
 
 ### 3.5 Intelligent Timestamp Optimization
@@ -208,13 +363,48 @@ const context = extractTranscriptContext(transcript, timestamp, windowSeconds);
 // Returns segments with proper boundaries and nearby concepts
 ```
 
+### 3.7 Hotspot Metadata Storage
+
+**ENHANCED**: Complete metadata storage for hotspot questions in segmented processing:
+
+```typescript
+// Full hotspot metadata now includes all fields
+metadata = {
+  target_objects: (q as any).target_objects,
+  frame_timestamp: (q as any).frame_timestamp,
+  question_context: (q as any).question_context,
+  visual_learning_objective: (q as any).visual_learning_objective,
+  distractor_guidance: (q as any).distractor_guidance,
+  video_overlay: true,
+  // Bounding box metadata
+  detected_elements: (q as any).bounding_boxes,
+  gemini_bounding_boxes: true,
+  video_dimensions: { width: 1000, height: 1000 }
+};
+
+// Separate bounding box storage
+for (const element of detected_elements) {
+  await supabase.from('bounding_boxes').insert({
+    question_id: question.id,
+    visual_asset_id: null,
+    label: element.label,
+    x: element.x,
+    y: element.y,
+    width: element.width,
+    height: element.height,
+    confidence_score: element.confidence_score,
+    is_correct_answer: element.is_correct_answer
+  });
+}
+```
+
 ---
 
 ## 4. LLM Provider Interface
 
 ### 4.1 Enhanced Provider Architecture
 
-The v5.0 system maintains the unified LLM interface with transcript awareness:
+The v5.0 system uses a unified LLM interface with intelligent provider selection:
 
 ```typescript
 interface LLMService {
@@ -226,11 +416,63 @@ interface LLMService {
   ): Promise<LLMResponse>;
 }
 
-// All processors receive transcript context
-const question = await generateMCQQuestion(plan, transcriptContext);
+// Default configuration (UPDATED)
+const DEFAULT_CONFIG: ProviderConfig = {
+  preferredProvider: 'openai',  // Changed from 'gemini'
+  fallbackProvider: 'gemini',   // Gemini as fallback
+  retryAttempts: 3,
+  retryDelay: 1000,
+  geminiApiKey: Deno.env.get('GEMINI_API_KEY') || '',
+  openaiApiKey: Deno.env.get('OPENAI_API_KEY') || ''
+};
+
+// Question type configurations (ALL UPDATED to prefer OpenAI)
+export const QUESTION_TYPE_CONFIGS = {
+  'multiple-choice': {
+    schema: MCQ_SCHEMA,
+    temperature: 0.6,
+    maxOutputTokens: 4096,
+    topK: 40,
+    topP: 0.9,
+    preferredProvider: 'openai' as const  // Changed from 'gemini'
+  },
+  'true-false': {
+    schema: TRUE_FALSE_SCHEMA,
+    temperature: 0.5,
+    maxOutputTokens: 1536,
+    topK: 30,
+    topP: 0.8,
+    preferredProvider: 'openai' as const  // Changed from 'gemini'
+  },
+  'matching': {
+    schema: MATCHING_SCHEMA,
+    temperature: 0.6,
+    maxOutputTokens: 2048,
+    topK: 40,
+    topP: 0.9,
+    preferredProvider: 'openai' as const  // Changed from 'gemini'
+  },
+  'sequencing': {
+    schema: SEQUENCING_SCHEMA,
+    temperature: 0.5,
+    maxOutputTokens: 2048,
+    topK: 35,
+    topP: 0.8,
+    preferredProvider: 'openai' as const  // Changed from 'gemini'
+  }
+};
 ```
 
-### 4.2 Schema Updates for v5.0
+### 4.2 Provider Selection Logic
+
+**UPDATED**: OpenAI is now the default for all text-based questions:
+
+- **Text Questions** (MCQ, True/False, Matching, Sequencing): OpenAI GPT-4o (default)
+- **Visual Questions** (Hotspot): Gemini 2.5 Pro with Vision API
+- **Automatic Fallback**: If OpenAI fails, system falls back to Gemini
+- **Planning Stage**: Continues using Gemini for transcript generation
+
+### 4.3 Schema Updates for v5.0
 
 All question schemas now include optional timestamp field:
 
@@ -246,35 +488,42 @@ optimal_timestamp: {
 
 ## 5. Data Flow Diagrams
 
-### 5.1 Complete v5.0 Pipeline Flow
+### 5.1 Complete v5.0 Pipeline Flow with Orchestration
 
 ```mermaid
 sequenceDiagram
     participant User
     participant Frontend
     participant API
-    participant QuizGenV5
+    participant Orchestrator
+    participant SegmentProcessor
     participant Gemini
     participant OpenAI
     participant Database
+    participant LangSmith
     
     User->>Frontend: Submit YouTube URL
     Frontend->>API: POST /api/analyze-video
     API->>Database: Create course record
-    API->>QuizGenV5: Execute pipeline
     
-    QuizGenV5->>Gemini: Stage 1: Generate transcript + plans
-    Gemini-->>QuizGenV5: Transcript with base-60 timestamps
-    QuizGenV5->>QuizGenV5: Convert timestamps to seconds
-    QuizGenV5->>Database: Store transcript
+    alt Video < 10 minutes
+        API->>SegmentProcessor: Direct processing
+    else Video >= 10 minutes
+        API->>Orchestrator: Initialize segments
+        loop For each segment
+            Orchestrator->>Database: Check segment status
+            Orchestrator->>SegmentProcessor: Process next segment
+            SegmentProcessor->>Database: Atomic claim with worker_id
+            SegmentProcessor->>Gemini: Generate transcript
+            Gemini-->>LangSmith: Log API call
+            SegmentProcessor->>OpenAI: Generate text questions
+            OpenAI-->>LangSmith: Log API call
+            SegmentProcessor->>Database: Store questions + metadata
+            SegmentProcessor->>Orchestrator: Trigger next
+        end
+    end
     
-    QuizGenV5->>QuizGenV5: Extract transcript context
-    QuizGenV5->>OpenAI: Generate MCQ with context
-    OpenAI-->>QuizGenV5: Question with optimal_timestamp
-    
-    QuizGenV5->>Database: Store questions with adjusted timestamps
-    QuizGenV5-->>API: Processed questions
-    API-->>Frontend: Questions appear after concepts explained
+    Database-->>Frontend: Questions with optimized timestamps
 ```
 
 ---
@@ -300,7 +549,54 @@ CREATE TABLE video_transcripts (
 
 ### 6.2 Enhanced Questions Table
 
-Questions now store timestamps that have been optimized by the LLM to appear after concepts are explained.
+Questions now store timestamps that have been optimized by the LLM to appear after concepts are explained, with complete metadata for all question types.
+
+### 6.3 Course Segments Table (UPDATED)
+
+```sql
+CREATE TABLE course_segments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    course_id UUID REFERENCES courses(id) ON DELETE CASCADE,
+    segment_index INTEGER NOT NULL,
+    start_time INTEGER NOT NULL,
+    end_time INTEGER NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending',
+    processing_started_at TIMESTAMP WITH TIME ZONE,
+    processing_completed_at TIMESTAMP WITH TIME ZONE,
+    questions_count INTEGER DEFAULT 0,
+    cumulative_key_concepts JSONB,
+    previous_segment_context JSONB,
+    error_message TEXT,
+    worker_id TEXT, -- NEW: Unique identifier for atomic processing
+    retry_count INTEGER DEFAULT 0, -- NEW: Track retry attempts
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexes for fast lookup
+CREATE INDEX idx_course_segments_course_id ON course_segments(course_id);
+CREATE INDEX idx_course_segments_status ON course_segments(status);
+CREATE INDEX idx_course_segments_processing ON course_segments(status, processing_started_at) 
+WHERE status = 'processing'; -- NEW: For finding stuck segments
+```
+
+### 6.4 Bounding Boxes Table
+
+```sql
+CREATE TABLE bounding_boxes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    question_id UUID REFERENCES questions(id) ON DELETE CASCADE,
+    visual_asset_id UUID REFERENCES visual_assets(id) ON DELETE CASCADE,
+    label TEXT NOT NULL,
+    x FLOAT NOT NULL, -- Normalized 0-1
+    y FLOAT NOT NULL, -- Normalized 0-1
+    width FLOAT NOT NULL, -- Normalized 0-1
+    height FLOAT NOT NULL, -- Normalized 0-1
+    confidence_score FLOAT DEFAULT 0.8,
+    is_correct_answer BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
 
 ---
 
@@ -319,6 +615,71 @@ Content-Type: application/json
   "youtube_url": "https://youtube.com/watch?v=...",
   "max_questions": 4,
   "enable_quality_verification": false
+}
+```
+
+#### Segment Processing Endpoint (for videos >10 minutes)
+```http
+POST /functions/v1/process-video-segment
+Authorization: Bearer <SUPABASE_KEY>
+Content-Type: application/json
+
+{
+  "course_id": "uuid",
+  "segment_id": "segment-uuid",
+  "segment_index": 0,
+  "youtube_url": "https://youtube.com/watch?v=...",
+  "start_time": 0,
+  "end_time": 300,
+  "session_id": "session-id",
+  "previous_segment_context": { /* context from previous segment */ },
+  "total_segments": 4,
+  "max_questions": 5
+}
+```
+
+#### Initialize Segmented Processing
+```http
+POST /functions/v1/init-segmented-processing
+Authorization: Bearer <SUPABASE_KEY>
+Content-Type: application/json
+
+{
+  "course_id": "uuid",
+  "youtube_url": "https://youtube.com/watch?v=...",
+  "max_questions_per_segment": 5,
+  "segment_duration": 300,  // 5 minutes
+  "session_id": "session-id"
+}
+```
+
+#### Orchestrate Segment Processing (NEW)
+```http
+POST /functions/v1/orchestrate-segment-processing
+Authorization: Bearer <SUPABASE_KEY>
+Content-Type: application/json
+
+{
+  "course_id": "uuid",
+  "check_only": false  // If true, only checks status without triggering
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "status": "processing" | "waiting" | "completed",
+  "triggered_segment": 2,  // If a segment was triggered
+  "segments_total": 4,
+  "segments_completed": 1,
+  "status_breakdown": {
+    "pending": 2,
+    "processing": 1,
+    "completed": 1,
+    "failed": 0
+  },
+  "message": "Processing segment 2 of 4"
 }
 ```
 
@@ -345,7 +706,29 @@ Content-Type: application/json
           "timestamp": 125, // LLM-optimized placement
           "type": "multiple-choice",
           "question": "...",
-          "optimal_timestamp": 125 // Where LLM decided it should appear
+          "optimal_timestamp": 125, // Where LLM decided it should appear
+          "options": ["A", "B", "C", "D"],
+          "correct_answer": 2,
+          "explanation": "..."
+        },
+        {
+          "question_id": "q2",
+          "timestamp": 240,
+          "type": "hotspot",
+          "question": "...",
+          "target_objects": ["Object 1", "Object 2"],
+          "frame_timestamp": 240,
+          "bounding_boxes": [
+            {
+              "label": "Object 1",
+              "x": 0.25,
+              "y": 0.35,
+              "width": 0.15,
+              "height": 0.20,
+              "confidence_score": 0.95,
+              "is_correct_answer": true
+            }
+          ]
         }
       ]
     }
@@ -366,6 +749,12 @@ Content-Type: application/json
 | **Timestamp Conversion** | ✅ Fixed | - | Base-60 to seconds bidirectional |
 | **LLM Timing Optimization** | ✅ Active | - | All processors except hotspot |
 | **Context Extraction** | ✅ Enhanced | - | Intelligent segment boundaries |
+| **Segmented Processing** | ✅ Active | - | Long videos (>10 min) processed in segments |
+| **Atomic Processing** | ✅ Complete | - | Worker IDs prevent concurrent processing |
+| **Orchestrator Backend** | ✅ Production | - | Manages all segment sequencing |
+| **LangSmith Integration** | ✅ Active | - | All API calls logged for debugging |
+| **Hotspot Metadata** | ✅ Fixed | - | Complete bounding box storage |
+| **LLM Provider Default** | ✅ Updated | - | OpenAI default for text questions |
 
 ### 8.2 Performance Metrics 📊
 
@@ -376,6 +765,8 @@ Content-Type: application/json
 | **Question Timing** | Optimal | After concepts explained |
 | **Context Window** | ±30 seconds | Configurable per question |
 | **Pipeline Success Rate** | 99%+ | With enhanced error handling |
+| **Segment Processing** | Sequential | Atomic claiming prevents duplicates |
+| **Recovery Time** | 5 minutes | Automatic stuck segment detection |
 
 ### 8.3 Major v5.0 Enhancements ✅
 
@@ -387,6 +778,14 @@ Content-Type: application/json
 | **Segment Boundary Intelligence** | Auto-fill missing end_timestamps | ✅ Complete |
 | **Enhanced Context Extraction** | Rich context with nearby concepts | ✅ Complete |
 | **JSON Parse Error Handling** | Robust handling of large responses | ✅ Complete |
+| **Segmented Video Processing** | Automatic splitting and sequential processing for long videos | ✅ Complete |
+| **Context Continuity** | Educational context preserved across video segments | ✅ Complete |
+| **Smart Segment Boundaries** | 5-second buffer to avoid cutting mid-sentence | ✅ Complete |
+| **Atomic Segment Claiming** | Worker IDs prevent duplicate processing | ✅ Complete |
+| **Backend Orchestrator** | Centralized segment processing management | ✅ Complete |
+| **Automatic Recovery** | Stuck segments detected and retried after 5 minutes | ✅ Complete |
+| **Complete Hotspot Metadata** | All fields including bounding boxes properly saved | ✅ Complete |
+| **OpenAI Default Provider** | Text questions use OpenAI by default with Gemini fallback | ✅ Complete |
 
 ---
 
@@ -411,6 +810,8 @@ Content-Type: application/json
 2. Context includes ±30 second window with segments
 3. LLM analyzes when concepts are fully explained
 4. Returns optimal_timestamp for question placement
+5. **NEW**: OpenAI GPT-4o processes text questions by default
+6. **NEW**: Complete metadata including bounding boxes stored
 
 ### 9.2 Error Handling Enhancements
 
@@ -419,6 +820,12 @@ Content-Type: application/json
 - JSON fixing attempts for truncated responses
 - Reduced token limits to prevent truncation
 - Comprehensive error context in logs
+
+**Atomic Processing Protection:**
+- Worker ID generation for each processor instance
+- Conditional database updates prevent concurrent claims
+- Stuck segment detection with 5-minute timeout
+- Automatic retry with incremented retry_count
 
 ### 9.3 Environment Configuration
 
@@ -433,6 +840,8 @@ SUPABASE_SERVICE_ROLE_KEY  # Service role key for database access
 **Optional Environment Variables:**
 ```bash
 YOUTUBE_API_KEY      # YouTube Data API v3 access (for dynamic frame sampling)
+LANGSMITH_API_KEY    # LangSmith API key for request/response logging
+LANGSMITH_PROJECT    # LangSmith project name (defaults to 'pr-drab-plowman-55')
 ```
 
 **Setting up YouTube API Key:**
@@ -441,6 +850,29 @@ YOUTUBE_API_KEY      # YouTube Data API v3 access (for dynamic frame sampling)
 3. Enable YouTube Data API v3
 4. Create credentials (API Key)
 5. Set in Supabase: `npx supabase secrets set YOUTUBE_API_KEY=your_key`
+
+### 9.4 Monitoring and Debugging
+
+**LangSmith Integration:**
+All LLM API calls (OpenAI and Gemini) are automatically logged to LangSmith for debugging:
+
+```typescript
+// Automatic logging for all API calls
+const response = await langsmithLogger.makeAPICall(
+  geminiUrl,
+  requestBody,
+  {
+    model: 'gemini-2.5-pro',
+    description: 'Generating hotspot bounding boxes'
+  }
+);
+```
+
+**View traces in LangSmith:**
+- Each API call generates a unique trace URL
+- View request/response payloads, tokens used, and timing
+- Debug issues with complete context
+- Monitor performance across all LLM calls
 
 ---
 
@@ -460,8 +892,18 @@ curl -X POST 'https://YOUR_PROJECT.supabase.co/functions/v1/quiz-generation-v5' 
     "enable_quality_verification": false
   }'
 
+# Test orchestrator for segmented videos
+curl -X POST 'https://YOUR_PROJECT.supabase.co/functions/v1/orchestrate-segment-processing' \
+  -H 'Authorization: Bearer YOUR_KEY' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "course_id": "test-course-id",
+    "check_only": false
+  }'
+
 # Monitor logs for transcript generation
 npx supabase functions logs quiz-generation-v5 --project-ref YOUR_PROJECT_ID
+npx supabase functions logs orchestrate-segment-processing --project-ref YOUR_PROJECT_ID
 ```
 
 ### 10.2 Key Log Outputs
@@ -477,8 +919,45 @@ npx supabase functions logs quiz-generation-v5 --project-ref YOUR_PROJECT_ID
 📝 Transcript generated: 45 segments
 💾 Transcript saved successfully
 ⏰ Adjusted timestamp: 1:05 → 1:25 (concepts fully explained)
+
+🔒 Attempting to claim segment with worker ID: worker_1234567890_abc123
+✅ Successfully claimed segment for processing
+🤖 Generating multiple-choice with OpenAI (default provider)
+✅ OpenAI generation successful
+🎯 Creating 3 bounding boxes for hotspot question
+✅ Created 3 bounding boxes for question
+
+🎼 Orchestrator: Checking course segments...
+🔄 Reset stuck segment: worker_oldid_xyz789 (processing for 367s)
+✅ Triggered segment 2 of 4 for processing
+📊 Status: pending=1, processing=1, completed=2, failed=0
 ```
 
 ---
 
-*This documentation reflects the current v5.0 implementation with full transcript generation, intelligent timestamp optimization, and enhanced educational context awareness.* 
+## 11. LangSmith Monitoring
+
+### 11.1 Integration Overview
+
+LangSmith provides comprehensive monitoring for all LLM API calls:
+
+- **Automatic Logging**: All OpenAI and Gemini calls logged
+- **Request/Response Tracking**: Full payloads captured
+- **Performance Metrics**: Token usage, latency, success rates
+- **Error Debugging**: Failed requests with full context
+- **Trace URLs**: Direct links to view individual API calls
+
+### 11.2 Viewing Traces
+
+Access your traces at: https://smith.langchain.com/
+
+Example trace information:
+- Model used (e.g., `gpt-4o-2024-08-06`, `gemini-2.5-flash`)
+- Token counts (prompt, completion, total)
+- Latency measurements
+- Full request/response payloads
+- Error messages and stack traces
+
+---
+
+*This documentation reflects the current v5.0 implementation with full transcript generation, intelligent timestamp optimization, atomic segment processing, backend orchestration, complete metadata storage, and enhanced educational context awareness.* 

@@ -56,8 +56,8 @@ interface ProviderConfig {
 // =============================================================================
 
 const DEFAULT_CONFIG: ProviderConfig = {
-  preferredProvider: 'gemini',
-  fallbackProvider: 'openai',
+  preferredProvider: 'openai',
+  fallbackProvider: 'gemini',
   retryAttempts: 3,
   retryDelay: 1000,
   geminiApiKey: Deno.env.get('GEMINI_API_KEY') || '',
