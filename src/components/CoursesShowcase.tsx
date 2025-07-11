@@ -18,6 +18,7 @@ interface Course {
   published: boolean;
   averageRating?: number;
   totalRatings?: number;
+  questionCount?: number;
 }
 
 interface CoursesShowcaseProps {
@@ -57,6 +58,13 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
       const data = await response.json();
 
       if (data.success) {
+        // Debug: Log the fetched courses to see if questionCount is included
+        console.log('🔍 Fetched courses:', data.courses.map((c: Course) => ({
+          title: c.title,
+          questionCount: c.questionCount,
+          averageRating: c.averageRating,
+          totalRatings: c.totalRatings
+        })));
         setAllCourses(data.courses);
       } else {
         setError('Failed to fetch courses');
@@ -449,7 +457,7 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
                       <span className="text-xs sm:text-sm">{formatDate(course.created_at)}</span>
                     </div>
                     <Badge variant="secondary" className="text-xs">
-                      AI Enhanced Course
+                      {course.questionCount || 0} Questions
                     </Badge>
                   </div>
                 </div>
