@@ -37,6 +37,8 @@ interface QuestionOverlayProps {
   courseId?: string; // For progress tracking
   segmentIndex?: number; // For progress tracking
   isInline?: boolean; // Render inline instead of as overlay
+  onAuthRequired?: () => void; // Callback when authentication is required
+  freeQuestionsRemaining?: number; // Number of free questions left for unauthenticated users
 }
 
 export default function QuestionOverlay({ 
@@ -47,7 +49,9 @@ export default function QuestionOverlay({
   player,
   courseId,
   segmentIndex,
-  isInline = false
+  isInline = false,
+  onAuthRequired,
+  freeQuestionsRemaining
 }: QuestionOverlayProps) {
   const { user, supabase } = useAuth();
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
@@ -321,6 +325,14 @@ export default function QuestionOverlay({
   const handleSubmit = async () => {
     if (selectedAnswer === null) return;
 
+    // Check if user needs to authenticate
+    if (!user && freeQuestionsRemaining !== undefined && freeQuestionsRemaining <= 0) {
+      if (onAuthRequired) {
+        onAuthRequired();
+        return;
+      }
+    }
+
     // Handle both formats: correct as index or correct_answer as value
     // Support legacy 'correct' field from feature branch
     const correctIndex = question.correct !== undefined ? question.correct : 
@@ -440,6 +452,15 @@ export default function QuestionOverlay({
   const questionCard = (
     <Card className={isInline ? "w-full" : "w-full max-w-2xl mx-auto"}>
       <CardContent className="space-y-6 pt-6">
+        {/* Show free questions remaining banner for unauthenticated users */}
+        {!user && freeQuestionsRemaining !== undefined && freeQuestionsRemaining > 0 && (
+          <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-center">
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              {freeQuestionsRemaining} free {freeQuestionsRemaining === 1 ? 'question' : 'questions'} remaining. Sign up to access all course content!
+            </p>
+          </div>
+        )}
+        
         <div>
           <p className="text-lg font-medium mb-4">{question.question}</p>
           

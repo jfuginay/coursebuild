@@ -223,6 +223,13 @@ export default function CoursePreviewPage() {
             requiresVideoOverlay: question.requires_video_overlay
           });
           
+          // Check if user has reached free question limit
+          if (!user && answeredQuestions.size >= FREE_QUESTIONS_LIMIT) {
+            playerRef.current?.pauseVideo();
+            setShowLoginModal(true);
+            return;
+          }
+          
           // Pause the video and show this specific question
           playerRef.current?.pauseVideo();
           setCurrentSegmentIndex(segmentIndex);
@@ -270,8 +277,16 @@ export default function CoursePreviewPage() {
         console.error('Failed to fetch rating data:', error);
       }
 
-      // Fetch real questions from the API
-      const questionsResponse = await fetch(`/api/course/${id}/questions`);
+      // Fetch real questions from the API with authentication if available
+      const headers: HeadersInit = {};
+      if (user && supabase) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+      }
+      
+      const questionsResponse = await fetch(`/api/course/${id}/questions`, { headers });
       const questionsData = await questionsResponse.json();
       console.log('Questions data:', questionsData);
 
@@ -472,10 +487,11 @@ export default function CoursePreviewPage() {
     const questionId = `${currentSegmentIndex}-${currentQuestionIndex}`;
     setAnsweredQuestions(new Set(Array.from(answeredQuestions).concat(questionId)));
     
-    // Check if this is beyond the free limit
+    // Check if this is beyond the free limit for non-authenticated users
     const totalAnsweredQuestions = answeredQuestions.size + 1;
-    if (totalAnsweredQuestions >= FREE_QUESTIONS_LIMIT) {
+    if (!user && totalAnsweredQuestions >= FREE_QUESTIONS_LIMIT) {
       setShowLoginModal(true);
+      setShowQuestion(false);
       return;
     }
     
@@ -888,6 +904,8 @@ export default function CoursePreviewPage() {
           player={player}
           courseId={id as string}
           segmentIndex={currentSegmentIndex}
+          onAuthRequired={() => setShowLoginModal(true)}
+          freeQuestionsRemaining={Math.max(0, FREE_QUESTIONS_LIMIT - answeredQuestions.size)}
         />
       )}
 
