@@ -11,14 +11,14 @@ declare const Deno: {
   };
 };
 
-import type { QuestionPlan } from '../types/interfaces';
+import type { QuestionPlan } from '../types/interfaces.ts';
 import { 
   ENHANCED_QUESTION_PLANNING_PROMPT,
   PLANNING_RESPONSE_SCHEMA,
   QUESTION_TYPE_CONFIG,
   DIFFICULTY_LEVEL_GUIDELINES,
   BLOOM_LEVEL_DEFINITIONS 
-} from '../config/prompts';
+} from '../config/prompts.ts';
 
 // =============================================================================
 // Enhanced Question Planning Configuration
