@@ -5,7 +5,14 @@
  * providers while maintaining the same API for question generation.
  */
 
+declare const Deno: {
+  env: {
+    get(key: string): string | undefined;
+  };
+};
+
 import { getQuestionSchema } from './llm-schemas.ts';
+import { langsmithLogger } from '../utils/langsmith-logger.ts';
 
 // =============================================================================
 // Types and Interfaces
@@ -49,8 +56,8 @@ interface ProviderConfig {
 // =============================================================================
 
 const DEFAULT_CONFIG: ProviderConfig = {
-  preferredProvider: 'openai',
-  fallbackProvider: 'gemini',
+  preferredProvider: 'gemini',
+  fallbackProvider: 'openai',
   retryAttempts: 3,
   retryDelay: 1000,
   geminiApiKey: Deno.env.get('GEMINI_API_KEY') || '',
@@ -90,44 +97,77 @@ class GeminiProvider {
       }
     };
 
-    const response = await fetch(`${this.baseUrl}/gemini-2.0-flash-exp:generateContent?key=${this.apiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`Gemini API error: ${response.status} - ${JSON.stringify(errorData)}`);
+    const url = `${this.baseUrl}/gemini-2.0-flash-exp:generateContent?key=${this.apiKey}`;
+    
+        // Use LangSmith logger for the API call
+    const startTime = Date.now();
+    const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Log request to LangSmith
+    const runId = await langsmithLogger.logGeminiRequest(
+      requestId,
+      'gemini-2.0-flash-exp',
+      prompt,
+      requestBody.generationConfig
+    );
+    
+    if (!runId && langsmithLogger.isEnabled()) {
+      console.warn('[LangSmith] Failed to create run, continuing without logging');
     }
 
-    const data = await response.json();
-    
-    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-      throw new Error('Invalid response structure from Gemini API');
-    }
-
-    const content = data.candidates[0].content.parts[0].text;
-    let parsedContent;
-    
     try {
-      parsedContent = JSON.parse(content);
-    } catch (error) {
-      throw new Error(`Failed to parse Gemini response as JSON: ${(error as Error).message}`);
-    }
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      });
 
-    return {
-      content: parsedContent,
-      usage: {
-        promptTokens: data.usageMetadata?.promptTokenCount || 0,
-        completionTokens: data.usageMetadata?.candidatesTokenCount || 0,
-        totalTokens: data.usageMetadata?.totalTokenCount || 0
-      },
-      provider: 'gemini',
-      model: 'gemini-2.0-flash-exp'
-    };
+      const responseTime = Date.now() - startTime;
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        const error = new Error(`Gemini API error: ${response.status} - ${JSON.stringify(errorData)}`);
+        await langsmithLogger.logGeminiResponse(requestId, null, responseTime, error);
+        throw error;
+      }
+
+      const data = await response.json();
+      
+      // Log the response to LangSmith
+      await langsmithLogger.logGeminiResponse(requestId, data, responseTime);
+      
+      if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+        throw new Error('Invalid response structure from Gemini API');
+      }
+
+      const content = data.candidates[0].content.parts[0].text;
+      let parsedContent;
+      
+      try {
+        parsedContent = JSON.parse(content);
+      } catch (error) {
+        throw new Error(`Failed to parse Gemini response as JSON: ${(error as Error).message}`);
+      }
+
+      return {
+        content: parsedContent,
+        usage: {
+          promptTokens: data.usageMetadata?.promptTokenCount || 0,
+          completionTokens: data.usageMetadata?.candidatesTokenCount || 0,
+          totalTokens: data.usageMetadata?.totalTokenCount || 0
+        },
+        provider: 'gemini',
+        model: 'gemini-2.0-flash-exp'
+      };
+    } catch (error) {
+      // If not already logged, log the error
+      if (!(error instanceof Error && error.message.includes('Gemini API error'))) {
+        await langsmithLogger.logGeminiResponse(requestId, null, Date.now() - startTime, error as Error);
+      }
+      throw error;
+    }
   }
 }
 
@@ -170,45 +210,76 @@ class OpenAIProvider {
       top_p: config.topP
     };
 
-    const response = await fetch(`${this.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`OpenAI API error: ${response.status} - ${JSON.stringify(errorData)}`);
+    // Use LangSmith logger for the API call
+    const startTime = Date.now();
+    const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Log request to LangSmith
+    const runId = await langsmithLogger.logOpenAIRequest(
+      requestId,
+      'gpt-4o-2024-08-06',
+      prompt,
+      requestBody
+    );
+    
+    if (!runId && langsmithLogger.isEnabled()) {
+      console.warn('[LangSmith] Failed to create run, continuing without logging');
     }
 
-    const data = await response.json();
-    
-    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-      throw new Error('Invalid response structure from OpenAI API');
-    }
-
-    const content = data.choices[0].message.content;
-    let parsedContent;
-    
     try {
-      parsedContent = JSON.parse(content);
-    } catch (error) {
-      throw new Error(`Failed to parse OpenAI response as JSON: ${(error as Error).message}`);
-    }
+      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`
+        },
+        body: JSON.stringify(requestBody)
+      });
 
-    return {
-      content: parsedContent,
-      usage: {
-        promptTokens: data.usage?.prompt_tokens || 0,
-        completionTokens: data.usage?.completion_tokens || 0,
-        totalTokens: data.usage?.total_tokens || 0
-      },
-      provider: 'openai',
-      model: 'gpt-4o-2024-08-06'
-    };
+      const responseTime = Date.now() - startTime;
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        const error = new Error(`OpenAI API error: ${response.status} - ${JSON.stringify(errorData)}`);
+        await langsmithLogger.logOpenAIResponse(requestId, null, responseTime, error);
+        throw error;
+      }
+
+      const data = await response.json();
+      
+      // Log the response to LangSmith
+      await langsmithLogger.logOpenAIResponse(requestId, data, responseTime);
+      
+      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+        throw new Error('Invalid response structure from OpenAI API');
+      }
+
+      const content = data.choices[0].message.content;
+      let parsedContent;
+      
+      try {
+        parsedContent = JSON.parse(content);
+      } catch (error) {
+        throw new Error(`Failed to parse OpenAI response as JSON: ${(error as Error).message}`);
+      }
+
+      return {
+        content: parsedContent,
+        usage: {
+          promptTokens: data.usage?.prompt_tokens || 0,
+          completionTokens: data.usage?.completion_tokens || 0,
+          totalTokens: data.usage?.total_tokens || 0
+        },
+        provider: 'openai',
+        model: 'gpt-4o-2024-08-06'
+      };
+    } catch (error) {
+      // If not already logged, log the error
+      if (!(error instanceof Error && error.message.includes('OpenAI API error'))) {
+        await langsmithLogger.logOpenAIResponse(requestId, null, Date.now() - startTime, error as Error);
+      }
+      throw error;
+    }
   }
 }
 
@@ -406,14 +477,23 @@ export const checkProviderHealth = async (): Promise<{
     topP: 0.8
   };
 
+  console.log('🏥 Running provider health check...');
+
   const [geminiResult, openaiResult] = await Promise.allSettled([
     new GeminiProvider(Deno.env.get('GEMINI_API_KEY') || '').generateResponse(testPrompt, 'multiple-choice', testConfig),
     new OpenAIProvider(Deno.env.get('OPENAI_API_KEY') || '').generateResponse(testPrompt, 'multiple-choice', testConfig)
   ]);
 
-  return {
+  const result = {
     gemini: geminiResult.status === 'fulfilled',
     openai: openaiResult.status === 'fulfilled',
     timestamp: Date.now()
   };
+
+  console.log('🏥 Health check results:', {
+    gemini: result.gemini ? '✅' : '❌',
+    openai: result.openai ? '✅' : '❌'
+  });
+
+  return result;
 }; 

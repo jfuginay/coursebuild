@@ -1,15 +1,27 @@
-# CourseBuilder - Supabase Edge Functions
+# Supabase Deployment Guide
 
-This directory contains the Supabase edge functions for the CourseBuilder project, including the sophisticated video analysis and quiz generation system.
+This guide explains how to deploy all Supabase components for the CourseForge AI application.
 
-## 🎯 **Overview**
+## Prerequisites
 
-### **Current Edge Functions:**
-- **`gemini-quiz-service`**: Advanced video analysis and quiz generation using Gemini 2.5 Flash
+- Supabase CLI installed
+- Access to your Supabase project
+- Service role key for your project
 
-## 🚀 **Quick Deployment**
+## Deploying Edge Functions
 
-### **Deploy from Cursor:**
+### Important Environment Variables
+
+Edge Functions need these environment variables for function-to-function calls:
+- `SUPABASE_URL`: Your Supabase project URL
+- `SUPABASE_SERVICE_ROLE_KEY`: Service role key (for function-to-function calls)
+
+These are automatically available in production Edge Functions.
+
+### Deploy All Functions
+
+Deploy all functions at once:
+
 ```bash
 # Deploy the gemini-quiz-service function
 npm run supabase:deploy:gemini
@@ -25,6 +37,25 @@ npm run supabase:logs
 
 # Or manually
 npx supabase functions logs gemini-quiz-service --project-ref YOUR_PROJECT_REF
+```
+
+### Manual Edge Function Deployment
+
+If needed, you can deploy individual functions:
+
+```bash
+# Deploy quiz generation v5 function
+supabase functions deploy quiz-generation-v5
+
+# Deploy course suggestions function  
+supabase functions deploy course-suggestions
+
+# Deploy schema update function
+supabase functions deploy schema-update
+
+# Deploy segmented processing functions
+supabase functions deploy init-segmented-processing
+supabase functions deploy process-video-segment
 ```
 
 ## 📁 **Project Structure**
@@ -223,6 +254,30 @@ npx supabase functions deploy gemini-quiz-service --debug
 - **Deno Documentation**: https://deno.land/manual
 
 ---
+
+## 💡 **Development Notes**
+
+This edge function represents a production-ready implementation of advanced AI video analysis. The system is already more sophisticated than initially planned, featuring:
+
+- **Direct video input** to Gemini (not just transcripts)
+- **Visual context awareness** for frame-specific questions
+- **Educational quality** focus with meaningful explanations
+- **Robust error handling** and logging
+- **Scalable architecture** for production use
+
+The implementation showcases cutting-edge AI capabilities for educational content generation and serves as a foundation for the CourseBuilder platform. 
+
+## 💡 **Development Notes**
+
+This edge function represents a production-ready implementation of advanced AI video analysis. The system is already more sophisticated than initially planned, featuring:
+
+- **Direct video input** to Gemini (not just transcripts)
+- **Visual context awareness** for frame-specific questions
+- **Educational quality** focus with meaningful explanations
+- **Robust error handling** and logging
+- **Scalable architecture** for production use
+
+The implementation showcases cutting-edge AI capabilities for educational content generation and serves as a foundation for the CourseBuilder platform. 
 
 ## 💡 **Development Notes**
 

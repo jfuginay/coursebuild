@@ -29,7 +29,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Initialize progress tracking
     console.log('📊 Initializing progress tracking...');
     await supabase
-      .from('processing_progress')
+      .from('quiz_generation_progress')
       .upsert({
         course_id: course_id,
         session_id: session_id,
@@ -37,7 +37,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         stage_progress: 0.0,
         overall_progress: 0.0,
         current_step: 'Starting video analysis pipeline',
-        details: {
+        metadata: {
           youtube_url: youtube_url,
           max_questions: max_questions,
           enable_quality_verification: enable_quality_verification,
@@ -57,7 +57,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Update progress: Moving to planning stage
     await supabase
-      .from('processing_progress')
+      .from('quiz_generation_progress')
       .upsert({
         course_id: course_id,
         session_id: session_id,
@@ -65,7 +65,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         stage_progress: 0.8,
         overall_progress: 0.04,
         current_step: 'Connecting to quiz generation pipeline',
-        details: {
+        metadata: {
           pipeline_url: quizGenerationUrl,
           pipeline_status: 'connecting'
         }
@@ -95,7 +95,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       
       // Update progress to failed state
       await supabase
-        .from('processing_progress')
+        .from('quiz_generation_progress')
         .upsert({
           course_id: course_id,
           session_id: session_id,
@@ -103,7 +103,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           stage_progress: 0.0,
           overall_progress: 0.05,
           current_step: 'Pipeline failed',
-          details: {
+          metadata: {
             error_message: errorText,
             failed_at: new Date().toISOString()
           }
@@ -124,7 +124,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (pipelineResult.success) {
       // Final progress update: Mark as completed
       await supabase
-        .from('processing_progress')
+        .from('quiz_generation_progress')
         .upsert({
           course_id: course_id,
           session_id: session_id,
@@ -132,7 +132,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           stage_progress: 1.0,
           overall_progress: 1.0,
           current_step: 'Video processing completed successfully',
-          details: {
+          metadata: {
             completed_at: new Date().toISOString(),
             total_questions: pipelineResult.final_questions?.length || 0,
             success_rate: pipelineResult.pipeline_metadata?.success_rate || 0,
@@ -162,7 +162,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     } else {
       // Pipeline failed
       await supabase
-        .from('processing_progress')
+        .from('quiz_generation_progress')
         .upsert({
           course_id: course_id,
           session_id: session_id,
@@ -170,7 +170,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           stage_progress: 0.0,
           overall_progress: 0.5,
           current_step: 'Pipeline execution failed',
-          details: {
+          metadata: {
             error_message: pipelineResult.error || 'Unknown pipeline error',
             failed_at: new Date().toISOString()
           }
@@ -197,7 +197,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         );
 
         await supabase
-          .from('processing_progress')
+          .from('quiz_generation_progress')
           .upsert({
             course_id: req.body.course_id,
             session_id: req.body.session_id,
@@ -205,7 +205,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             stage_progress: 0.0,
             overall_progress: 0.05,
             current_step: 'System error occurred',
-            details: {
+            metadata: {
               error_message: error instanceof Error ? error.message : String(error),
               failed_at: new Date().toISOString()
             }

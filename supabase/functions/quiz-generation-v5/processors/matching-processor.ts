@@ -229,7 +229,7 @@ Use this transcript context to:
   } else {
     prompt += `
 
-Note: No transcript context available. Use the suggested timestamp of ${plan.timestamp}s.`;
+Note: No transcript context available. Use the suggested timestamp of ${formatSecondsForDisplay(plan.timestamp)} (${plan.timestamp}s).`;
   }
 
   prompt += `
