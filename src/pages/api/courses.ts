@@ -17,6 +17,14 @@ export default async function handler(
   const { ids } = req.query;
 
   try {
+    // Refresh the materialized view to ensure rating stats are up-to-date
+    const { error: refreshError } = await supabase.rpc('refresh_course_rating_stats');
+    if (refreshError) {
+      console.error('Error refreshing course_rating_stats:', refreshError);
+      // Decide if this should be a hard error or just a warning
+      // For now, let's log it and continue, as courses can still be fetched
+    }
+
     // Get basic course data first (reliable baseline)
     let query = supabase
       .from('courses')
