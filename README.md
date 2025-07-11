@@ -7,7 +7,7 @@ CourseBuilder is an innovative platform that transforms YouTube videos into comp
 CourseBuilder leverages dual LLM providers with full video transcription and intelligent question timing to:
 - **Full Video Transcript Generation** with visual descriptions and concept timeline
 - **Intelligent Question Timing** using LLM-based optimization to place questions after concepts are explained
-- **Dual LLM Provider Support** with OpenAI GPT-4o and Google Gemini 2.5 Flash
+- **Dual LLM Provider Support** with OpenAI GPT-4o (default for text) and Google Gemini 2.5 Flash (for visual)
 - **Enhanced Context Awareness** with transcript-based question generation
 - **Educational framework integration** with Bloom's taxonomy and quality control
 
@@ -20,14 +20,23 @@ CourseBuilder leverages dual LLM providers with full video transcription and int
 - **Transcript context extraction** with intelligent segment boundary handling
 - **Dynamic frame sampling** based on video duration for optimal performance (NEW)
 - **Unified LLM interface** supporting OpenAI GPT-4o and Gemini 2.5 Flash
-- **Provider-specific optimization**: OpenAI for text questions, Gemini for visual content
+- **Provider-specific optimization**: OpenAI for text questions (default), Gemini for visual content
 - **Automatic fallback system** with health checks and retry logic
+- **Segmented processing** for long videos (>10 minutes) with context preservation (NEW)
 
 ### 🔧 **Advanced Processing Pipeline**
 - **Enhanced 3-stage processing**: 
   - Stage 1: Full transcript generation + planning with dynamic frame sampling
   - Stage 2: Context-aware question generation with optimal timing
   - Stage 3: Optional quality verification
+- **Segmented video processing** for long videos:
+  - Automatic splitting into ~5-minute segments
+  - Sequential processing with context continuity
+  - Progressive transcript building across segments
+  - Smart segment boundaries with 5-second buffer
+  - **Atomic segment claiming** with unique worker IDs (NEW)
+  - **Backend orchestration** for reliable sequential processing (NEW)
+  - **Automatic recovery** for stuck segments with 5-minute timeout (NEW)
 - **Real-time video analysis** with transcript-aware strategic question placement
 - **Intelligent frame sampling** that adapts to video duration (1fps for <5min, scaling down for longer videos)
 - **Transcript storage** for reuse and analysis
@@ -40,6 +49,7 @@ CourseBuilder leverages dual LLM providers with full video transcription and int
 - **Sequencing questions** with live reordering and logical flow validation
 - **Video overlay integration** with LLM-optimized timestamp placement
 - **Transcript-aware rendering** supporting contextual question display
+- **Complete metadata storage** including all bounding boxes for segmented videos (NEW)
 
 ### 📊 **Quality Assurance & Monitoring**
 - **Comprehensive error recovery** with multi-provider fallback
@@ -47,18 +57,21 @@ CourseBuilder leverages dual LLM providers with full video transcription and int
 - **Transcript-based validation** ensuring questions align with video content
 - **Enhanced JSON parsing** for large transcript responses
 - **Performance monitoring** with detailed metrics and health checks
+- **LangSmith integration** for API call tracing and debugging
 
 ## 🛠️ Technical Stack
 
 - **Frontend**: Next.js with Pages Router, TypeScript, Tailwind CSS, ShadCN UI
 - **Backend**: Supabase Edge Functions (Deno runtime)
 - **AI Services**: 
-  - **OpenAI GPT-4o** (2024-08-06) with structured outputs for text questions
+  - **OpenAI GPT-4o** (2024-08-06) with structured outputs for text questions (default)
   - **Google Gemini 2.5 Flash** with Vision API for visual content and transcription
 - **LLM Interface**: Unified provider abstraction with automatic switching
 - **Database**: Supabase (PostgreSQL) with transcript storage support
 - **Deployment**: Vercel (Frontend) + Supabase Edge Functions
 - **Error Handling**: Multi-layer retry logic with JSON fixing capabilities
+- **Monitoring**: LangSmith integration for API call tracing and debugging
+- **Orchestration**: Backend-only segment processing with atomic claiming
 
 ## 🚀 Getting Started
 
@@ -122,6 +135,8 @@ npm run demo:targeted-visual
 | **Transcript Generation** | ✅ Production | - | Complete video analysis with visual descriptions |
 | **Timestamp Optimization** | ✅ Active | - | LLM-based placement after concepts explained |
 | **Database Schema** | ✅ Updated | - | Transcript storage and enhanced metrics |
+| **Segmented Processing** | ✅ Active | - | Atomic claiming with backend orchestration |
+| **LLM Providers** | ✅ Updated | - | OpenAI default for text, Gemini for visual |
 
 ### Supabase Edge Functions
 
@@ -129,11 +144,16 @@ The backend processing is powered by Quiz Generation v5.0 with advanced transcri
 
 - **`quiz-generation-v5`**: Main pipeline with full transcript generation and LLM timing
 - **`course-suggestions`**: AI-powered course continuation recommendations
+- **`orchestrate-segment-processing`**: Backend orchestrator for reliable segment sequencing
+- **`process-video-segment`**: Individual segment processor with atomic claiming
 
 #### Quick Deployment Commands:
 ```bash
 # Deploy Quiz Generation v5.0
 cd supabase && npx supabase functions deploy quiz-generation-v5 --project-ref YOUR_PROJECT_ID
+
+# Deploy Orchestrator
+npx supabase functions deploy orchestrate-segment-processing --project-ref YOUR_PROJECT_ID
 
 # Monitor function logs  
 npx supabase functions logs quiz-generation-v5 --project-ref YOUR_PROJECT_ID --tail
@@ -223,6 +243,59 @@ curl -X POST https://YOUR_PROJECT_ID.supabase.co/functions/v1/quiz-generation-v5
 
 ## Recent Updates
 
+### Complete Hotspot Metadata Fix for Segmented Processing (December 2024)
+- **Fixed Missing Metadata**: Segmented video processing now saves ALL hotspot metadata fields
+- **Added Bounding Box Storage**: Both in metadata `detected_elements` field and separate `bounding_boxes` table
+- **Complete Feature Parity**: Segmented processing now identical to non-segmented for hotspot questions
+- **Fields Now Properly Saved**:
+  - `frame_timestamp` - Precise video frame timing
+  - `distractor_guidance` - Educational distractor information
+  - `detected_elements` - All bounding boxes with coordinates
+  - `gemini_bounding_boxes` - Indicates Gemini Vision processing
+  - `video_dimensions` - Video dimension reference
+
+### OpenAI as Default Provider for Text Questions (December 2024)
+- **Changed Default Provider**: All text-based questions now use OpenAI GPT-4o by default
+- **Updated Question Types**:
+  - Multiple Choice: `preferredProvider: 'openai'`
+  - True/False: `preferredProvider: 'openai'`
+  - Matching: `preferredProvider: 'openai'`
+  - Sequencing: `preferredProvider: 'openai'`
+- **Maintained Fallback**: Gemini still serves as automatic fallback if OpenAI fails
+- **Visual Questions Unchanged**: Hotspot questions continue using Gemini Vision API
+
+### Robust Segmented Processing Architecture (December 2024)
+- **Atomic Segment Processing**: Prevents concurrent processing with worker IDs and conditional database updates
+- **Backend Orchestrator**: New `orchestrate-segment-processing` function manages all segment processing
+- **Sequential Guarantee**: Segments process in order with enforced dependency checking
+- **No Frontend Coupling**: All orchestration happens in backend - works even if browser closes
+- **Automatic Recovery**: 5-minute timeout detection with automatic retry
+- **Database Enhancements**:
+  - Added `worker_id` column for processing locks
+  - Added `retry_count` for failure tracking
+  - Optimized indexes for stuck segment queries
+- **LangSmith Integration**: All Gemini API calls now logged for debugging and monitoring
+- **Enhanced Error Handling**: Graceful fallback when database columns don't exist
+- See `SEGMENTED_PROCESSING_ARCHITECTURE.md` for complete details
+
+### Video Segmenting Implementation - Complete
+- **Automatic Video Segmentation**: Videos >10 minutes automatically split into ~5-minute segments to avoid Edge Function timeouts
+- **Context Management System**:
+  - `SegmentContext` preserves educational continuity between segments
+  - Tracks key concepts, previous questions, and transcript segments
+  - Cumulative context passed between segments for coherent question generation
+- **Smart Segment Boundaries**:
+  - 5-second buffer added to video clips to avoid cutting mid-sentence
+  - Last segment <20 seconds automatically merged with previous
+  - Empty transcript segments skip question generation
+- **Enhanced Timestamp Handling**:
+  - Added `timestamp_format` field to Gemini responses
+  - Support for multiple formats: seconds, base60, mm:ss, decimal_minutes
+  - Intelligent format detection and conversion
+- **Progressive Transcript Building**:
+  - Single transcript entry built progressively across all segments
+  - Proper handling of segment boundaries and timestamp continuity
+
 ### Timestamp Conversion Fix
 - **Fixed decimal minute format**: Timestamps like 3.37 now correctly convert to 3m 37s (217 seconds)
 - **Issue**: Videos showing incorrect duration (e.g., 3.2s instead of 3:37)
@@ -244,6 +317,18 @@ curl -X POST https://YOUR_PROJECT_ID.supabase.co/functions/v1/quiz-generation-v5
   - Gemini returns only content from the clipped segment (no additional filtering needed)
   - No buffer applied to the last segment
 
+### Automatic Video Segmentation for Long Videos (NEW)
+- **Automatic Segmentation**: Videos longer than 10 minutes are automatically split into ~5-minute segments
+- **Sequential Processing**: Segments are processed one by one to avoid Edge Function timeouts
+- **Context Continuity**: Each segment receives comprehensive context from previous segments:
+  - Last 2 minutes of transcript from previous segment
+  - All key concepts introduced so far
+  - Summary of recent questions asked
+  - Cumulative educational progression
+- **Smart Segment Boundaries**: Segments use video clipping with `startOffset`/`endOffset` for precise content
+- **Progressive Transcript Building**: Single transcript entry built progressively across all segments
+- **Automatic Chaining**: Each segment automatically triggers the next upon completion
+
 ### Progress Tracking Table Fix
 - Fixed incorrect table names in progress tracking system
 - Changed `processing_progress` → `quiz_generation_progress` 
@@ -261,6 +346,7 @@ curl -X POST https://YOUR_PROJECT_ID.supabase.co/functions/v1/quiz-generation-v5
 
 ### Technical Documentation
 - **[COURSE_GENERATION_PIPELINE.md](COURSE_GENERATION_PIPELINE.md)**: Complete v5.0 technical reference with transcript integration
+- **[SEGMENTED_PROCESSING_ARCHITECTURE.md](SEGMENTED_PROCESSING_ARCHITECTURE.md)**: Detailed atomic processing architecture
 - **[supabase/functions/quiz-generation-v5/README.md](supabase/functions/quiz-generation-v5/README.md)**: v5 implementation details
 - **[supabase/DEPLOYMENT.md](supabase/DEPLOYMENT.md)**: Deployment and configuration instructions
 
@@ -269,6 +355,8 @@ curl -X POST https://YOUR_PROJECT_ID.supabase.co/functions/v1/quiz-generation-v5
 - **Base-60 Timestamp Handling**: Proper conversion for Gemini compatibility
 - **LLM-Based Timing**: Questions placed optimally after concept explanation
 - **Enhanced Context Pipeline**: Rich transcript context for all processors
+- **Atomic Segment Processing**: Reliable sequential processing with worker IDs
+- **Provider Flexibility**: Easy switching between OpenAI and Gemini
 
 ## 🏗️ Project Structure
 
@@ -278,6 +366,7 @@ curl -X POST https://YOUR_PROJECT_ID.supabase.co/functions/v1/quiz-generation-v5
 - `src/lib/`: Core libraries and API integrations
 - `supabase/`: Edge functions and database configuration
   - `functions/quiz-generation-v5/`: Main pipeline with transcript generation
+  - `functions/orchestrate-segment-processing/`: Backend orchestrator
   - `processors/`: LLM providers with transcript context support
   - `utils/`: Transcript utilities and timestamp conversion
   - `migrations/`: Database schema with transcript storage
@@ -293,6 +382,10 @@ curl -X POST https://YOUR_PROJECT_ID.supabase.co/functions/v1/quiz-generation-v5
 - [x] **Enhanced Error Handling**: Large JSON response handling
 - [x] **Database Transcript Storage**: Reusable transcript data
 - [x] **Segment Boundary Intelligence**: Auto-fill missing timestamps
+- [x] **Atomic Segment Processing**: Worker IDs prevent concurrent processing
+- [x] **Backend Orchestration**: Centralized segment management
+- [x] **Hotspot Metadata Fix**: Complete bounding box storage for segments
+- [x] **OpenAI Default Provider**: Text questions use OpenAI by default
 
 ### 🔄 **ACTIVE DEVELOPMENT**
 - [ ] Transcript-based learning paths with concept progression
@@ -306,6 +399,8 @@ curl -X POST https://YOUR_PROJECT_ID.supabase.co/functions/v1/quiz-generation-v5
 - ✅ Question timing optimization (ACHIEVED: After concepts explained)
 - ✅ Context extraction pipeline (ACHIEVED: Rich segment context)
 - ✅ Error recovery system (ACHIEVED: JSON fixing and retry logic)
+- ✅ Atomic processing (ACHIEVED: No duplicate segment processing)
+- ✅ Complete metadata storage (ACHIEVED: All hotspot fields saved)
 
 ## 🚀 Future Enhancements
 

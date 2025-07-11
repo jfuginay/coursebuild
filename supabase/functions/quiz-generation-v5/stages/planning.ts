@@ -265,7 +265,7 @@ Focus on content that appears within this time range while maintaining education
     console.log(`   📍 Sending to Gemini: startOffset="${segmentInfo.startTime}s", endOffset="${bufferedEndTime}s"`);
     
     const response = await logGeminiCall(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
       {
         contents: [{
           parts: [
@@ -514,7 +514,7 @@ For hotspot questions: Include 2-3 sentences in visual_learning_objective descri
     };
     
     const response = await logGeminiCall(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
       {
           contents: [{
             parts: [

@@ -14,6 +14,7 @@ declare const Deno: {
 
 import { QuestionPlan, HotspotQuestion, QuestionGenerationError } from '../types/interfaces.ts';
 import { convertSecondsToMMSS, formatSecondsForDisplay } from '../utils/timestamp-converter.ts';
+import { langsmithLogger } from '../utils/langsmith-logger.ts';
 
 // =============================================================================
 // Simplified Hotspot Generation Function
@@ -149,7 +150,7 @@ Use this transcript context to:
 ` : ''}
 
 Requirements:
-1. Generate clear, educational question text that asks students to identify a target object
+1. Generate clear, educational question text that asks students to identify ONE SINGLE target object
 2. Generate a comprehensive explanation that explains why identifying this object is important
 3. Find and mark all other visible objects in the frame with minimal overlap with the target object (minimum 3-5 bounding boxes)
 4. Mark the target object as correct answers
@@ -244,12 +245,12 @@ Guidelines for bounding boxes:
         }
       };
     
-      const response = await fetch(
+      const response = await langsmithLogger.makeAPICall(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
+        geminiRequest,
         {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(geminiRequest)
+          model: 'gemini-2.5-pro',
+          description: `Generating hotspot bounding boxes for ${plan.target_objects?.join(', ')}`
         }
       );
 

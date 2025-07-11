@@ -51,12 +51,14 @@ export const extractSegmentContext = (
   // Extract last portion of transcript (last 2 minutes or less)
   const contextStartTime = Math.max(
     segmentEndTime - contextDuration,
-    transcript.full_transcript[0]?.timestamp || 0
+    transcript.full_transcript && transcript.full_transcript[0]?.timestamp || 0
   );
   
-  const lastTranscriptSegments = transcript.full_transcript.filter(
-    (seg: TranscriptSegment) => seg.timestamp >= contextStartTime
-  );
+  const lastTranscriptSegments = transcript.full_transcript 
+    ? transcript.full_transcript.filter(
+        (seg: TranscriptSegment) => seg.timestamp >= contextStartTime
+      )
+    : [];
   
   // Extract all key concepts from this segment
   const rawKeyConcepts = transcript.key_concepts_timeline || [];
@@ -128,7 +130,13 @@ export const generateContextPrompt = (
   previousContext: SegmentContext | null,
   currentSegmentInfo: { index: number; startTime: number; endTime: number; totalSegments: number }
 ): string => {
-  if (!previousContext || previousContext.segmentIndex === -1) {
+  // Validate previousContext has all required properties
+  if (!previousContext || 
+      previousContext.segmentIndex === -1 ||
+      !previousContext.lastTranscriptSegments ||
+      !previousContext.keyConcepts ||
+      !previousContext.lastQuestions ||
+      !previousContext.segmentSummary) {
     return `
 ## SEGMENT INFORMATION:
 This is the FIRST segment of a ${currentSegmentInfo.totalSegments}-part video.
@@ -151,19 +159,25 @@ The learner has already watched ${formatTime(previousContext.totalProcessedDurat
 ${previousContext.segmentSummary}
 
 ### Key Concepts Already Introduced:
-${previousContext.keyConcepts.map(c => 
-  `- ${c.concept} (introduced at ${formatTime(c.first_mentioned)})`
-).join('\n')}
+${previousContext.keyConcepts && previousContext.keyConcepts.length > 0
+  ? previousContext.keyConcepts.map(c => 
+      `- ${c.concept} (introduced at ${formatTime(c.first_mentioned)})`
+    ).join('\n')
+  : 'No previous key concepts'}
 
 ### Last Few Transcript Segments from Previous Part:
-${previousContext.lastTranscriptSegments.slice(-5).map(s => 
-  `[${formatTime(s.timestamp)}] ${s.text}`
-).join('\n')}
+${previousContext.lastTranscriptSegments && previousContext.lastTranscriptSegments.length > 0
+  ? previousContext.lastTranscriptSegments.slice(-5).map(s => 
+      `[${formatTime(s.timestamp)}] ${s.text}`
+    ).join('\n')
+  : 'No previous transcript segments available'}
 
 ### Recent Questions Asked:
-${previousContext.lastQuestions.map(q => 
-  `- ${q.type} at ${formatTime(q.timestamp)}: ${q.topic}`
-).join('\n')}
+${previousContext.lastQuestions && previousContext.lastQuestions.length > 0
+  ? previousContext.lastQuestions.map(q => 
+      `- ${q.type} at ${formatTime(q.timestamp)}: ${q.topic}`
+    ).join('\n')
+  : 'No previous questions'}
 
 ## CURRENT SEGMENT:
 Time range: ${formatTime(currentSegmentInfo.startTime)} to ${formatTime(currentSegmentInfo.endTime)}
@@ -195,11 +209,13 @@ function generateSegmentSummary(
   const concepts = transcript.key_concepts_timeline || [];
   const conceptList = concepts.slice(0, 5).map((c: KeyConcept) => c.concept).join(', ');
   
-  const lastText = lastSegments
-    .slice(-3)
-    .map(s => s.text)
-    .join(' ')
-    .substring(0, 200);
+  const lastText = lastSegments && lastSegments.length > 0
+    ? lastSegments
+        .slice(-3)
+        .map(s => s.text)
+        .join(' ')
+        .substring(0, 200)
+    : 'No transcript content';
   
   return `Covered topics: ${conceptList || 'general content'}. Recent focus: ${lastText}...`;
 }

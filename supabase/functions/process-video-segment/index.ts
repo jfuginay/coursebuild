@@ -22,9 +22,17 @@ declare const Deno: {
 // This fixes issues where timestamps from previous segments might still be in
 // decimal minute format (e.g., 10.37 = 10m 37s) instead of seconds
 function validateAndConvertContextTimestamps(context: any): any {
-  if (!context) return context;
+  if (!context) return null;
   
-  const convertedContext = { ...context };
+  // Ensure all required properties exist with defaults
+  const convertedContext = {
+    lastTranscriptSegments: context.lastTranscriptSegments || [],
+    keyConcepts: context.keyConcepts || [],
+    lastQuestions: context.lastQuestions || [],
+    segmentSummary: context.segmentSummary || '',
+    segmentIndex: context.segmentIndex ?? -1,
+    totalProcessedDuration: context.totalProcessedDuration || 0
+  };
   
   // Convert key concepts timestamps
   if (convertedContext.keyConcepts && Array.isArray(convertedContext.keyConcepts)) {
@@ -44,7 +52,7 @@ function validateAndConvertContextTimestamps(context: any): any {
       
       return {
         ...concept,
-        first_mentioned: convertTimestamp(concept.first_mentioned),
+        first_mentioned: convertTimestamp(concept.first_mentioned || 0),
         explanation_timestamps: concept.explanation_timestamps?.map(convertTimestamp) || []
       };
     });
@@ -56,7 +64,19 @@ function validateAndConvertContextTimestamps(context: any): any {
       ...q,
       timestamp: q.timestamp < 20 && q.timestamp % 1 !== 0 
         ? Math.floor(q.timestamp) * 60 + Math.round((q.timestamp % 1) * 100)
-        : q.timestamp
+        : q.timestamp || 0
+    }));
+  }
+  
+  // Ensure lastTranscriptSegments have required structure
+  if (convertedContext.lastTranscriptSegments && Array.isArray(convertedContext.lastTranscriptSegments)) {
+    convertedContext.lastTranscriptSegments = convertedContext.lastTranscriptSegments.map((seg: any) => ({
+      timestamp: seg.timestamp || 0,
+      end_timestamp: seg.end_timestamp,
+      text: seg.text || '',
+      visual_description: seg.visual_description || '',
+      is_salient_event: seg.is_salient_event ?? false,
+      event_type: seg.event_type
     }));
   }
   
@@ -122,7 +142,7 @@ serve(async (req: Request) => {
     console.log(`   🔗 Has previous context: ${!!previous_segment_context}`);
     
     // Validate and convert timestamps in previous context
-    const validatedPreviousContext = validateAndConvertContextTimestamps(previous_segment_context);
+    let validatedPreviousContext = validateAndConvertContextTimestamps(previous_segment_context);
     
     // Debug previous context timestamps
     if (validatedPreviousContext && validatedPreviousContext.keyConcepts) {
@@ -143,17 +163,162 @@ serve(async (req: Request) => {
     const isLocal = supabaseUrl.includes('localhost') || supabaseUrl.includes('127.0.0.1');
     console.log(`🌍 Environment: ${isLocal ? 'LOCAL' : 'PRODUCTION'} (URL: ${supabaseUrl})`);
 
-    // Update segment status to processing
-    const { error: updateError } = await supabase
+    // ATOMIC SEGMENT CLAIMING: Prevent concurrent processing
+    // Generate a unique worker ID for this execution
+    const workerId = `worker_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    console.log(`🔒 Attempting to claim segment with worker ID: ${workerId}`);
+    
+    // First, check current segment status
+    const { data: currentSegment, error: fetchError } = await supabase
+      .from('course_segments')
+      .select('status, processing_started_at, worker_id, retry_count')
+      .eq('id', segment_id)
+      .single();
+    
+    if (fetchError) {
+      throw new Error(`Failed to fetch segment status: ${fetchError.message}`);
+    }
+    
+    // Check if segment is already being processed
+    if (currentSegment.status === 'processing') {
+      const processingTime = currentSegment.processing_started_at 
+        ? Date.now() - new Date(currentSegment.processing_started_at).getTime()
+        : 0;
+      
+      // If it's been processing for less than 5 minutes, skip
+      if (processingTime < 300000) { // 5 minutes
+        console.log(`⚠️ Segment already being processed by ${currentSegment.worker_id || 'unknown worker'}`);
+        console.log(`   ⏱️ Processing for ${Math.round(processingTime / 1000)}s`);
+        
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'Segment already being processed',
+            segment_index,
+            worker_id: currentSegment.worker_id,
+            processing_time_seconds: Math.round(processingTime / 1000)
+          }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 409 // Conflict
+          }
+        );
+      } else {
+        console.log(`⚠️ Segment has been processing for ${Math.round(processingTime / 1000)}s, taking over`);
+      }
+    }
+    
+    // Check if segment is already completed
+    if (currentSegment.status === 'completed') {
+      console.log(`✅ Segment already completed, skipping`);
+      
+      // Still need to check for next segment
+      const { data: nextSegment } = await supabase
+        .from('course_segments')
+        .select('*')
+        .eq('course_id', course_id)
+        .eq('segment_index', segment_index + 1)
+        .single();
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          segment_index,
+          status: 'already_completed',
+          next_segment_exists: !!nextSegment
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200
+        }
+      );
+    }
+    
+    // Atomic update: Only proceed if status is 'pending' or 'failed'
+    const { data: claimedSegment, error: claimError } = await supabase
       .from('course_segments')
       .update({ 
         status: 'processing',
-        processing_started_at: new Date().toISOString()
+        processing_started_at: new Date().toISOString(),
+        worker_id: workerId,
+        retry_count: currentSegment.status === 'failed' ? (currentSegment.retry_count || 0) + 1 : 0
       })
-      .eq('id', segment_id);
+      .eq('id', segment_id)
+      .in('status', ['pending', 'failed'])
+      .select()
+      .single();
 
-    if (updateError) {
-      throw new Error(`Failed to update segment status: ${updateError.message}`);
+    if (claimError || !claimedSegment) {
+      console.log(`❌ Failed to claim segment: ${claimError?.message || 'No segment updated'}`);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Failed to claim segment for processing',
+          segment_index
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 409
+        }
+      );
+    }
+    
+    console.log(`✅ Successfully claimed segment for processing`);
+    
+    // DEPENDENCY CHECK: Ensure previous segments are completed
+    if (segment_index > 0) {
+      const { data: previousSegment, error: prevError } = await supabase
+        .from('course_segments')
+        .select('status, cumulative_key_concepts')
+        .eq('course_id', course_id)
+        .eq('segment_index', segment_index - 1)
+        .single();
+      
+      if (prevError || !previousSegment) {
+        console.error(`❌ Cannot find previous segment ${segment_index - 1}`);
+        // Revert segment status
+        await supabase
+          .from('course_segments')
+          .update({ status: 'pending', worker_id: null })
+          .eq('id', segment_id);
+        
+        throw new Error(`Previous segment ${segment_index - 1} not found`);
+      }
+      
+      if (previousSegment.status !== 'completed') {
+        console.log(`⚠️ Previous segment ${segment_index - 1} not completed (status: ${previousSegment.status})`);
+        // Revert segment status
+        await supabase
+          .from('course_segments')
+          .update({ status: 'pending', worker_id: null })
+          .eq('id', segment_id);
+        
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: `Previous segment ${segment_index - 1} must complete first`,
+            segment_index,
+            previous_segment_status: previousSegment.status
+          }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 425 // Too Early
+          }
+        );
+      }
+      
+      // Use the context from the previous segment if not provided
+      if (!previous_segment_context && previousSegment.cumulative_key_concepts) {
+        console.log(`📋 Using context from previous segment ${segment_index - 1}`);
+        validatedPreviousContext = {
+          keyConcepts: previousSegment.cumulative_key_concepts,
+          segmentIndex: segment_index - 1,
+          lastTranscriptSegments: [],
+          lastQuestions: [],
+          segmentSummary: '',
+          totalProcessedDuration: 0
+        };
+      }
     }
 
     // Update progress tracking if session_id provided
@@ -233,46 +398,34 @@ serve(async (req: Request) => {
       }
 
       if (nextSegment && nextSegment.status === 'pending') {
-        console.log(`🔄 Triggering processing for next segment ${nextSegment.segment_index + 1}`);
-        console.log(`   📌 Next segment ID: ${nextSegment.id}`);
-        console.log(`   ⏱️ Time range: ${nextSegment.start_time}s - ${nextSegment.end_time}s`);
+        console.log(`🔄 Next segment ${nextSegment.segment_index + 1} is ready`);
+        console.log(`   🎼 Triggering orchestrator to handle next segment`);
         
-        const functionUrl = `${supabaseUrl}/functions/v1/process-video-segment`;
+        const orchestratorUrl = `${supabaseUrl}/functions/v1/orchestrate-segment-processing`;
         
-        // Trigger next segment synchronously before returning response
+        // Trigger orchestrator to handle next segment
         try {
-          const requestBody = {
-            course_id,
-            segment_id: nextSegment.id,
-            segment_index: nextSegment.segment_index,
-            youtube_url,
-            start_time: nextSegment.start_time,
-            end_time: nextSegment.end_time,
-            session_id,
-            previous_segment_context: validatedPreviousContext, // Pass validated context
-            total_segments,
-            max_questions
-          };
-          
-          console.log('📤 Triggering next segment with body:', requestBody);
-          
-          const nextSegmentResponse = await fetch(functionUrl, {
+          const orchestratorResponse = await fetch(orchestratorUrl, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${supabaseKey}`,
               'Content-Type': 'application/json'
             },
-            body: JSON.stringify(requestBody)
+            body: JSON.stringify({
+              course_id,
+              check_only: false
+            })
           });
           
-          if (!nextSegmentResponse.ok) {
-            const errorText = await nextSegmentResponse.text();
-            console.error(`❌ Failed to trigger next segment: ${errorText}`);
+          if (!orchestratorResponse.ok) {
+            const errorText = await orchestratorResponse.text();
+            console.error(`❌ Failed to trigger orchestrator: ${errorText}`);
           } else {
-            console.log(`✅ Successfully triggered next segment ${nextSegment.segment_index + 1}`);
+            const result = await orchestratorResponse.json();
+            console.log(`✅ Orchestrator triggered, status: ${result.status}`);
           }
         } catch (err) {
-          console.error('Failed to trigger next segment processing:', err);
+          console.error('Failed to trigger orchestrator:', err);
         }
       } else if (!nextSegment) {
         console.log(`✅ This was the LAST segment (${segment_index + 1}/${total_segments})! Finalizing course...`);
@@ -356,9 +509,17 @@ serve(async (req: Request) => {
       metadata: JSON.stringify({
         ...(q.type === 'hotspot' && {
           target_objects: (q as any).target_objects,
+          frame_timestamp: (q as any).frame_timestamp,
           question_context: (q as any).question_context,
           visual_learning_objective: (q as any).visual_learning_objective,
-          video_overlay: true
+          distractor_guidance: (q as any).distractor_guidance,
+          video_overlay: true,
+          // Add bounding box metadata if available
+          ...((q as any).bounding_boxes && {
+            detected_elements: (q as any).bounding_boxes,
+            gemini_bounding_boxes: true,
+            video_dimensions: { width: 1000, height: 1000 }
+          })
         }),
         ...(q.type === 'matching' && {
           matching_pairs: (q as any).matching_pairs,
@@ -392,6 +553,52 @@ serve(async (req: Request) => {
       
       insertedQuestions = data || [];
       console.log(`✅ Successfully inserted ${insertedQuestions.length} questions for segment ${segment_index + 1}`);
+      
+      // Store bounding boxes for hotspot questions
+      let totalBoundingBoxes = 0;
+      
+      for (const question of insertedQuestions) {
+        if (question.metadata && question.type === 'hotspot') {
+          try {
+            const metadata = JSON.parse(question.metadata);
+            const detectedElements = metadata.detected_elements || [];
+
+            if (detectedElements.length > 0) {
+              console.log(`🎯 Creating ${detectedElements.length} bounding boxes for hotspot question ${question.id}`);
+              
+              const boundingBoxesToInsert = detectedElements.map((element: any) => ({
+                question_id: question.id,
+                visual_asset_id: null, // No visual assets needed for video overlay
+                label: element.label || 'Unknown Object',
+                x: parseFloat(element.x.toFixed(4)),
+                y: parseFloat(element.y.toFixed(4)),
+                width: parseFloat(element.width.toFixed(4)),
+                height: parseFloat(element.height.toFixed(4)),
+                confidence_score: element.confidence_score || 0.8,
+                is_correct_answer: element.is_correct_answer || false
+              }));
+
+              const { data: createdBoxes, error: boxError } = await supabase
+                .from('bounding_boxes')
+                .insert(boundingBoxesToInsert)
+                .select();
+
+              if (boxError) {
+                console.error(`❌ Error creating bounding boxes for question ${question.id}:`, boxError);
+              } else {
+                totalBoundingBoxes += createdBoxes.length;
+                console.log(`✅ Created ${createdBoxes.length} bounding boxes for question ${question.id}`);
+              }
+            }
+          } catch (parseError) {
+            console.error(`❌ Error parsing metadata for question ${question.id}:`, parseError);
+          }
+        }
+      }
+      
+      if (totalBoundingBoxes > 0) {
+        console.log(`🎯 Total bounding boxes created: ${totalBoundingBoxes}`);
+      }
     } else {
       console.warn(`⚠️ No questions to insert for segment ${segment_index + 1}`);
     }
@@ -460,46 +667,34 @@ serve(async (req: Request) => {
     }
 
     if (nextSegment && nextSegment.status === 'pending') {
-      console.log(`🔄 Triggering processing for next segment ${nextSegment.segment_index + 1}`);
-      console.log(`   📌 Next segment ID: ${nextSegment.id}`);
-      console.log(`   ⏱️ Time range: ${nextSegment.start_time}s - ${nextSegment.end_time}s`);
+      console.log(`🔄 Next segment ${nextSegment.segment_index + 1} is ready`);
+      console.log(`   🎼 Triggering orchestrator to handle next segment`);
       
-      const functionUrl = `${supabaseUrl}/functions/v1/process-video-segment`;
+      const orchestratorUrl = `${supabaseUrl}/functions/v1/orchestrate-segment-processing`;
       
-      // Trigger next segment synchronously before returning response
+      // Trigger orchestrator to handle next segment
       try {
-        const requestBody = {
-          course_id,
-          segment_id: nextSegment.id,
-          segment_index: nextSegment.segment_index,
-          youtube_url,
-          start_time: nextSegment.start_time,
-          end_time: nextSegment.end_time,
-          session_id,
-          previous_segment_context: cumulativeContext,
-          total_segments,
-          max_questions
-        };
-        
-        console.log('📤 Triggering next segment with body:', requestBody);
-        
-        const nextSegmentResponse = await fetch(functionUrl, {
+        const orchestratorResponse = await fetch(orchestratorUrl, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${supabaseKey}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(requestBody)
+          body: JSON.stringify({
+            course_id,
+            check_only: false
+          })
         });
         
-        if (!nextSegmentResponse.ok) {
-          const errorText = await nextSegmentResponse.text();
-          console.error(`❌ Failed to trigger next segment: ${errorText}`);
+        if (!orchestratorResponse.ok) {
+          const errorText = await orchestratorResponse.text();
+          console.error(`❌ Failed to trigger orchestrator: ${errorText}`);
         } else {
-          console.log(`✅ Successfully triggered next segment ${nextSegment.segment_index + 1}`);
+          const result = await orchestratorResponse.json();
+          console.log(`✅ Orchestrator triggered, status: ${result.status}`);
         }
       } catch (err) {
-        console.error('Failed to trigger next segment processing:', err);
+        console.error('Failed to trigger orchestrator:', err);
       }
     } else if (!nextSegment) {
       console.log(`✅ This was the LAST segment (${segment_index + 1}/${total_segments})! Finalizing course...`);
@@ -578,12 +773,22 @@ serve(async (req: Request) => {
       
       // segment_id is already available from the destructured request at the top
       if (segment_id) {
+        // First fetch the current retry count
+        const { data: currentSegment } = await supabase
+          .from('course_segments')
+          .select('retry_count')
+          .eq('id', segment_id)
+          .single();
+        
+        const currentRetryCount = currentSegment?.retry_count || 0;
+        
+        // Then update with incremented value
         await supabase
           .from('course_segments')
           .update({
             status: 'failed',
             error_message: error.message,
-            retry_count: supabase.raw('retry_count + 1')
+            retry_count: currentRetryCount + 1
           })
           .eq('id', segment_id);
       }

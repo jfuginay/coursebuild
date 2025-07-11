@@ -128,14 +128,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .select('*', { count: 'exact' })
       .eq('course_id', course_id);
 
-    console.log(`🔄 Restarting processing for segment ${nextSegment.segment_index + 1}`);
+    console.log(`🔄 Found segment ${nextSegment.segment_index + 1} ready for processing, calling orchestrator`);
 
-    // Trigger segment processing
+    // Use the orchestrator instead of direct segment processing
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
     const apiKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const functionUrl = `${supabaseUrl}/functions/v1/process-video-segment`;
+    const orchestratorUrl = `${supabaseUrl}/functions/v1/orchestrate-segment-processing`;
 
-    const response = await fetch(functionUrl, {
+    const response = await fetch(orchestratorUrl, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -143,26 +143,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
       body: JSON.stringify({
         course_id,
-        segment_id: nextSegment.id,
-        segment_index: nextSegment.segment_index,
-        youtube_url: course.youtube_url,
-        start_time: nextSegment.start_time,
-        end_time: nextSegment.end_time,
-        session_id: null, // Optional
-        previous_segment_context: previousContext,
-        total_segments: totalSegments || 1,
-        max_questions: 10
+        check_only: false // Actually process segments
       })
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to trigger segment processing: ${response.status}`);
+      const errorText = await response.text();
+      console.error(`Orchestrator error: ${errorText}`);
+      throw new Error(`Failed to call orchestrator: ${response.status}`);
     }
+    
+    const result = await response.json();
 
     return res.status(200).json({
       success: true,
-      message: `Restarted processing for segment ${nextSegment.segment_index + 1}`,
-      segment: nextSegment
+      message: result.message || 'Orchestrator called successfully',
+      status: result.status,
+      processing_segments: result.processing_segments || [],
+      completed: result.status === 'all_completed'
     });
 
   } catch (error) {
