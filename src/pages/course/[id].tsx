@@ -587,12 +587,12 @@ export default function CoursePage() {
      return;
    }
    
-   console.log('📚 Starting next course generation...');
+   console.log('📚 Starting next course generation using smart analysis...');
    setIsLoadingNextCourse(true);
    setNextCourseApiCalled(true); // Mark API as called
    
    try {
-     // Get wrong answers from questionResults
+     // Get wrong answers from questionResults for context
      const wrongAnswers = Object.entries(questionResults)
        .filter(([questionId, isCorrect]) => !isCorrect)
        .map(([questionId, isCorrect]) => {
@@ -601,103 +601,157 @@ export default function CoursePage() {
        })
        .filter(question => question); // Filter out any undefined questions
 
-     console.log('📊 Sending wrong answers to next course API:', wrongAnswers);
+     console.log('📊 Wrong answers context:', wrongAnswers);
 
-     const response = await fetch(`/api/get-next-course`, {
+     // Generate a session ID for tracking progress
+     const sessionId = `next-course-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+     
+     // Use the current course's YouTube URL for now
+     // TODO: In the future, this could be enhanced to select a related video based on wrong answers
+     const youtubeUrl = course?.youtube_url;
+     
+     if (!youtubeUrl) {
+       throw new Error('No YouTube URL available for next course generation');
+     }
+
+     console.log('📚 Calling smart analysis API with session:', sessionId);
+
+     const response = await fetch(`/api/course/analyze-video-smart`, {
        method: 'POST',
        headers: {
          'Content-Type': 'application/json',
        },
        body: JSON.stringify({
-         currentCourseId: id,
-         videoUrl: course?.youtube_url,
-         wrongQuestions: wrongAnswers
+         youtube_url: youtubeUrl,
+         session_id: sessionId,
+         max_questions: 5, // Limit for next course
+         enable_quality_verification: true,
+         segment_duration: 300, // 5 minutes
+         useCache: true, // Use cache if available
+         useEnhanced: true // Use enhanced processing
        })
      });
      
      const data = await response.json();
 
      if (data.success) {
-       console.log('📚 Next course generated with questions:', {
-         courseId: data.courseId,
-         title: data.nextCourse.title,
-         hasQuestions: !!data.courseId
+       console.log('📚 Smart analysis completed:', {
+         courseId: data.course_id,
+         segmented: data.segmented,
+         cached: data.cached,
+         backgroundProcessing: data.background_processing
        });
        
-       // Now fetch the actual course and questions from Supabase using the courseId
-       try {
-         // Fetch course data from database
-         const courseResponse = await fetch(`/api/course/${data.courseId}`);
-         const courseData = await courseResponse.json();
-         
-         if (courseData.success) {
-           // Fetch questions for the course
-           const questionsResponse = await fetch(`/api/course/${data.courseId}/questions`);
-           const questionsData = await questionsResponse.json();
-           
-           if (questionsData.success) {
-             // Parse questions like in the main fetchQuestions function
-             const parsedQuestions = questionsData.questions.map((q: any) => ({
-               ...q,
-               options: parseOptionsWithTrueFalse(q.options || [], q.type),
-               correct: parseInt(q.correct_answer) || 0,
-               correct_answer: parseInt(q.correct_answer) || 0
-             }));
+       // Handle different response types from smart API
+       if (data.background_processing) {
+         console.log('⏳ Course is being processed in background');
+         // For background processing, we'll set up polling
+         const pollForCompletion = async () => {
+           try {
+             const pollResponse = await fetch(`/api/course/${data.course_id}`);
+             const pollData = await pollResponse.json();
              
-             // Store the next course with database-fetched data
-             setNextCourse({
-               ...courseData.course,
-               courseId: data.courseId,
-               questionsGenerated: true,
-               questions: parsedQuestions, // Add questions to next course
-               videoId: extractVideoId(courseData.course.youtube_url)
-             });
-             
-             console.log('✅ Next course data fetched from database:', {
-               courseId: data.courseId,
-               title: courseData.course.title,
-               questionsCount: parsedQuestions.length
-             });
-           } else {
-             console.error('Failed to fetch questions for next course:', questionsData.error);
-             // Still set course without questions
-             setNextCourse({
-               ...courseData.course,
-               courseId: data.courseId,
-               questionsGenerated: false,
-               questions: [],
-               videoId: extractVideoId(courseData.course.youtube_url)
-             });
+             if (pollData.success && pollData.course.published) {
+               console.log('✅ Background processing completed!');
+               await fetchCourseWithQuestions(data.course_id);
+             } else {
+               // Continue polling
+               setTimeout(pollForCompletion, 3000);
+             }
+           } catch (error) {
+             console.error('Error polling for completion:', error);
            }
-         } else {
-           console.error('Failed to fetch next course from database:', courseData.error);
-           // Fallback to the original course data from API
-           setNextCourse({
-             ...data.nextCourse,
-             courseId: data.courseId,
-             questionsGenerated: !!data.courseId
-           });
-         }
-       } catch (fetchError) {
-         console.error('Error fetching next course from database:', fetchError);
-         // Fallback to the original course data from API
+         };
+         
+         // Start polling after a short delay
+         setTimeout(pollForCompletion, 2000);
+         
+         // Set placeholder course data
          setNextCourse({
-           ...data.nextCourse,
-           courseId: data.courseId,
-           questionsGenerated: !!data.courseId
+           id: data.course_id,
+           title: 'Generating Course...',
+           description: 'Your next course is being generated based on your learning progress.',
+           youtube_url: youtubeUrl,
+           created_at: new Date().toISOString(),
+           published: false,
+           courseId: data.course_id,
+           questionsGenerated: false,
+           questions: [],
+           videoId: extractVideoId(youtubeUrl)
          });
+         
+       } else {
+         // Course is ready, fetch it directly
+         await fetchCourseWithQuestions(data.course_id);
        }
+       
      } else {
-       console.error('Failed to fetch next course:', data.error);
+       console.error('Smart analysis failed:', data.error);
        // Reset API called state on error so it can be retried
        setNextCourseApiCalled(false);
      }
    } catch (err) {
-     console.error('Error fetching next course:', err);
+     console.error('Error generating next course:', err);
      // Reset API called state on error so it can be retried
      setNextCourseApiCalled(false);
    } finally {
      setIsLoadingNextCourse(false);
+   }
+ };
+
+ // Helper function to fetch course with questions
+ const fetchCourseWithQuestions = async (courseId: string) => {
+   try {
+     // Fetch course data from database
+     const courseResponse = await fetch(`/api/course/${courseId}`);
+     const courseData = await courseResponse.json();
+     
+     if (courseData.success) {
+       // Fetch questions for the course
+       const questionsResponse = await fetch(`/api/course/${courseId}/questions`);
+       const questionsData = await questionsResponse.json();
+       
+       if (questionsData.success && questionsData.questions.length > 0) {
+         // Parse questions like in the main fetchQuestions function
+         const parsedQuestions = questionsData.questions.map((q: any) => ({
+           ...q,
+           options: parseOptionsWithTrueFalse(q.options || [], q.type),
+           correct: parseInt(q.correct_answer) || 0,
+           correct_answer: parseInt(q.correct_answer) || 0
+         }));
+         
+         // Store the next course with database-fetched data
+         setNextCourse({
+           ...courseData.course,
+           courseId: courseId,
+           questionsGenerated: true,
+           questions: parsedQuestions, // Add questions to next course
+           videoId: extractVideoId(courseData.course.youtube_url)
+         });
+         
+         console.log('✅ Next course data fetched from database:', {
+           courseId: courseId,
+           title: courseData.course.title,
+           questionsCount: parsedQuestions.length
+         });
+       } else {
+         console.log('⚠️ No questions found for next course, setting course without questions');
+         // Still set course without questions
+         setNextCourse({
+           ...courseData.course,
+           courseId: courseId,
+           questionsGenerated: false,
+           questions: [],
+           videoId: extractVideoId(courseData.course.youtube_url)
+         });
+       }
+     } else {
+       console.error('Failed to fetch next course from database:', courseData.error);
+       throw new Error(courseData.error);
+     }
+   } catch (fetchError) {
+     console.error('Error fetching next course from database:', fetchError);
+     throw fetchError;
    }
  };
 

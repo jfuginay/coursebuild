@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Play, ExternalLink, BookOpen } from 'lucide-react';
+import { Play, BookOpen } from 'lucide-react';
 import VideoProgressBar from '@/components/VideoProgressBar';
 
 interface Question {
@@ -61,13 +61,30 @@ const InteractiveVideoPlayer: React.FC<InteractiveVideoPlayerProps> = ({
   return (
     <Card id="interactive-video-player">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Play className="h-5 w-5" />
-          Interactive Video Course
-        </CardTitle>
-        <CardDescription>
-          Watch the video and answer questions as they appear
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Play className="h-5 w-5" />
+              Interactive Video Course
+            </CardTitle>
+            <CardDescription>
+              Watch the video and answer questions as they appear
+            </CardDescription>
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={onFetchNextCourse}
+            disabled={isLoadingNextCourse || !!nextCourse || nextCourseApiCalled}
+          >
+            {isLoadingNextCourse ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+            ) : (
+              <BookOpen className="mr-2 h-4 w-4" />
+            )}
+            {nextCourse ? 'Next Course Ready' : isLoadingNextCourse ? 'Generating...' : nextCourseApiCalled ? 'Generating...' : 'Generate Next Course'}
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div id="video-player-area" className="aspect-video bg-muted rounded-lg overflow-hidden relative">
@@ -119,31 +136,6 @@ const InteractiveVideoPlayer: React.FC<InteractiveVideoPlayerProps> = ({
             />
           </div>
         )}
-
-        {/* External Links */}
-        <div className="flex justify-center gap-3">
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => window.open(youtubeUrl, '_blank')}
-          >
-            <ExternalLink className="mr-2 h-4 w-4" />
-            Watch on YouTube
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={onFetchNextCourse}
-            disabled={isLoadingNextCourse || !!nextCourse || nextCourseApiCalled}
-          >
-            {isLoadingNextCourse ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
-            ) : (
-              <BookOpen className="mr-2 h-4 w-4" />
-            )}
-            {nextCourse ? 'Next Course Ready' : isLoadingNextCourse ? 'Generating...' : nextCourseApiCalled ? 'Generating...' : 'Generate Next Course'}
-          </Button>
-        </div>
       </CardContent>
     </Card>
   );
