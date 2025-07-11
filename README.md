@@ -251,6 +251,12 @@ curl -X POST https://YOUR_PROJECT_ID.supabase.co/functions/v1/quiz-generation-v5
 - **Automatic Updates**: Created `/api/update-course-titles` endpoint to update existing courses with proper titles
 - **Consistent Implementation**: All course creation paths (`create.tsx`, `create-with-progress.tsx`, `analyze-video-smart.ts`) now use YouTube metadata
 
+#### AI-Generated Course Descriptions
+- **Smart Summaries**: Course descriptions now use AI-generated video summaries from the transcript analysis
+- **Automatic Updates**: Generic descriptions are automatically replaced with meaningful summaries when transcripts are generated
+- **Segmented Processing Support**: Descriptions update automatically after all segments complete processing
+- **API Endpoint**: New `/api/course/update-summary` endpoint for on-demand description updates
+
 ### Complete Hotspot Metadata Fix for Segmented Processing (December 2024)
 - **Fixed Missing Metadata**: Segmented video processing now saves ALL hotspot metadata fields
 - **Added Bounding Box Storage**: Both in metadata `detected_elements` field and separate `bounding_boxes` table

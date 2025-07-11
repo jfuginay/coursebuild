@@ -77,6 +77,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
+    // Variables for video metadata
+    let videoTitle = '';
+    let videoDescription = '';
+
     // If course_id is not provided, create a new course
     if (!course_id) {
       const sanitizedUrl = sanitizeYouTubeUrl(youtube_url);
@@ -84,8 +88,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       
       // Fetch video metadata from YouTube
       const videoMetadata = await fetchYouTubeMetadata(sanitizedUrl);
-      const videoTitle = videoMetadata?.title || generateFallbackTitle(sanitizedUrl);
-      const videoDescription = videoMetadata 
+      videoTitle = videoMetadata?.title || generateFallbackTitle(sanitizedUrl);
+      videoDescription = videoMetadata 
         ? `Interactive course from "${videoMetadata.author_name}" - Learn through AI-generated questions perfectly timed with the video content.`
         : 'AI-powered interactive course from YouTube video with perfectly timed questions to enhance learning.';
       
@@ -382,6 +386,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         console.error('Failed to fetch course data:', courseError);
       }
       
+      // Extract video summary from the init result if available
+      let updatedDescription = courseData?.description || videoDescription;
+      
+      if (initResult.result?.pipeline_results?.planning?.video_summary) {
+        // Use the AI-generated video summary as the description
+        updatedDescription = initResult.result.pipeline_results.planning.video_summary;
+        console.log('📝 Using AI-generated video summary for description');
+        
+        // Update the course with the AI-generated summary
+        await supabase
+          .from('courses')
+          .update({ description: updatedDescription })
+          .eq('id', course_id);
+      }
+      
       // The init endpoint already triggered regular processing
       return res.status(200).json({
         success: true,
@@ -391,8 +410,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         segmented: false,
         cached: false,
         data: {
-          title: courseData?.title || 'Generated Course',
-          description: courseData?.description || 'AI-generated interactive course',
+          title: courseData?.title || videoTitle,
+          description: updatedDescription,
           // Add other expected fields
         },
         result: initResult.result

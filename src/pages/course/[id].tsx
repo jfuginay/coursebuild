@@ -338,66 +338,80 @@ export default function CoursePage() {
      if (data.success) {
        setCourse(data.course);
        
-       // Check if course is still processing
-       if (!data.course.published) {
+       // Check if course is processing
+       if (data.course && !data.course.published) {
+         console.log('Course is still processing');
          setIsProcessing(true);
-         console.log('📊 Course is still processing, will check again...');
          
-                 // Initial check for stuck segments (only once)
-        try {
-          const checkResponse = await fetch('/api/course/check-segment-processing', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ course_id: id })
-          });
-          
-          if (checkResponse.ok) {
-            const checkData = await checkResponse.json();
-            console.log('🔄 Initial segment check result:', checkData);
-          }
-        } catch (error) {
-          console.error('Failed to check segments:', error);
-        }
+         // Check if the course has a generic description that needs updating
+         const hasGenericDescription = data.course.description && (
+           data.course.description.includes('Interactive course from') ||
+           data.course.description.includes('AI-powered interactive course') ||
+           data.course.description.includes('AI Generated Course')
+         );
          
-                 // Set up polling to check for completion
-        let checkCounter = 0;
-        const pollInterval = setInterval(async () => {
-          const pollResponse = await fetch(`/api/course/${id}`);
-          const pollData = await pollResponse.json();
-          
-          if (pollData.success && pollData.course.published) {
-            console.log('✅ Course processing complete!');
-            setCourse(pollData.course);
-            setIsProcessing(false);
-            clearInterval(pollInterval);
-            // Fetch questions now that course is published
-            fetchQuestions();
-          } else if (checkCounter % 6 === 0) { // Only check segments every 30 seconds (6 * 5s)
-            // Check segments less frequently to avoid overwhelming the orchestrator
-            try {
-              const checkResponse = await fetch('/api/course/check-segment-processing', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ course_id: id })
-              });
-              
-              if (checkResponse.ok) {
-                const checkData = await checkResponse.json();
-                console.log('🔄 Periodic segment check result:', checkData);
-              }
-            } catch (error) {
-              console.error('Failed to check segments:', error);
-            }
-          }
-          checkCounter++;
-        }, 5000); // Poll course status every 5 seconds
+         if (hasGenericDescription) {
+           // Try to update the description with AI-generated summary
+           try {
+             const updateResponse = await fetch('/api/course/update-summary', {
+               method: 'POST',
+               headers: { 'Content-Type': 'application/json' },
+               body: JSON.stringify({ course_id: data.course.id })
+             });
+             
+             if (updateResponse.ok) {
+               const updateResult = await updateResponse.json();
+               if (updateResult.success && updateResult.description) {
+                 // Update local state with the new description
+                 setCourse(prev => prev ? { ...prev, description: updateResult.description } : null);
+                 console.log('✅ Course description updated with AI-generated summary');
+               }
+             }
+           } catch (error) {
+             console.log('Could not update course description:', error);
+           }
+         }
          
-         // Clean up interval on unmount
-         return () => clearInterval(pollInterval);
+         // Set up progress tracking
+         if (typeof window !== 'undefined') {
+           // Set up polling to check for completion
+           let checkCounter = 0;
+           const pollInterval = setInterval(async () => {
+             const pollResponse = await fetch(`/api/course/${id}`);
+             const pollData = await pollResponse.json();
+             
+             if (pollData.success && pollData.course.published) {
+               console.log('✅ Course processing complete!');
+               setCourse(pollData.course);
+               setIsProcessing(false);
+               clearInterval(pollInterval);
+               // Fetch questions now that course is published
+               fetchQuestions();
+             } else if (checkCounter % 6 === 0) { // Only check segments every 30 seconds (6 * 5s)
+               // Check segments less frequently to avoid overwhelming the orchestrator
+               try {
+                 const checkResponse = await fetch('/api/course/check-segment-processing', {
+                   method: 'POST',
+                   headers: {
+                     'Content-Type': 'application/json',
+                   },
+                   body: JSON.stringify({ course_id: id })
+                 });
+                 
+                 if (checkResponse.ok) {
+                   const checkData = await checkResponse.json();
+                   console.log('🔄 Periodic segment check result:', checkData);
+                 }
+               } catch (error) {
+                 console.error('Failed to check segments:', error);
+               }
+             }
+             checkCounter++;
+           }, 5000); // Poll course status every 5 seconds
+           
+           // Clean up interval on unmount
+           return () => clearInterval(pollInterval);
+         }
        }
        
        // Enhance course data with rating information

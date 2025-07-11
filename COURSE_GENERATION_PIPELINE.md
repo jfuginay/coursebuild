@@ -977,11 +977,22 @@ The system automatically fetches video metadata from YouTube's oEmbed API to pro
    - `create-with-progress.tsx`: Shows real titles during creation
    - `init-segmented-processing`: Preserves original titles (no overwriting)
 
-3. **Update Existing Courses**
-   - Endpoint: `POST /api/update-course-titles`
-   - Finds courses with placeholder titles
-   - Updates them with real YouTube titles
-   - Includes rate limiting to respect YouTube's API
+3. **AI-Generated Descriptions**
+   - **Initial Creation**: Courses start with author-based descriptions
+   - **Smart Updates**: After transcript generation, descriptions are replaced with AI-generated video summaries
+   - **Automatic Process**: Works for both immediate and segmented processing
+   - **Course Page Integration**: Checks for generic descriptions during loading and updates automatically
+   - **Orchestrator Support**: Updates descriptions when all segments complete
+
+4. **Update Endpoints**
+   - **Title Updates**: `POST /api/update-course-titles`
+     - Finds courses with placeholder titles
+     - Updates them with real YouTube titles
+     - Includes rate limiting to respect YouTube's API
+   - **Description Updates**: `POST /api/course/update-summary`
+     - Replaces generic descriptions with AI-generated summaries
+     - Uses video_summary from transcript analysis
+     - Only updates if description is generic
 
 ---
 
