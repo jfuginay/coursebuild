@@ -182,11 +182,11 @@ serve(async (req: Request) => {
       // Skip completed segments
       if (segment.status === 'completed') continue;
       
-      // Check if previous segment is completed (for segments after the first)
+      // Check if previous segment has at least completed planning (for segments after the first)
       if (segment.segment_index > 0) {
         const previousSegment = segments.find(s => s.segment_index === segment.segment_index - 1);
-        if (!previousSegment || previousSegment.status !== 'completed') {
-          console.log(`⏸️ Segment ${segment.segment_index} waiting for previous segment to complete`);
+        if (!previousSegment || (previousSegment.status !== 'completed' && previousSegment.planning_status !== 'completed')) {
+          console.log(`⏸️ Segment ${segment.segment_index} waiting for previous segment to complete planning`);
           continue;
         }
       }

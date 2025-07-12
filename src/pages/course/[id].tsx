@@ -58,6 +58,7 @@ interface Question {
  correct_answer: number; // Index for multiple choice, 1/0 for true/false
  explanation: string;
  timestamp: number;
+ segment_index?: number; // Which segment this question belongs to
  visual_context?: string;
  frame_timestamp?: number; // For video overlay timing
  bounding_boxes?: any[];
@@ -215,16 +216,17 @@ export default function CoursePage() {
    }
  });
 
- // Subscribe to segment updates for real-time question loading
+ // Subscribe to segment updates and individual question inserts for real-time updates
  useEffect(() => {
    if (!id || !isSegmented || !isProcessing || course?.published) return;
 
-   console.log('🔄 Setting up real-time segment subscription');
+   console.log('🔄 Setting up real-time subscriptions');
    
    // Immediately fetch current segment status when subscription is set up
    fetchSegmentQuestions();
    
-   const channel = supabase
+   // Subscribe to segment updates
+   const segmentChannel = supabase
      .channel(`course_segments_${id}`)
      .on(
        'postgres_changes',
@@ -249,12 +251,64 @@ export default function CoursePage() {
            console.log(`❌ Segment ${updatedSegment.segment_index + 1} failed: ${updatedSegment.error_message}`);
          }
        }
-     )
-     .subscribe();
+     );
+     
+   // Subscribe to individual question insertions for live updates
+   const questionChannel = supabase
+     .channel(`questions_${id}`)
+     .on(
+       'postgres_changes',
+       {
+         event: 'INSERT',
+         schema: 'public',
+         table: 'questions',
+         filter: `course_id=eq.${id}`
+       },
+       (payload) => {
+         console.log('📝 New question received:', payload);
+         const newQuestion = payload.new as any;
+         
+         // Parse and add the new question immediately
+         const parsedQuestion = {
+           ...newQuestion,
+           options: parseOptionsWithTrueFalse(newQuestion.options || [], newQuestion.type),
+           correct: parseInt(newQuestion.correct_answer) || 0,
+           correct_answer: parseInt(newQuestion.correct_answer) || 0
+         };
+         
+         setQuestions(prev => {
+           // Check if question already exists
+           if (prev.find(q => q.id === newQuestion.id)) {
+             return prev;
+           }
+           
+           // Add new question and sort by timestamp
+           const updated = [...prev, parsedQuestion];
+           return updated.sort((a, b) => a.timestamp - b.timestamp);
+         });
+         
+         // Update segment progress counts
+         if (newQuestion.segment_index !== undefined) {
+           setCompletedSegments(prev => {
+             // Count unique segments with questions
+             const segmentsWithQuestions = new Set(
+               questions.map(q => q.segment_index).filter(idx => idx !== undefined)
+             );
+             segmentsWithQuestions.add(newQuestion.segment_index);
+             return segmentsWithQuestions.size;
+           });
+         }
+       }
+     );
+     
+   // Subscribe to both channels
+   segmentChannel.subscribe();
+   questionChannel.subscribe();
 
    return () => {
-     console.log('🔌 Unsubscribing from segment updates');
-     supabase.removeChannel(channel);
+     console.log('🔌 Unsubscribing from real-time updates');
+     supabase.removeChannel(segmentChannel);
+     supabase.removeChannel(questionChannel);
    };
  }, [id, isSegmented, isProcessing, course?.published]);
  

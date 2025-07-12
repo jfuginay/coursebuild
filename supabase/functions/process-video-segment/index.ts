@@ -512,137 +512,78 @@ serve(async (req: Request) => {
       );
     }
 
-    // Stage 2: Generate actual questions from plans using the existing implementation
-    console.log('❓ Stage 2: Generating questions from plans...');
+    // Save quiz plans to database for individual processing
+    console.log('💾 Saving quiz plans to database...');
     
-    // Create progress tracker
-    const tracker = await createProgressTracker(supabase, course_id, session_id || '');
+    const savedPlans = await supabase
+      .from('question_plans')
+      .insert(plans.map(plan => ({
+        course_id,
+        segment_id,
+        segment_index,
+        question_id: plan.question_id,
+        question_type: plan.question_type,
+        timestamp: plan.timestamp,
+        status: 'planned',
+        plan_data: plan
+      })))
+      .select();
     
-    // Use the existing generateQuestionsFromPlans function
-    const generationResult = await generateQuestionsFromPlans(
-      plans,
-      youtube_url,
-      tracker,
-      transcript
-    );
-
-    console.log(`✅ Generated ${generationResult.generated_questions.length} questions for segment`);
-
-    // Store questions in database with segment reference
-    const questionsToInsert = generationResult.generated_questions.map(q => ({
-      course_id,
-      segment_id,
-      segment_index,
-      timestamp: Math.round(q.timestamp),
-      question: q.question,
-      type: q.type,
-      options: q.type === 'multiple-choice' ? JSON.stringify((q as any).options || []) : null,
-      correct_answer: q.type === 'multiple-choice' ? (q as any).correct_answer : 
-                      q.type === 'true-false' ? ((q as any).correct_answer === true ? 0 : 1) : 1,
-      explanation: q.explanation,
-      has_visual_asset: ['hotspot', 'matching', 'sequencing'].includes(q.type),
-      frame_timestamp: q.type === 'hotspot' ? Math.round((q as any).frame_timestamp || 0) : null,
-      metadata: JSON.stringify({
-        ...(q.type === 'hotspot' && {
-          target_objects: (q as any).target_objects,
-          frame_timestamp: (q as any).frame_timestamp,
-          question_context: (q as any).question_context,
-          visual_learning_objective: (q as any).visual_learning_objective,
-          distractor_guidance: (q as any).distractor_guidance,
-          video_overlay: true,
-          // Add bounding box metadata if available
-          ...((q as any).bounding_boxes && {
-            detected_elements: (q as any).bounding_boxes,
-            gemini_bounding_boxes: true,
-            video_dimensions: { width: 1000, height: 1000 }
-          })
-        }),
-        ...(q.type === 'matching' && {
-          matching_pairs: (q as any).matching_pairs,
-          relationship_analysis: (q as any).relationship_analysis,
-          relationship_type: (q as any).relationship_type,
-          video_overlay: true
-        }),
-        ...(q.type === 'sequencing' && {
-          sequence_items: (q as any).sequence_items,
-          sequence_analysis: (q as any).sequence_analysis,
-          sequence_type: (q as any).sequence_type,
-          video_overlay: true
-        })
-      })
-    }));
-
-    let insertedQuestions: any[] = [];
-    
-    if (questionsToInsert.length > 0) {
-      console.log(`💾 Inserting ${questionsToInsert.length} questions for segment ${segment_index + 1}...`);
-      
-      const { data, error: insertError } = await supabase
-        .from('questions')
-        .insert(questionsToInsert)
-        .select();
-
-      if (insertError) {
-        console.error('Failed to insert questions:', insertError);
-        throw new Error(`Failed to store questions: ${insertError.message}`);
-      }
-      
-      insertedQuestions = data || [];
-      console.log(`✅ Successfully inserted ${insertedQuestions.length} questions for segment ${segment_index + 1}`);
-      
-      // Store bounding boxes for hotspot questions
-      let totalBoundingBoxes = 0;
-      
-      for (const question of insertedQuestions) {
-        if (question.metadata && question.type === 'hotspot') {
-          try {
-            const metadata = JSON.parse(question.metadata);
-            const detectedElements = metadata.detected_elements || [];
-
-            if (detectedElements.length > 0) {
-              console.log(`🎯 Creating ${detectedElements.length} bounding boxes for hotspot question ${question.id}`);
-              
-              const boundingBoxesToInsert = detectedElements.map((element: any) => ({
-                question_id: question.id,
-                visual_asset_id: null, // No visual assets needed for video overlay
-                label: element.label || 'Unknown Object',
-                x: parseFloat(element.x.toFixed(4)),
-                y: parseFloat(element.y.toFixed(4)),
-                width: parseFloat(element.width.toFixed(4)),
-                height: parseFloat(element.height.toFixed(4)),
-                confidence_score: element.confidence_score || 0.8,
-                is_correct_answer: element.is_correct_answer || false
-              }));
-
-              const { data: createdBoxes, error: boxError } = await supabase
-                .from('bounding_boxes')
-                .insert(boundingBoxesToInsert)
-                .select();
-
-              if (boxError) {
-                console.error(`❌ Error creating bounding boxes for question ${question.id}:`, boxError);
-              } else {
-                totalBoundingBoxes += createdBoxes.length;
-                console.log(`✅ Created ${createdBoxes.length} bounding boxes for question ${question.id}`);
-              }
-            }
-          } catch (parseError) {
-            console.error(`❌ Error parsing metadata for question ${question.id}:`, parseError);
-          }
-        }
-      }
-      
-      if (totalBoundingBoxes > 0) {
-        console.log(`🎯 Total bounding boxes created: ${totalBoundingBoxes}`);
-      }
-    } else {
-      console.warn(`⚠️ No questions to insert for segment ${segment_index + 1}`);
+    if (savedPlans.error) {
+      console.error('Failed to save question plans:', savedPlans.error);
+      throw new Error(`Failed to save question plans: ${savedPlans.error.message}`);
     }
+    
+    console.log(`✅ Saved ${savedPlans.data?.length || 0} question plans`);
+    
+    // Update segment with plan count
+    await supabase
+      .from('course_segments')
+      .update({
+        planning_status: 'completed',
+        question_plans_count: plans.length
+      })
+      .eq('id', segment_id);
+    
+    // Stage 2: Trigger individual question generation
+    console.log('🚀 Triggering individual question generation...');
+    
+    const questionGenUrl = `${supabaseUrl}/functions/v1/generate-individual-questions`;
+    const questionGenResponse = await fetch(questionGenUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        course_id,
+        segment_id,
+        youtube_url
+      })
+    });
+    
+    const questionGenResult = await questionGenResponse.json();
+    console.log('📊 Question generation triggered:', questionGenResult);
+
+    // Note: Questions are now being generated and stored individually by generate-individual-questions
+    // We'll track progress through the question_plans table
+    const questionsGenerated = questionGenResult.success ? questionGenResult.generated_count : 0;
+    const errorCount = questionGenResult.error_count || 0;
+    
+    console.log(`📊 Initial question generation results:
+    - Questions generated: ${questionsGenerated}
+    - Errors: ${errorCount}
+    - Segment complete: ${questionGenResult.segment_complete}`);
+    
+    // For backward compatibility, we'll need an array of generated questions for context extraction
+    // In the future, we should fetch these from the database
+    const generatedQuestions = [];
 
     // Extract context for next segment
+    // TODO: In the future, fetch generated questions from the database
     const currentSegmentContext = extractSegmentContext(
       transcript,
-      generationResult.generated_questions,
+      generatedQuestions, // Currently empty, will be fetched from DB in future
       segment_index,
       end_time
     );
@@ -679,7 +620,7 @@ serve(async (req: Request) => {
         status: 'completed',
         processing_completed_at: new Date().toISOString(),
         // Remove transcript_data - it's now properly managed in video_transcripts table
-        questions_count: generationResult.generated_questions.length,
+        questions_count: questionsGenerated,
         cumulative_key_concepts: cumulativeContext.keyConcepts,
         previous_segment_context: validatedPreviousContext || null
       })
@@ -768,11 +709,15 @@ serve(async (req: Request) => {
           JSON.stringify({
             success: true,
             segment_index,
-            questions_generated: generationResult.generated_questions.length,
-            generation_metadata: generationResult.generation_metadata,
+            questions_generated: questionsGenerated,
+            generation_metadata: { 
+              successful_generations: questionsGenerated,
+              failed_generations: errorCount,
+              segment_complete: questionGenResult.segment_complete 
+            },
             context_for_next: cumulativeContext,
             next_segment_triggered: false,
-            errors: generationResult.errors,
+            errors: [],
             warning: 'Course not published - no questions found in database'
           }),
           { 
@@ -821,8 +766,8 @@ serve(async (req: Request) => {
       
       console.log(`📊 Final segment summary:
         - Segment: ${segment_index + 1}/${total_segments}
-        - Questions generated: ${generationResult.generated_questions.length}
-        - Questions inserted: ${insertedQuestions.length}
+        - Questions generated: ${questionsGenerated}
+        - Questions complete: ${questionGenResult.segment_complete}
         - Total questions in course: ${questionCount}
         - Course published: ${!courseUpdateError}`);
     }
@@ -831,11 +776,15 @@ serve(async (req: Request) => {
       JSON.stringify({
         success: true,
         segment_index,
-        questions_generated: generationResult.generated_questions.length,
-        generation_metadata: generationResult.generation_metadata,
+        questions_generated: questionsGenerated,
+        generation_metadata: { 
+          successful_generations: questionsGenerated,
+          failed_generations: errorCount,
+          segment_complete: questionGenResult.segment_complete 
+        },
         context_for_next: cumulativeContext,
         next_segment_triggered: !!nextSegment,
-        errors: generationResult.errors
+        errors: []
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
