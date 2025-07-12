@@ -243,6 +243,14 @@ export default function Home() {
 
       if (!response.ok) {
         const errorData = await response.json();
+        
+        // Check if it's a video duration error
+        if (errorData.video_duration && errorData.max_duration) {
+          const videoDurationMinutes = Math.floor(errorData.video_duration / 60);
+          const maxDurationMinutes = Math.floor(errorData.max_duration / 60);
+          throw new Error(`This video is ${videoDurationMinutes} minutes long. Maximum allowed duration is ${maxDurationMinutes} minutes. Please choose a shorter video.`);
+        }
+        
         throw new Error(errorData.error || 'Failed to generate course');
       }
 

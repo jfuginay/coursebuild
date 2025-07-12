@@ -159,24 +159,10 @@ serve(async (req: Request) => {
 
       const result = await response.json();
       
-      // Update course as published if quiz generation was successful
+      // NOTE: We don't mark the course as published here anymore
+      // The quiz generation pipeline will handle this after verifying questions exist
       if (result.success) {
-        console.log('✅ Quiz generation successful, marking course as published');
-        
-        // Simply mark the course as published without changing title/description
-        // The title and description were already set properly when the course was created
-        const { error: publishError } = await supabase
-          .from('courses')
-          .update({ 
-            published: true
-          })
-          .eq('id', course_id);
-        
-        if (publishError) {
-          console.error('❌ Failed to update course:', publishError);
-        } else {
-          console.log('✅ Course marked as published');
-        }
+        console.log('✅ Quiz generation triggered successfully');
       }
       
       return new Response(

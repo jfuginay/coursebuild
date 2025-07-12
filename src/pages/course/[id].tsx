@@ -255,24 +255,33 @@ export default function CoursePage() {
    };
  }, [isYTApiLoaded]);
 
- useEffect(() => {
-   console.log('🎯 Player initialization check:', {
-     videoId: videoId,
-     isYTApiLoaded: isYTApiLoaded,
-     hasWindowYT: !!(window.YT && window.YT.Player),
-     hasPlayer: !!player
-   });
-   
-   if (videoId && isYTApiLoaded && window.YT && window.YT.Player && !player) {
-     console.log('🚀 Attempting to initialize player...');
-     // Add small delay to ensure DOM is ready
-     const timer = setTimeout(() => {
-     initializePlayer();
-     }, 100);
-     
-     return () => clearTimeout(timer);
-   }
- }, [videoId, isYTApiLoaded, player]);
+  // Initialize YouTube player when API is ready and video ID is available
+  useEffect(() => {
+    console.log('🎬 YouTube Player useEffect triggered:', {
+      videoId: videoId,
+      isYTApiLoaded: isYTApiLoaded,
+      hasWindowYT: !!(window.YT && window.YT.Player),
+      hasPlayer: !!player,
+      isProcessing: isProcessing
+    });
+    
+    // Reset player if transitioning from processing to published
+    if (!isProcessing && player && !document.getElementById('youtube-player')) {
+      console.log('🔄 Resetting player due to state transition');
+      setPlayer(null);
+      playerRef.current = null;
+    }
+    
+    if (videoId && isYTApiLoaded && window.YT && window.YT.Player && !player && !isProcessing) {
+      console.log('🚀 Attempting to initialize player...');
+      // Add small delay to ensure DOM is ready
+      const timer = setTimeout(() => {
+      initializePlayer();
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [videoId, isYTApiLoaded, player, isProcessing]);
 
  useEffect(() => {
    if (player && questions.length > 0) {
@@ -381,12 +390,28 @@ export default function CoursePage() {
              const pollData = await pollResponse.json();
              
              if (pollData.success && pollData.course.published) {
-               console.log('✅ Course processing complete!');
-               setCourse(pollData.course);
-               setIsProcessing(false);
-               clearInterval(pollInterval);
-               // Fetch questions now that course is published
-               fetchQuestions();
+               // IMPORTANT: Also verify questions exist before considering processing complete
+               const questionsResponse = await fetch(`/api/course/${id}/questions`);
+               const questionsData = await questionsResponse.json();
+               
+               if (questionsData.success && questionsData.questions && questionsData.questions.length > 0) {
+                 console.log(`✅ Course processing complete! Found ${questionsData.questions.length} questions`);
+                 setCourse(pollData.course);
+                 setIsProcessing(false);
+                 clearInterval(pollInterval);
+                 // Set questions immediately instead of calling fetchQuestions
+                 const parsedQuestions = questionsData.questions.map((q: any) => ({
+                   ...q,
+                   options: parseOptionsWithTrueFalse(q.options || [], q.type),
+                   correct: parseInt(q.correct_answer) || 0,
+                   correct_answer: parseInt(q.correct_answer) || 0
+                 }));
+                 setQuestions(parsedQuestions);
+               } else {
+                 console.log(`⚠️ Course marked as published but no questions found yet. Continuing to poll...`);
+                 // Continue polling even though course is marked as published
+                 // This handles the edge case where published=true but questions aren't ready yet
+               }
              } else if (checkCounter % 6 === 0) { // Only check segments every 30 seconds (6 * 5s)
                // Check segments less frequently to avoid overwhelming the orchestrator
                try {
@@ -673,6 +698,22 @@ export default function CoursePage() {
      if (!smartAnalysisResponse.ok) {
        const errorText = await smartAnalysisResponse.text();
        console.error('Smart analysis failed:', errorText);
+       
+       // Parse error response to check if it's a video duration error
+       let errorObj;
+       try {
+         errorObj = JSON.parse(errorText);
+       } catch {
+         errorObj = { error: errorText };
+       }
+       
+       // Check if it's a video duration error
+       if (errorObj.video_duration && errorObj.max_duration) {
+         const videoDurationMinutes = Math.floor(errorObj.video_duration / 60);
+         const maxDurationMinutes = Math.floor(errorObj.max_duration / 60);
+         throw new Error(`The suggested video is ${videoDurationMinutes} minutes long. Maximum allowed duration is ${maxDurationMinutes} minutes. We'll find a shorter alternative.`);
+       }
+       
        throw new Error(`Smart analysis failed: ${errorText}`);
      }
      

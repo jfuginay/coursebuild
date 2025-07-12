@@ -4,12 +4,22 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { VisualChatMessage } from './VisualChatMessage';
+
+interface VisualContent {
+  type: 'mermaid' | 'chart' | 'table' | 'mindmap';
+  code: string;
+  title?: string;
+  description?: string;
+  interactionHints?: string[];
+}
 
 interface ChatMessage {
   id: string;
   text: string;
   isUser: boolean;
   timestamp: Date;
+  visuals?: VisualContent[];
 }
 
 interface ChatBubbleProps {
@@ -47,6 +57,11 @@ export default function ChatBubble({ className, courseId, currentVideoTime, acti
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  const handleVisualInteraction = (visual: VisualContent, action: string) => {
+    console.log('Visual interaction:', action, visual);
+    // Could track analytics here
+  };
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return;
@@ -89,11 +104,18 @@ export default function ChatBubble({ className, courseId, currentVideoTime, acti
 
       const data = await response.json();
       
+      console.log('📊 Received response with visuals:', {
+        hasVisuals: !!data.visuals,
+        visualsCount: data.visuals?.length || 0,
+        visualContext: data.visualContext
+      });
+      
       const aiMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         text: data.response,
         isUser: false,
-        timestamp: new Date()
+        timestamp: new Date(),
+        visuals: data.visuals // Include any generated visuals
       };
 
       setMessages(prev => [...prev, aiMessage]);
@@ -168,11 +190,18 @@ export default function ChatBubble({ className, courseId, currentVideoTime, acti
 
       const data = await response.json();
       
+      console.log('📊 Received response with visuals:', {
+        hasVisuals: !!data.visuals,
+        visualsCount: data.visuals?.length || 0,
+        visualContext: data.visualContext
+      });
+      
       const aiMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         text: data.response,
         isUser: false,
-        timestamp: new Date()
+        timestamp: new Date(),
+        visuals: data.visuals // Include any generated visuals
       };
 
       setMessages(prev => [...prev, aiMessage]);
@@ -219,8 +248,8 @@ Options: ${activeQuestion.options.join(', ')}`;
     <div className={`fixed bottom-4 right-4 z-50 ${className}`}>
       {/* Chat Window */}
       {isOpen && (
-        <Card className={`mb-4 w-[450px] shadow-lg transition-all duration-300 ${
-          isMinimized ? 'h-14' : 'h-[600px]'
+        <Card className={`mb-4 w-[500px] shadow-lg transition-all duration-300 ${
+          isMinimized ? 'h-14' : 'h-[700px]'
         }`}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 py-3 bg-primary text-primary-foreground">
             <div className="flex items-center space-x-2">
@@ -231,7 +260,7 @@ Options: ${activeQuestion.options.join(', ')}`;
               </Avatar>
               <div>
                 <h3 className="text-sm font-semibold">CourseForge AI</h3>
-                <p className="text-xs opacity-90">Always here to help</p>
+                <p className="text-xs opacity-90">Visual Learning Assistant</p>
               </div>
             </div>
             <div className="flex items-center space-x-1">
@@ -255,29 +284,15 @@ Options: ${activeQuestion.options.join(', ')}`;
           </CardHeader>
           
           {!isMinimized && (
-            <CardContent className="p-0 flex flex-col h-[520px]">
+            <CardContent className="p-0 flex flex-col h-[620px]">
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {messages.map((message) => (
-                  <div
+                  <VisualChatMessage
                     key={message.id}
-                    className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-[70%] rounded-lg px-3 py-2 text-sm ${
-                        message.isUser
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      <p>{message.text}</p>
-                      <p className={`text-xs mt-1 opacity-70 ${
-                        message.isUser ? 'text-primary-foreground' : 'text-muted-foreground'
-                      }`}>
-                        {formatTime(message.timestamp)}
-                      </p>
-                    </div>
-                  </div>
+                    message={message}
+                    onVisualInteraction={handleVisualInteraction}
+                  />
                 ))}
                 {isLoading && (
                   <div className="flex justify-start">
@@ -302,7 +317,7 @@ Options: ${activeQuestion.options.join(', ')}`;
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}
                     onKeyPress={handleKeyPress}
-                    placeholder="Type your message..."
+                    placeholder="Ask me anything... I can create diagrams too!"
                     className="flex-1"
                     disabled={isLoading}
                   />
@@ -315,6 +330,9 @@ Options: ${activeQuestion.options.join(', ')}`;
                     <Send className="h-4 w-4" />
                   </Button>
                 </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Try asking "How does X work?" or "Compare A and B" for visual explanations
+                </p>
               </div>
             </CardContent>
           )}
