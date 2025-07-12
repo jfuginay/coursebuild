@@ -30,7 +30,6 @@ export default async function handler(
     let query = supabase
       .from('courses')
       .select('id, title, description, youtube_url, created_at, published')
-      .eq('published', true)
       .order('created_at', { ascending: false });
 
     // Filter by IDs if provided
