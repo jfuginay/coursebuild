@@ -18,28 +18,28 @@ export default async function handler(
 
   const results: TestResult[] = [];
 
-  // Test 1: Check if course_ratings table exists
+  // Test 1: Check if user_course_ratings table exists
   try {
     const { error } = await supabase
-      .from('course_ratings')
+      .from('user_course_ratings')
       .select('count', { count: 'exact', head: true });
     
     if (error) {
       results.push({
-        test: 'course_ratings_table',
+        test: 'user_course_ratings_table',
         status: 'fail',
         message: `Table does not exist or is not accessible: ${error.message}`
       });
     } else {
       results.push({
-        test: 'course_ratings_table',
+        test: 'user_course_ratings_table',
         status: 'pass',
         message: 'Table exists and is accessible'
       });
     }
   } catch (error) {
     results.push({
-      test: 'course_ratings_table',
+      test: 'user_course_ratings_table',
       status: 'fail',
       message: `Error checking table: ${error}`
     });

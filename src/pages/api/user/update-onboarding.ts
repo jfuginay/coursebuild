@@ -25,7 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // First check if user profile exists
     const { data: existingProfile, error: fetchError } = await supabase
       .from('profiles')
-      .select('id, notification_preferences')
+      .select('id, onboarding_completed')
       .eq('id', user_id)
       .single();
 
@@ -40,12 +40,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .insert({
           id: user_id,
           email: '', // Will be updated when user logs in
-          notification_preferences: {
-            email: true,
-            new_features: false,
-            course_updates: true,
-            onboarding_completed: onboarding_completed
-          },
+          onboarding_completed: onboarding_completed,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         });
@@ -60,22 +55,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // Update existing profile's notification preferences
-    const currentPrefs = existingProfile.notification_preferences || {
-      email: true,
-      new_features: false,
-      course_updates: true
-    };
-
-    const updatedPrefs = {
-      ...currentPrefs,
-      onboarding_completed: onboarding_completed
-    };
-
+    // Update existing profile's onboarding status
     const { error: updateError } = await supabase
       .from('profiles')
       .update({
-        notification_preferences: updatedPrefs,
+        onboarding_completed: onboarding_completed,
         updated_at: new Date().toISOString()
       })
       .eq('id', user_id);
