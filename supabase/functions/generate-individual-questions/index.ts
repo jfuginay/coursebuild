@@ -63,23 +63,23 @@ serve(async (req: Request) => {
     // Create a lightweight progress tracker
     const tracker = await createProgressTracker(supabase, course_id, `individual_${segment_id}`);
 
-    let successCount = 0;
-    let errorCount = 0;
+    console.log(`🚀 Starting PARALLEL generation of ${plans.length} questions`);
 
-    // Process each question individually
-    for (const plan of plans) {
-      console.log(`\n🔄 Processing question ${plan.question_id} (${plan.question_type})`);
-      
-      // Update status to generating
-      await supabase
-        .from('question_plans')
-        .update({ 
-          status: 'generating',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', plan.id);
+    // Update all plans to 'generating' status at once
+    const planIds = plans.map((p: any) => p.id);
+    await supabase
+      .from('question_plans')
+      .update({ 
+        status: 'generating',
+        updated_at: new Date().toISOString()
+      })
+      .in('id', planIds);
 
+    // Process all questions in parallel
+    const questionPromises = plans.map(async (plan: any) => {
       try {
+        console.log(`🔄 Starting generation for question ${plan.question_id} (${plan.question_type})`);
+        
         // Generate the question using the existing processor
         const question = await generateQuestionByType(
           plan.plan_data,
@@ -94,7 +94,9 @@ serve(async (req: Request) => {
         let metadata: any = {};
         
         // Type-specific data preparation (matching quiz-generation-v5)
-        switch (question.type) {
+        const questionType = question.type === 'true_false' ? 'true-false' : question.type;
+        
+        switch (questionType) {
           case 'multiple-choice':
             options = JSON.stringify((question as any).options || []);
             correctAnswer = (question as any).correct_answer || 0;
@@ -104,7 +106,6 @@ serve(async (req: Request) => {
             break;
             
           case 'true-false':
-          case 'true_false':
             // True/False questions don't have options in the database
             options = null;
             // Convert boolean to correct index for ['True', 'False'] options array
@@ -171,12 +172,12 @@ serve(async (req: Request) => {
             
           default:
             // For any other types, store options as JSON if array
-            if (Array.isArray(question.options)) {
-              options = JSON.stringify(question.options);
+            if (Array.isArray((question as any).options)) {
+              options = JSON.stringify((question as any).options);
             } else {
-              options = question.options;
+              options = (question as any).options;
             }
-            correctAnswer = question.correct_answer || 0;
+            correctAnswer = (question as any).correct_answer || 0;
         }
         
         // Add common metadata fields
@@ -205,7 +206,9 @@ serve(async (req: Request) => {
         };
 
         // Save to database with bounding boxes if hotspot
-        if (question.type === 'hotspot' && question.bounding_boxes) {
+        let insertedQuestionId: string | null = null;
+        
+        if (question.type === 'hotspot' && (question as any).bounding_boxes) {
           // Insert question first
           const { data: insertedQuestion, error: insertError } = await supabase
             .from('questions')
@@ -217,15 +220,17 @@ serve(async (req: Request) => {
             throw new Error(`Failed to insert question: ${insertError.message}`);
           }
 
+          insertedQuestionId = insertedQuestion.id;
+
           // Debug log to check bounding box structure
           console.log('🎯 Hotspot question bounding boxes:', {
-            count: question.bounding_boxes.length,
-            sample: question.bounding_boxes[0],
-            correctAnswers: question.bounding_boxes.filter((b: any) => b.is_correct_answer === true).length
+            count: (question as any).bounding_boxes.length,
+            sample: (question as any).bounding_boxes[0],
+            correctAnswers: (question as any).bounding_boxes.filter((b: any) => b.is_correct_answer === true).length
           });
 
           // Insert bounding boxes using the generated question ID
-          const boundingBoxes = question.bounding_boxes.map((box: any) => ({
+          const boundingBoxes = (question as any).bounding_boxes.map((box: any) => ({
             question_id: insertedQuestion.id,
             label: box.label,
             x: box.x,
@@ -242,53 +247,96 @@ serve(async (req: Request) => {
 
           if (boxError) {
             console.error('Failed to insert bounding boxes:', boxError);
+            // Don't fail the entire question generation if bounding boxes fail
           }
         } else {
           // Insert regular question
-          const { error: insertError } = await supabase
+          const { data: insertedQuestion, error: insertError } = await supabase
             .from('questions')
-            .insert(dbQuestion);
+            .insert(dbQuestion)
+            .select()
+            .single();
 
           if (insertError) {
             throw new Error(`Failed to insert question: ${insertError.message}`);
           }
+          
+          insertedQuestionId = insertedQuestion?.id || null;
         }
         
-        // Update plan status to completed
-        await supabase
-          .from('question_plans')
-          .update({ 
-            status: 'completed',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', plan.id);
-          
-        successCount++;
         console.log(`✅ Question ${plan.question_id} generated and saved successfully`);
         
-        // Add a small delay between questions to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 500));
+        return {
+          success: true,
+          planId: plan.id,
+          questionId: insertedQuestionId,
+          questionType: question.type
+        };
         
       } catch (error) {
-        errorCount++;
         console.error(`❌ Failed to generate question ${plan.question_id}:`, error);
-        
-        // Update plan status to failed
-        await supabase
-          .from('question_plans')
-          .update({ 
-            status: 'failed',
-            error_message: error instanceof Error ? error.message : 'Unknown error',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', plan.id);
+        return {
+          success: false,
+          planId: plan.id,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        };
       }
-    }
+    });
+
+    // Wait for all questions to complete
+    console.log(`⏳ Waiting for all ${plans.length} question generations to complete...`);
+    const results = await Promise.allSettled(questionPromises);
+    
+    // Process results
+    let successCount = 0;
+    let errorCount = 0;
+    const successfulPlanIds: string[] = [];
+    const failedPlans: { id: string; error: string }[] = [];
+    
+    results.forEach((result) => {
+      if (result.status === 'fulfilled' && result.value.success) {
+        successCount++;
+        successfulPlanIds.push(result.value.planId);
+      } else {
+        errorCount++;
+        const error = result.status === 'rejected' 
+          ? result.reason?.message || 'Unknown error' 
+          : result.value.error;
+        const planId = result.status === 'fulfilled' ? result.value.planId : null;
+        
+        if (planId) {
+          failedPlans.push({ id: planId, error });
+        }
+      }
+    });
 
     console.log(`📊 Generation summary:
       - Successful: ${successCount}
       - Failed: ${errorCount}
       - Total plans: ${plans.length}`);
+
+    // Update successful plans to completed status in bulk
+    if (successfulPlanIds.length > 0) {
+      await supabase
+        .from('question_plans')
+        .update({ 
+          status: 'completed',
+          updated_at: new Date().toISOString()
+        })
+        .in('id', successfulPlanIds);
+    }
+    
+    // Update failed plans with error messages
+    for (const failedPlan of failedPlans) {
+      await supabase
+        .from('question_plans')
+        .update({ 
+          status: 'failed',
+          error_message: failedPlan.error,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', failedPlan.id);
+    }
       
     // Update segment with actual question count
     const { error: updateError } = await supabase
@@ -358,7 +406,7 @@ serve(async (req: Request) => {
         generated_count: successCount,
         error_count: errorCount,
         segment_complete: true,
-        message: `Generated ${successCount} out of ${plans.length} questions`
+        message: `Generated ${successCount} out of ${plans.length} questions in parallel`
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

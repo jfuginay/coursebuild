@@ -1,5 +1,5 @@
 import React from 'react';
-import { Lock, CheckCircle, XCircle, SkipForward } from 'lucide-react';
+import { Lock, CheckCircle, XCircle, SkipForward, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -30,6 +30,7 @@ interface Segment {
   timestampSeconds: number;
   concepts: string[];
   questions: Question[];
+  isComplete?: boolean;
 }
 
 interface CourseData {
@@ -50,6 +51,8 @@ interface CourseCurriculumCardProps {
   setShowLoginModal: React.Dispatch<React.SetStateAction<boolean>>;
   freeQuestionsLimit: number;
   formatTimestamp: (seconds: number) => string;
+  isProcessing?: boolean;
+  isSegmented?: boolean;
 }
 
 export default function CourseCurriculumCard({
@@ -62,6 +65,8 @@ export default function CourseCurriculumCard({
   setShowLoginModal,
   freeQuestionsLimit,
   formatTimestamp,
+  isProcessing = false,
+  isSegmented = false,
 }: CourseCurriculumCardProps) {
   const { user } = useAuth();
   
@@ -97,8 +102,10 @@ export default function CourseCurriculumCard({
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
-          {courseData.segments.flatMap((segment, segmentIndex) => 
-            segment.questions.map((question, questionIndex) => {
+          {courseData.segments.flatMap((segment, segmentIndex) => {
+            const isSegmentIncomplete = isProcessing && isSegmented && segment.isComplete === false;
+            
+            return segment.questions.map((question, questionIndex) => {
               const questionId = `${segmentIndex}-${questionIndex}`;
               const isAnswered = answeredQuestions.has(questionId);
               const isSkipped = skippedQuestions.has(questionId);
@@ -121,6 +128,8 @@ export default function CourseCurriculumCard({
                       ? isCorrect 
                         ? 'bg-green-50 border-green-200 text-green-900' 
                         : 'bg-red-50 border-red-200 text-red-900'
+                      : isSegmentIncomplete
+                      ? 'bg-blue-50/50 border-blue-200/50 dark:bg-blue-950/20 dark:border-blue-800/50'
                       : isLocked
                       ? 'bg-muted/30 border-muted'
                       : 'bg-background border-border'
@@ -136,6 +145,8 @@ export default function CourseCurriculumCard({
                         ) : (
                           <XCircle className="h-5 w-5 text-red-600" />
                         )
+                      ) : isSegmentIncomplete ? (
+                        <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
                       ) : isLocked ? (
                         <Lock className="h-5 w-5 text-muted-foreground" />
                       ) : (
@@ -148,6 +159,14 @@ export default function CourseCurriculumCard({
                         <span className="text-xs text-muted-foreground">
                           {formatTimestamp(question.timestamp)}
                         </span>
+                        {isSegmentIncomplete && !isAnswered && (
+                          <Badge 
+                            variant="outline" 
+                            className="text-xs bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-800 dark:text-blue-200 dark:border-blue-600"
+                          >
+                            Processing
+                          </Badge>
+                        )}
                         {isSkipped && (
                           <Badge 
                             variant="outline" 
@@ -228,6 +247,10 @@ export default function CourseCurriculumCard({
                               </div>
                             )}
                           </>
+                        ) : isSegmentIncomplete ? (
+                          <p className="font-medium text-blue-900 dark:text-blue-100">
+                            {question.question}
+                          </p>
                         ) : isLocked ? (
                           <>
                             <p className="font-medium blur-sm select-none">
@@ -253,8 +276,8 @@ export default function CourseCurriculumCard({
                   </div>
                 </div>
               );
-            })
-          )}
+            });
+          })}
         </div>
         
         {!user && allQuestions.length > freeQuestionsLimit && (

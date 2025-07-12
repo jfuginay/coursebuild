@@ -30,19 +30,23 @@ export interface Question {
   question: string;
   type: string;
   options: string[]; // Always an array of strings
-  correct: number; // Index for multiple choice, 1/0 for true/false (alias for correct_answer)
-  correct_answer: number; // Index for multiple choice, 1/0 for true/false
+  correct: number; // Index of correct answer
   explanation: string;
   timestamp: number;
-  segment_index?: number; // Which segment this question belongs to
+  // Legacy field names for compatibility
+  correct_answer: number;
+  // Visual question fields
   visual_context?: string;
-  frame_timestamp?: number; // For video overlay timing
+  frame_timestamp?: number;
   bounding_boxes?: any[];
   detected_objects?: any[];
   matching_pairs?: any[];
   requires_video_overlay?: boolean;
   video_overlay?: boolean;
   bounding_box_count?: number;
+  // Segment fields
+  segment_index?: number;
+  segment_id?: number;
 }
 
 export interface Segment {
@@ -51,6 +55,7 @@ export interface Segment {
   timestampSeconds: number;
   concepts: string[];
   questions: Question[];
+  isComplete?: boolean;
 }
 
 export interface CourseData {

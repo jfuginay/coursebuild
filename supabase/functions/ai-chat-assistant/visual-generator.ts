@@ -204,6 +204,7 @@ Requirements:
 3. Show logical flow with decision points if relevant
 4. Keep it focused and readable
 5. Use proper Mermaid flowchart syntax
+6. IMPORTANT: Avoid using pipe characters (|) in node labels. Use "magnitude of" or "norm" instead of |V| notation.
 
 IMPORTANT: Generate your response in the following JSON format:
 {
@@ -219,7 +220,7 @@ IMPORTANT: Generate your response in the following JSON format:
         messages: [
           {
             role: 'system',
-            content: 'You are a Mermaid diagram expert. Generate valid Mermaid syntax and provide clear titles and descriptions.'
+            content: 'You are a Mermaid diagram expert. Generate valid Mermaid syntax and provide clear titles and descriptions. Avoid using pipe characters (|) in node labels.'
           },
           {
             role: 'user',
@@ -240,6 +241,9 @@ IMPORTANT: Generate your response in the following JSON format:
         mermaidCode = mermaidCode.replace(/^```(?:mermaid)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
       }
       
+      // Apply sanitization
+      mermaidCode = this.sanitizeMermaidCode(mermaidCode);
+      
       return {
         type: 'mermaid',
         code: mermaidCode,
@@ -254,12 +258,12 @@ IMPORTANT: Generate your response in the following JSON format:
       console.error('❌ Error generating flowchart:', error);
       // Fallback approach
       const mermaidCode = await this.generateMermaidWithLLM(
-        prompt.split('IMPORTANT:')[0] + 'Return ONLY valid Mermaid code starting with "flowchart TD" or "flowchart LR".'
+        prompt.split('IMPORTANT:')[0] + 'Return ONLY valid Mermaid code starting with "flowchart TD" or "flowchart LR". Avoid using pipe characters (|) in node labels.'
       );
       
       return {
         type: 'mermaid',
-        code: mermaidCode,
+        code: this.sanitizeMermaidCode(mermaidCode),
         title: `Process Flow from Video Content`,
         description: `Visual representation based on the video transcript`,
         interactionHints: [
@@ -287,6 +291,7 @@ Requirements:
 4. Include sub-concepts where mentioned
 5. Keep labels concise but meaningful
 6. Use proper Mermaid mindmap syntax
+7. IMPORTANT: Avoid using pipe characters (|) in node labels. Use "magnitude of" or "norm" instead of |V| notation.
 
 IMPORTANT: Generate your response in the following JSON format:
 {
@@ -302,7 +307,7 @@ IMPORTANT: Generate your response in the following JSON format:
         messages: [
           {
             role: 'system',
-            content: 'You are a Mermaid diagram expert. Generate valid Mermaid syntax and provide clear titles and descriptions.'
+            content: 'You are a Mermaid diagram expert. Generate valid Mermaid syntax and provide clear titles and descriptions. Avoid using pipe characters (|) in node labels.'
           },
           {
             role: 'user',
@@ -323,6 +328,9 @@ IMPORTANT: Generate your response in the following JSON format:
         mermaidCode = mermaidCode.replace(/^```(?:mermaid)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
       }
       
+      // Apply sanitization
+      mermaidCode = this.sanitizeMermaidCode(mermaidCode);
+      
       return {
         type: 'mermaid',
         code: mermaidCode,
@@ -337,12 +345,12 @@ IMPORTANT: Generate your response in the following JSON format:
       console.error('❌ Error generating mindmap:', error);
       // Fallback approach
       const mermaidCode = await this.generateMermaidWithLLM(
-        prompt.split('IMPORTANT:')[0] + 'Return ONLY valid Mermaid code starting with "mindmap".'
+        prompt.split('IMPORTANT:')[0] + 'Return ONLY valid Mermaid code starting with "mindmap". Avoid using pipe characters (|) in node labels.'
       );
       
       return {
         type: 'mermaid',
-        code: mermaidCode,
+        code: this.sanitizeMermaidCode(mermaidCode),
         title: `Concept Map from Video`,
         description: `Conceptual overview based on the video content`,
         interactionHints: [
@@ -369,6 +377,7 @@ Requirements:
 3. Include any loops or conditions mentioned
 4. Keep messages descriptive but concise
 5. Use proper Mermaid sequenceDiagram syntax
+6. IMPORTANT: Avoid using pipe characters (|) in labels. Use alternative notations like "magnitude of" or "norm".
 
 IMPORTANT: Generate your response in the following JSON format:
 {
@@ -384,7 +393,7 @@ IMPORTANT: Generate your response in the following JSON format:
         messages: [
           {
             role: 'system',
-            content: 'You are a Mermaid diagram expert. Generate valid Mermaid syntax and provide clear titles and descriptions.'
+            content: 'You are a Mermaid diagram expert. Generate valid Mermaid syntax and provide clear titles and descriptions. Avoid using pipe characters (|) in node labels.'
           },
           {
             role: 'user',
@@ -405,6 +414,9 @@ IMPORTANT: Generate your response in the following JSON format:
         mermaidCode = mermaidCode.replace(/^```(?:mermaid)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
       }
       
+      // Apply sanitization
+      mermaidCode = this.sanitizeMermaidCode(mermaidCode);
+      
       return {
         type: 'mermaid',
         code: mermaidCode,
@@ -419,12 +431,12 @@ IMPORTANT: Generate your response in the following JSON format:
       console.error('❌ Error generating sequence diagram:', error);
       // Fallback approach
       const mermaidCode = await this.generateMermaidWithLLM(
-        prompt.split('IMPORTANT:')[0] + 'Return ONLY valid Mermaid code starting with "sequenceDiagram".'
+        prompt.split('IMPORTANT:')[0] + 'Return ONLY valid Mermaid code starting with "sequenceDiagram". Avoid using pipe characters (|) in node labels.'
       );
       
       return {
         type: 'mermaid',
-        code: mermaidCode,
+        code: this.sanitizeMermaidCode(mermaidCode),
         title: `Sequence from Video Content`,
         description: `Step-by-step process based on the video`,
         interactionHints: [
@@ -451,6 +463,7 @@ Requirements:
 3. List key characteristics of each based on the video content
 4. Show the main differences clearly
 5. Use proper Mermaid graph syntax
+6. IMPORTANT: Avoid using pipe characters (|) in node labels. Use alternative notations like "magnitude of" or "norm".
 
 IMPORTANT: Generate your response in the following JSON format:
 {
@@ -466,7 +479,7 @@ IMPORTANT: Generate your response in the following JSON format:
         messages: [
           {
             role: 'system',
-            content: 'You are a Mermaid diagram expert. Generate valid Mermaid syntax and provide clear titles and descriptions.'
+            content: 'You are a Mermaid diagram expert. Generate valid Mermaid syntax and provide clear titles and descriptions. Avoid using pipe characters (|) in node labels.'
           },
           {
             role: 'user',
@@ -487,6 +500,9 @@ IMPORTANT: Generate your response in the following JSON format:
         mermaidCode = mermaidCode.replace(/^```(?:mermaid)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
       }
       
+      // Apply sanitization
+      mermaidCode = this.sanitizeMermaidCode(mermaidCode);
+      
       return {
         type: 'mermaid',
         code: mermaidCode,
@@ -501,12 +517,12 @@ IMPORTANT: Generate your response in the following JSON format:
       console.error('❌ Error generating comparison chart:', error);
       // Fallback approach
       const mermaidCode = await this.generateMermaidWithLLM(
-        prompt.split('IMPORTANT:')[0] + 'Return ONLY valid Mermaid code starting with "graph TB" or "graph LR".'
+        prompt.split('IMPORTANT:')[0] + 'Return ONLY valid Mermaid code starting with "graph TB" or "graph LR". Avoid using pipe characters (|) in node labels.'
       );
       
       return {
         type: 'mermaid',
-        code: mermaidCode,
+        code: this.sanitizeMermaidCode(mermaidCode),
         title: `Comparison from Video`,
         description: `Visual comparison based on the video content`,
         interactionHints: [
@@ -534,6 +550,7 @@ Requirements:
 4. Add brief descriptions from the video
 5. Show progression clearly
 6. Use proper Mermaid timeline syntax
+7. IMPORTANT: Avoid using pipe characters (|) in labels. Use alternative notations like "magnitude of" or "norm".
 
 IMPORTANT: Generate your response in the following JSON format:
 {
@@ -549,7 +566,7 @@ IMPORTANT: Generate your response in the following JSON format:
         messages: [
           {
             role: 'system',
-            content: 'You are a Mermaid diagram expert. Generate valid Mermaid syntax and provide clear titles and descriptions.'
+            content: 'You are a Mermaid diagram expert. Generate valid Mermaid syntax and provide clear titles and descriptions. Avoid using pipe characters (|) in node labels.'
           },
           {
             role: 'user',
@@ -570,6 +587,9 @@ IMPORTANT: Generate your response in the following JSON format:
         mermaidCode = mermaidCode.replace(/^```(?:mermaid)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
       }
       
+      // Apply sanitization
+      mermaidCode = this.sanitizeMermaidCode(mermaidCode);
+      
       return {
         type: 'mermaid',
         code: mermaidCode,
@@ -584,12 +604,12 @@ IMPORTANT: Generate your response in the following JSON format:
       console.error('❌ Error generating timeline:', error);
       // Fallback approach
       const mermaidCode = await this.generateMermaidWithLLM(
-        prompt.split('IMPORTANT:')[0] + 'Return ONLY valid Mermaid code starting with "timeline".'
+        prompt.split('IMPORTANT:')[0] + 'Return ONLY valid Mermaid code starting with "timeline". Avoid using pipe characters (|) in node labels.'
       );
       
       return {
         type: 'mermaid',
-        code: mermaidCode,
+        code: this.sanitizeMermaidCode(mermaidCode),
         title: `Timeline from Video`,
         description: `Chronological progression based on the video`,
         interactionHints: [
@@ -614,7 +634,9 @@ ${context.topic}
 Select from: flowchart, mindmap, sequence diagram, comparison graph, or timeline.
 Generate the most appropriate visualization based on the actual content discussed in the video.
 
-IMPORTANT: Generate your response in the following JSON format:
+IMPORTANT: 
+1. Avoid using pipe characters (|) in any labels. Use alternative notations like "magnitude of" or "norm".
+2. Generate your response in the following JSON format:
 {
   "title": "A clear, descriptive title for this diagram based on the content",
   "description": "A detailed explanation of what this diagram shows and how it helps understand the video content",
@@ -629,7 +651,7 @@ IMPORTANT: Generate your response in the following JSON format:
         messages: [
           {
             role: 'system',
-            content: 'You are a Mermaid diagram expert. Generate valid Mermaid syntax and provide clear titles and descriptions.'
+            content: 'You are a Mermaid diagram expert. Generate valid Mermaid syntax and provide clear titles and descriptions. Avoid using pipe characters (|) in node labels.'
           },
           {
             role: 'user',
@@ -651,6 +673,9 @@ IMPORTANT: Generate your response in the following JSON format:
         mermaidCode = mermaidCode.replace(/^```(?:mermaid)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
       }
       
+      // Apply sanitization
+      mermaidCode = this.sanitizeMermaidCode(mermaidCode);
+      
       return {
         type: 'mermaid',
         code: mermaidCode,
@@ -662,12 +687,12 @@ IMPORTANT: Generate your response in the following JSON format:
       console.error('❌ Error generating automatic diagram:', error);
       // Fallback approach
       const mermaidCode = await this.generateMermaidWithLLM(
-        prompt.split('IMPORTANT:')[0] + 'Return ONLY valid Mermaid code.'
+        prompt.split('IMPORTANT:')[0] + 'Return ONLY valid Mermaid code. Avoid using pipe characters (|) in node labels.'
       );
       
       return {
         type: 'mermaid',
-        code: mermaidCode,
+        code: this.sanitizeMermaidCode(mermaidCode),
         title: `Video Content Visualization`,
         description: `AI-selected visualization based on the video`,
         interactionHints: ['Explore the diagram to understand the video content better']
@@ -684,7 +709,7 @@ IMPORTANT: Generate your response in the following JSON format:
         messages: [
           {
             role: 'system',
-            content: 'You are a Mermaid diagram expert. Generate only valid Mermaid syntax code. No explanations, no markdown code blocks, just the pure Mermaid diagram code.'
+            content: 'You are a Mermaid diagram expert. Generate only valid Mermaid syntax code. No explanations, no markdown code blocks, just the pure Mermaid diagram code. IMPORTANT: Avoid using pipe characters (|) in node labels - use "magnitude of" or "norm" instead of |V| notation.'
           },
           {
             role: 'user',
@@ -707,6 +732,10 @@ IMPORTANT: Generate your response in the following JSON format:
         code = code.trim();
         console.log('📋 Stripped markdown wrapper, clean code:', code.substring(0, 100) + '...');
       }
+      
+      // Apply sanitization to handle any special characters
+      code = this.sanitizeMermaidCode(code);
+      console.log('🧹 Sanitized Mermaid code:', code.substring(0, 100) + '...');
       
       // Basic validation
       if (!code || !this.isValidMermaidCode(code)) {
@@ -845,5 +874,36 @@ IMPORTANT: Generate your response in the following JSON format:
   private extractConceptsFromTranscript(segments: TranscriptSegment[]): string[] {
     // Not using heuristic extraction anymore
     return [];
+  }
+
+  /**
+   * Sanitizes Mermaid code to escape special characters that cause parsing errors
+   */
+  private sanitizeMermaidCode(code: string): string {
+    // Replace pipe characters in node labels with Unicode alternatives
+    // This regex looks for content within square brackets and replaces pipes
+    let sanitized = code.replace(/\[([^\]]*)\]/g, (match, content) => {
+      // Replace pipe characters with a Unicode full-width vertical bar
+      const sanitizedContent = content.replace(/\|/g, '｜');
+      return `[${sanitizedContent}]`;
+    });
+    
+    // Also handle pipes in quoted strings
+    sanitized = sanitized.replace(/"([^"]*)"/g, (match, content) => {
+      const sanitizedContent = content.replace(/\|/g, '｜');
+      return `"${sanitizedContent}"`;
+    });
+    
+    // Handle other potentially problematic characters
+    // Replace angle brackets that might conflict with Mermaid syntax
+    sanitized = sanitized.replace(/\[([^\]]*)\]/g, (match, content) => {
+      let cleaned = content;
+      // Replace < and > with Unicode alternatives if not part of HTML entities
+      cleaned = cleaned.replace(/(?<!&\w{2,6})<(?!\/?\w+>)/g, '＜');
+      cleaned = cleaned.replace(/(?<!<\/?\w+)>(?!\w{2,6};)/g, '＞');
+      return `[${cleaned}]`;
+    });
+    
+    return sanitized;
   }
 } 
