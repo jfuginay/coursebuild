@@ -12,13 +12,50 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { videoUrl } = req.body;
+    const { videoUrl, userId, courseId, trigger = 'course_completion' } = req.body;
 
     if (!videoUrl) {
       return res.status(400).json({ error: 'Video URL is required' });
     }
 
-    // Call the Supabase edge function
+    // Check if we should use enhanced recommendations (when userId is provided)
+    if (userId) {
+      console.log('🎯 Using enhanced recommendations for user:', userId);
+      
+      // Call the enhanced recommendations edge function
+      const { data, error } = await supabase.functions.invoke('enhanced-recommendations', {
+        body: {
+          userId,
+          courseId,
+          trigger,
+          requestedCount: 5
+        },
+      });
+
+      if (error) {
+        console.error('Error calling enhanced recommendations:', error);
+        // Fall back to basic suggestions
+      } else if (data && data.recommendations && data.recommendations.length > 0) {
+        // Transform enhanced recommendations to match expected format
+        return res.status(200).json({
+          topics: data.recommendations.map((rec: any) => ({
+            topic: rec.title,
+            video: rec.youtube_url,
+            // Additional enhanced data
+            description: rec.description,
+            reasons: rec.reasons,
+            difficulty_match: rec.difficulty_match,
+            addresses_mistakes: rec.addresses_mistakes,
+            thumbnail_url: rec.thumbnail_url,
+            channel_name: rec.channel_name,
+            duration: rec.duration
+          }))
+        });
+      }
+    }
+
+    // Fall back to original course-suggestions for users without profiles
+    console.log('📚 Using basic course suggestions (no user profile)');
     const { data, error } = await supabase.functions.invoke('course-suggestions', {
       body: {
         videoUrl: videoUrl,

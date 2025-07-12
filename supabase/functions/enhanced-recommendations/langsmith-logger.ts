@@ -1,8 +1,8 @@
 /**
- * LangSmith Logger for Gemini API Calls
+ * LangSmith Logger for LLM API Calls
  * 
  * This module provides integration with LangSmith for logging and tracing
- * Gemini API calls in the quiz generation pipeline.
+ * LLM API calls in the enhanced recommendations pipeline.
  */
 
 declare const Deno: {
@@ -33,7 +33,7 @@ interface LangSmithRun {
 // =============================================================================
 
 const LANGSMITH_API_URL = 'https://api.smith.langchain.com/api/v1';
-const DEFAULT_PROJECT_NAME = 'pr-drab-plowman-55';
+const DEFAULT_PROJECT_NAME = 'enhanced-recommendations';
 
 // =============================================================================
 // Main LangSmith Logger Class
@@ -94,7 +94,7 @@ export class LangSmithLogger {
         // Use session_name to specify the project
         session_name: this.projectName,
         metadata,
-        tags: tags || ['gemini', 'quiz-generation']
+        tags: tags || ['recommendations', 'personalization']
       };
 
       console.log(`[LangSmith] Creating run with ID: ${runId}`);
@@ -260,14 +260,14 @@ export class LangSmithLogger {
     const tags = [
       'gemini',
       model,
-      'quiz-generation',
+      'recommendations',
       videoMetadata ? 'video-analysis' : 'text-only'
     ];
 
     // Wait for run creation and return the run ID
     const runId = await this.createRun(
       requestId,
-      `Quiz Generation v5 - ${model}`,
+      `Enhanced Recommendations - Gemini ${model}`,
       inputs,
       metadata,
       tags
@@ -379,14 +379,14 @@ export class LangSmithLogger {
     const tags = [
       'openai',
       model,
-      'quiz-generation',
+      'recommendations',
       'text-only'
     ];
 
     // Wait for run creation and return the run ID
     const runId = await this.createRun(
       requestId,
-      `Quiz Generation v5 - ${model}`,
+      `Enhanced Recommendations - OpenAI ${model}`,
       inputs,
       metadata,
       tags
@@ -492,43 +492,8 @@ export class LangSmithLogger {
       console.log(`\n🎯 ${options.description}`);
     }
     
-    // Use description in the run name if provided
-    const runName = options.description 
-      ? `Quiz Generation v5 - ${options.description}`
-      : `Quiz Generation v5 - ${model}`;
-    
-    // Log request to LangSmith with descriptive name
-    const runId = await this.createRun(
-      requestId,
-      runName,
-      {
-        messages: [{
-          role: 'user',
-          content: prompt
-        }],
-        model,
-        config,
-        ...(videoMetadata && { video_metadata: videoMetadata })
-      },
-      {
-        model,
-        endpoint: 'generateContent',
-        prompt_length: prompt.length,
-        has_video: !!videoMetadata,
-        ...(videoMetadata && {
-          video_url: videoMetadata.fileUri,
-          video_fps: videoMetadata.fps,
-          start_offset: videoMetadata.startOffset,
-          end_offset: videoMetadata.endOffset
-        })
-      },
-      [
-        'gemini',
-        model,
-        'quiz-generation',
-        videoMetadata ? 'video-analysis' : 'text-only'
-      ]
-    );
+    // Log request to LangSmith and wait for run creation
+    const runId = await this.logGeminiRequest(requestId, model, prompt, config, videoMetadata);
     
     if (!runId && this.enabled) {
       console.warn('[LangSmith] Failed to create run, continuing without logging');

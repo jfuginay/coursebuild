@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { VisualChatMessage } from './VisualChatMessage';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface VisualContent {
   type: 'mermaid' | 'chart' | 'table' | 'mindmap';
@@ -34,6 +35,7 @@ interface ChatBubbleProps {
 }
 
 export default function ChatBubble({ className, courseId, currentVideoTime, activeQuestion }: ChatBubbleProps) {
+  const { user, session } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -82,14 +84,22 @@ export default function ChatBubble({ className, courseId, currentVideoTime, acti
         courseId,
         currentVideoTime,
         message: inputMessage.substring(0, 50) + '...',
-        conversationHistoryLength: messages.length
+        conversationHistoryLength: messages.length,
+        hasAuth: !!session?.access_token
       });
+      
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      
+      // Add authorization header if user is authenticated
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
       
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           message: inputMessage,
           conversationHistory: messages,
@@ -168,14 +178,22 @@ export default function ChatBubble({ className, courseId, currentVideoTime, acti
         courseId,
         currentVideoTime,
         message: message.substring(0, 50) + '...',
-        conversationHistoryLength: messages.length
+        conversationHistoryLength: messages.length,
+        hasAuth: !!session?.access_token
       });
+      
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      
+      // Add authorization header if user is authenticated
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
       
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           message: message,
           conversationHistory: messages,
