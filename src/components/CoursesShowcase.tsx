@@ -339,7 +339,7 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
           return (
             <Card 
               key={course.id} 
-              className="group hover:shadow-lg transition-all duration-300 cursor-pointer relative"
+              className="group hover:shadow-lg transition-all duration-300 cursor-pointer relative h-full flex flex-col"
               onClick={() => handleCourseClick(course.id)}
             >
               {/* Delete button in top right corner */}
@@ -380,14 +380,14 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
                 </AlertDialog>
               </div>
 
-              <CardHeader className="pb-3">
+              <CardHeader className="pb-4 flex-shrink-0">
                 <div className="flex items-start justify-between">
                   <div className="flex-1 pr-8">
-                    <CardTitle className="text-lg line-clamp-2 group-hover:text-primary transition-colors">
+                    <CardTitle className="text-lg line-clamp-2 group-hover:text-primary transition-colors min-h-[3.5rem] flex items-start">
                       {course.title}
                     </CardTitle>
-                    {/* Rating Display - Prominent placement */}
-                    <div className="mt-2">
+                    {/* Rating Display - Consistent positioning */}
+                    <div className="mt-3">
                       <CompactStarRating 
                         rating={course.averageRating || 0} 
                         totalRatings={course.totalRatings || 0}
@@ -400,9 +400,9 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
                 </div>
               </CardHeader>
               
-              <CardContent className="space-y-4">
+              <CardContent className="flex-1 flex flex-col space-y-4">
                 {/* Video Thumbnail */}
-                <div className="relative aspect-video bg-muted rounded-lg overflow-hidden">
+                <div className="relative aspect-video bg-muted rounded-lg overflow-hidden flex-shrink-0">
                   {thumbnailUrl ? (
                     <img 
                       src={thumbnailUrl}
@@ -452,8 +452,8 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
                   </div>
                 </div>
 
-                {/* Course Info */}
-                <div className="space-y-2">
+                {/* Course Info - Flexible spacer */}
+                <div className="flex-1 flex flex-col justify-between">
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
                     <div className="flex items-center gap-1">
                       <Clock className="h-3 w-3" />
@@ -463,21 +463,21 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
                       {course.questionCount || 0} Questions
                     </Badge>
                   </div>
-                </div>
 
-                {/* Call to Action */}
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="w-full group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleCourseClick(course.id);
-                  }}
-                >
-                  Start Learning
-                  <Play className="ml-2 h-3 w-3" />
-                </Button>
+                  {/* Call to Action - Always at bottom */}
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full group-hover:bg-primary group-hover:text-primary-foreground transition-colors mt-4"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCourseClick(course.id);
+                    }}
+                  >
+                    Start Learning
+                    <Play className="ml-2 h-3 w-3" />
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           );

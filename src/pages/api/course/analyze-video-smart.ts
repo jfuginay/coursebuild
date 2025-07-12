@@ -81,7 +81,67 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let videoTitle = '';
     let videoDescription = '';
 
-    // If course_id is not provided, create a new course
+    // Extract user from authorization header [[memory:2766702]]
+    let userId = null;
+    try {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+        if (!authError && user) {
+          userId = user.id;
+        }
+      }
+    } catch (error) {
+      console.log('No valid user token found, proceeding without user ID');
+    }
+
+    // Check cache FIRST if enabled (before creating a new course)
+    if (useCache && !course_id) {
+      console.log('🔍 Checking cache for existing analysis...');
+      const sanitizedUrl = sanitizeYouTubeUrl(youtube_url);
+      
+      // Check if this video has been processed before
+      const { data: existingCourses, error: cacheError } = await supabase
+        .from('courses')
+        .select('id, created_at, published, title, description')
+        .eq('youtube_url', sanitizedUrl)
+        .order('created_at', { ascending: false });
+
+      if (!cacheError && existingCourses && existingCourses.length > 0) {
+        // Check each course for questions (not just published ones)
+        for (const existingCourse of existingCourses) {
+          const { data: questions, error: questionsError } = await supabase
+            .from('questions')
+            .select('id')
+            .eq('course_id', existingCourse.id)
+            .limit(1);
+
+          if (!questionsError && questions && questions.length > 0) {
+            console.log('✅ Found cached course with questions:', existingCourse.id);
+            console.log('   📚 Title:', existingCourse.title);
+            console.log('   📊 Published:', existingCourse.published);
+            
+            // Return the existing course ID - no new course created!
+            return res.status(200).json({
+              success: true,
+              message: 'Course loaded from cache',
+              session_id: session_id,
+              course_id: existingCourse.id, // Use existing course ID
+              cached: true,
+              segmented: false,
+              data: {
+                title: existingCourse.title,
+                description: existingCourse.description
+              }
+            });
+          }
+        }
+        console.log('⚠️ Found courses but none have questions, will create new course');
+      }
+    }
+
+    // If course_id is not provided AND no cache was found, create a new course
     if (!course_id) {
       const sanitizedUrl = sanitizeYouTubeUrl(youtube_url);
       console.log('📝 Creating new course record...');
@@ -95,15 +155,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       
       console.log('📹 Video Title:', videoTitle);
       console.log('👤 Author:', videoMetadata?.author_name || 'Unknown');
+      console.log('👤 Creating course for user:', userId || 'Anonymous');
       
+      const courseData: any = {
+        title: videoTitle,
+        description: videoDescription,
+        youtube_url: sanitizedUrl,
+        published: false
+      };
+
+      // Add created_by field if user is logged in
+      if (userId) {
+        courseData.created_by = userId;
+      }
+
       const { data: course, error: courseError } = await supabase
         .from('courses')
-        .insert({
-          title: videoTitle,
-          description: videoDescription,
-          youtube_url: sanitizedUrl,
-          published: false
-        })
+        .insert(courseData)
         .select()
         .single();
 
@@ -117,81 +185,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       course_id = course.id;
       console.log('✅ Course created:', course_id);
-    }
 
-    // Check cache if enabled (before processing)
-    if (useCache) {
-      console.log('🔍 Checking cache for existing analysis...');
-      
-      // Check if this video has been processed before
-      const { data: existingCourses, error: cacheError } = await supabase
-        .from('courses')
-        .select('id, created_at')
-        .eq('youtube_url', sanitizeYouTubeUrl(youtube_url))
-        .eq('published', true)
-        .neq('id', course_id)
-        .order('created_at', { ascending: false })
-        .limit(1);
+      // Record course creation in user_course_creations table if user is logged in
+      if (userId) {
+        try {
+          const creationResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/user-course-creations`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              user_id: userId,
+              course_id: course.id,
+              role: 'creator'
+            }),
+          });
 
-      if (!cacheError && existingCourses && existingCourses.length > 0) {
-        // Check if the cached course has questions
-        const { data: questions, error: questionsError } = await supabase
-          .from('questions')
-          .select('*')
-          .eq('course_id', existingCourses[0].id)
-          .order('timestamp', { ascending: true });
-
-        if (!questionsError && questions && questions.length > 0) {
-          console.log('✅ Found cached course with questions:', existingCourses[0].id);
-          
-          // Copy questions to new course
-          const questionsToInsert = questions.map(q => ({
-            ...q,
-            id: undefined,
-            course_id: course_id,
-            created_at: undefined,
-            updated_at: undefined
-          }));
-
-          const { error: insertError } = await supabase
-            .from('questions')
-            .insert(questionsToInsert);
-
-          if (!insertError) {
-            console.log('✅ Cached questions copied to new course');
-            
-            // Verify questions were actually inserted before marking as published
-            const { count: questionCount } = await supabase
-              .from('questions')
-              .select('*', { count: 'exact', head: true })
-              .eq('course_id', course_id);
-            
-            if (questionCount && questionCount > 0) {
-              // Update course status only if questions exist
-              await supabase
-                .from('courses')
-                .update({ published: true })
-                .eq('id', course_id);
-              
-              console.log(`✅ Course marked as published (${questionCount} questions verified)`);
-            } else {
-              console.warn('⚠️ No questions found after copy, not marking as published');
-            }
-
-            // Return success with cached flag
-            return res.status(200).json({
-              success: true,
-              message: 'Course loaded from cache',
-              session_id: session_id,
-              course_id: course_id,
-              cached: true,
-              segmented: false,
-              data: {
-                title: 'Cached Course',
-                description: 'Course loaded from previously analyzed video'
-              }
-            });
+          if (!creationResponse.ok) {
+            console.error('Failed to record course creation, but continuing...');
+          } else {
+            console.log('✅ Course creation recorded in user_course_creations');
           }
+        } catch (error) {
+          console.error('Error recording course creation:', error);
+          // Continue with course creation even if this fails
         }
       }
     }

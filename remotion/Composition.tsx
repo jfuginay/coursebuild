@@ -25,7 +25,7 @@ export const MyComposition: React.FC = () => {
       }}
     >
       <div style={{ transform: `scale(${scale})` }}>
-        CourseBuilder
+        CourseBuild
       </div>
     </AbsoluteFill>
   );

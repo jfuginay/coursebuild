@@ -1,4 +1,4 @@
-# CourseBuilder - Master Todo List
+# CourseBuild - Master Todo List
 
 ## 🚀 Completed Features
 

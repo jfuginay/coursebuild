@@ -3,7 +3,7 @@
 ## 📖 Overview
 
 ### Product Vision
-Create an intuitive, seamless 5-star rating system for CourseBuilder that balances subtle user experience with clear rating visibility. The system should feel natural and effortless while providing valuable course quality indicators for all users.
+Create an intuitive, seamless 5-star rating system for CourseBuild that balances subtle user experience with clear rating visibility. The system should feel natural and effortless while providing valuable course quality indicators for all users.
 
 ### Mission Statement
 "Enable users to discover high-quality courses through a fluid rating experience that feels like a natural extension of the learning journey, not an interruption."
@@ -528,4 +528,4 @@ analytics.track('Rating Filter Applied', {
 
 ---
 
-*This PRD serves as the comprehensive blueprint for implementing CourseBuilder's course rating system. It prioritizes user experience while ensuring technical feasibility and business value alignment.*
+*This PRD serves as the comprehensive blueprint for implementing CourseBuild's course rating system. It prioritizes user experience while ensuring technical feasibility and business value alignment.*

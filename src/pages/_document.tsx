@@ -10,7 +10,7 @@ export default function Document() {
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
         <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
         <meta name="theme-color" content="#3b82f6" />
-        <meta name="description" content="CourseBuilder - Transform YouTube videos into interactive learning experiences" />
+        <meta name="description" content="CourseBuild - Transform YouTube videos into interactive learning experiences" />
       </Head>
       <body>
         <Main />
