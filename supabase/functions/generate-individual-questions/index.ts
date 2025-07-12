@@ -89,31 +89,117 @@ serve(async (req: Request) => {
         );
         
         // Transform the question for database storage
+        let options = null;
+        let correctAnswer: number | boolean = 0;
+        let metadata: any = {};
+        
+        // Type-specific data preparation (matching quiz-generation-v5)
+        switch (question.type) {
+          case 'multiple-choice':
+            options = JSON.stringify((question as any).options || []);
+            correctAnswer = (question as any).correct_answer || 0;
+            if ((question as any).misconception_analysis) {
+              metadata.misconception_analysis = (question as any).misconception_analysis;
+            }
+            break;
+            
+          case 'true-false':
+          case 'true_false':
+            // True/False questions don't have options in the database
+            options = null;
+            // Convert boolean to correct index for ['True', 'False'] options array
+            // true -> 0 (index of 'True'), false -> 1 (index of 'False')
+            const tfAnswer = (question as any).correct_answer;
+            if (typeof tfAnswer === 'boolean') {
+              correctAnswer = tfAnswer === true ? 0 : 1;
+            } else if (typeof tfAnswer === 'string') {
+              // Handle string "true"/"false" from older implementations
+              correctAnswer = tfAnswer === 'true' ? 0 : 1;
+            } else {
+              // Default to the numeric value if already converted
+              correctAnswer = tfAnswer || 0;
+            }
+            if ((question as any).concept_analysis) {
+              metadata.concept_analysis = (question as any).concept_analysis;
+            }
+            if ((question as any).misconception_addressed) {
+              metadata.misconception_addressed = (question as any).misconception_addressed;
+            }
+            break;
+            
+          case 'hotspot':
+            options = null; // Hotspot questions don't have options
+            correctAnswer = 1; // Hotspot questions use special handling
+            metadata = {
+              target_objects: (question as any).target_objects,
+              frame_timestamp: (question as any).frame_timestamp,
+              question_context: (question as any).question_context,
+              visual_learning_objective: (question as any).visual_learning_objective,
+              distractor_guidance: (question as any).distractor_guidance,
+              video_overlay: true
+            };
+            
+            // Add bounding box metadata if available
+            if ((question as any).bounding_boxes) {
+              metadata.detected_elements = (question as any).bounding_boxes;
+              metadata.gemini_bounding_boxes = true;
+              metadata.video_dimensions = (question as any).video_dimensions || { width: 1000, height: 1000 };
+            }
+            break;
+            
+          case 'matching':
+            options = null; // Matching questions use metadata
+            correctAnswer = 1; // Matching questions use special handling
+            metadata = {
+              matching_pairs: (question as any).matching_pairs,
+              relationship_analysis: (question as any).relationship_analysis,
+              relationship_type: (question as any).relationship_type,
+              video_overlay: true
+            };
+            break;
+            
+          case 'sequencing':
+            options = null; // Sequencing questions use metadata
+            correctAnswer = 1; // Sequencing questions use special handling
+            metadata = {
+              sequence_items: (question as any).sequence_items,
+              sequence_analysis: (question as any).sequence_analysis,
+              sequence_type: (question as any).sequence_type,
+              video_overlay: true
+            };
+            break;
+            
+          default:
+            // For any other types, store options as JSON if array
+            if (Array.isArray(question.options)) {
+              options = JSON.stringify(question.options);
+            } else {
+              options = question.options;
+            }
+            correctAnswer = question.correct_answer || 0;
+        }
+        
+        // Add common metadata fields
+        metadata.bloom_level = question.bloom_level;
+        metadata.educational_rationale = question.educational_rationale;
+        metadata.misconception_analysis = question.misconception_analysis;
+        metadata.misconception_addressed = question.misconception_addressed;
+        metadata.plan_question_id = plan.question_id; // Store the original plan ID
+        
         const dbQuestion = {
-          id: plan.question_id,
           course_id: course_id,
           segment_id: segment_id,
           segment_index: plan.segment_index,
           question: question.question,
-          type: question.type,
-          options: Array.isArray(question.options) ? question.options : JSON.stringify(question.options || []),
-          correct_answer: question.correct_answer !== undefined ? question.correct_answer : 0,
+          type: question.type === 'true_false' ? 'true-false' : question.type,
+          timestamp: Math.round(plan.timestamp),
+          options: options,
+          correct_answer: correctAnswer,
           explanation: question.explanation,
-          timestamp: question.timestamp,
-          visual_context: question.visual_context,
-          frame_timestamp: question.frame_timestamp,
-          has_visual_asset: question.type === 'hotspot' || question.video_overlay,
-          metadata: {
-            bloom_level: question.bloom_level,
-            educational_rationale: question.educational_rationale,
-            misconception_analysis: question.misconception_analysis,
-            misconception_addressed: question.misconception_addressed,
-            bounding_boxes: question.bounding_boxes,
-            detected_elements: question.detected_elements,
-            matching_pairs: question.matching_pairs,
-            sequence_items: question.sequence_items,
-            distractor_guidance: question.distractor_guidance
-          },
+          visual_context: (question as any).visual_context || null,
+          frame_timestamp: question.type === 'hotspot' && (question as any).frame_timestamp ? Math.round((question as any).frame_timestamp) : null,
+          has_visual_asset: ['hotspot', 'matching', 'sequencing'].includes(question.type) || (question as any).video_overlay,
+          metadata: Object.keys(metadata).length > 0 ? JSON.stringify(metadata) : null,
           generation_status: 'completed',
           generated_at: new Date().toISOString()
         };
@@ -131,16 +217,23 @@ serve(async (req: Request) => {
             throw new Error(`Failed to insert question: ${insertError.message}`);
           }
 
-          // Insert bounding boxes
+          // Debug log to check bounding box structure
+          console.log('🎯 Hotspot question bounding boxes:', {
+            count: question.bounding_boxes.length,
+            sample: question.bounding_boxes[0],
+            correctAnswers: question.bounding_boxes.filter((b: any) => b.is_correct_answer === true).length
+          });
+
+          // Insert bounding boxes using the generated question ID
           const boundingBoxes = question.bounding_boxes.map((box: any) => ({
-            question_id: plan.question_id,
+            question_id: insertedQuestion.id,
             label: box.label,
             x: box.x,
             y: box.y,
             width: box.width,
             height: box.height,
-            is_correct_answer: box.isCorrectAnswer || false,
-            confidence_score: box.confidenceScore || 0.9
+            is_correct_answer: box.is_correct_answer || false,
+            confidence_score: box.confidence_score || 0.9
           }));
 
           const { error: boxError } = await supabase
@@ -192,27 +285,80 @@ serve(async (req: Request) => {
       }
     }
 
-    // Check if all questions for the segment are complete
-    const { data: remainingPlans } = await supabase
-      .from('question_plans')
-      .select('id', { count: 'exact' })
-      .eq('segment_id', segment_id)
-      .in('status', ['planned', 'generating']);
-
-    const allComplete = !remainingPlans || remainingPlans.length === 0;
-
-    console.log(`\n📊 Question generation complete:
-    - Success: ${successCount}
-    - Failed: ${errorCount}
-    - Segment complete: ${allComplete}`);
-
+    console.log(`📊 Generation summary:
+      - Successful: ${successCount}
+      - Failed: ${errorCount}
+      - Total plans: ${plans.length}`);
+      
+    // Update segment with actual question count
+    const { error: updateError } = await supabase
+      .from('course_segments')
+      .update({
+        questions_count: successCount,
+        status: 'completed',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', segment_id);
+      
+    if (updateError) {
+      console.error('Failed to update segment status:', updateError);
+    }
+    
+    // Check if this segment completes all questions for the course
+    console.log('🔍 Checking if course is ready to publish...');
+    
+    // Get all segments for this course
+    const { data: allSegments, error: segmentsError } = await supabase
+      .from('course_segments')
+      .select('*')
+      .eq('course_id', course_id)
+      .order('segment_index', { ascending: true });
+      
+    if (!segmentsError && allSegments) {
+      const allComplete = allSegments.every(s => s.status === 'completed');
+      const totalPlannedQuestions = allSegments.reduce((sum, s) => sum + (s.planned_questions_count || 0), 0);
+      const totalGeneratedQuestions = allSegments.reduce((sum, s) => sum + (s.questions_count || 0), 0);
+      
+      console.log(`📊 Course progress:
+        - Segments completed: ${allSegments.filter(s => s.status === 'completed').length}/${allSegments.length}
+        - Questions generated: ${totalGeneratedQuestions}/${totalPlannedQuestions}
+        - All complete: ${allComplete}`);
+      
+      // If all segments are completed and we have questions, trigger publish check
+      if (allComplete && totalGeneratedQuestions > 0) {
+        console.log('✅ All segments complete! Triggering publish check...');
+        
+        // Call check-and-publish-course edge function
+        const publishUrl = `${supabaseUrl}/functions/v1/check-and-publish-course`;
+        const publishResponse = await fetch(publishUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ course_id })
+        });
+        
+        if (publishResponse.ok) {
+          const publishResult = await publishResponse.json();
+          console.log('📊 Publish check result:', publishResult);
+          
+          if (publishResult.published) {
+            console.log('🎉 Course has been published!');
+          }
+        } else {
+          console.error('Failed to check course publish status:', await publishResponse.text());
+        }
+      }
+    }
+    
     return new Response(
       JSON.stringify({
         success: true,
         generated_count: successCount,
         error_count: errorCount,
-        segment_complete: allComplete,
-        message: `Generated ${successCount} questions successfully`
+        segment_complete: true,
+        message: `Generated ${successCount} out of ${plans.length} questions`
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

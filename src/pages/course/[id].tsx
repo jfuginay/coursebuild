@@ -21,6 +21,7 @@ import { supabase } from '@/lib/supabase';
 import { useGuidedTour } from '@/hooks/useGuidedTour';
 import { learnerTourSteps } from '@/config/tours';
 import ChatBubble from '@/components/ChatBubble';
+import { useToast } from '@/components/ui/use-toast';
 
 interface Course {
  id: string;
@@ -108,11 +109,43 @@ declare global {
  }
 }
 
+// Parse options - handle both array and JSON string formats
+const parseOptions = (options: string[] | string): string[] => {
+  if (Array.isArray(options)) {
+    return options;
+  }
+  
+  if (typeof options === 'string') {
+    try {
+      const parsed = JSON.parse(options);
+      return Array.isArray(parsed) ? parsed : [options];
+    } catch (e) {
+      // If parsing fails, treat as a single option
+      return [options];
+    }
+  }
+  
+  return [];
+};
+
+// Enhanced parseOptions function that handles true/false questions
+const parseOptionsWithTrueFalse = (options: string[] | string, questionType: string): string[] => {
+  const parsedOptions = parseOptions(options);
+  
+  // For true/false questions, ensure we have the correct options
+  if (parsedOptions.length === 0 && (questionType === 'true-false' || questionType === 'true_false')) {
+    return ['True', 'False'];
+  }
+  
+  return parsedOptions;
+};
+
 export default function CoursePage() {
  const router = useRouter();
  const { id } = router.query;
  const { user, session } = useAuth();
  const { trackRating, trackCourse, trackRatingModalShown, trackRatingModalDismissed, trackEngagement, getPlatform } = useAnalytics();
+ const { toast } = useToast();
  const [course, setCourse] = useState<Course | null>(null);
  const [questions, setQuestions] = useState<Question[]>([]);
  const [isLoading, setIsLoading] = useState(true);
@@ -145,6 +178,7 @@ export default function CoursePage() {
  const [completedSegments, setCompletedSegments] = useState(0);
  const [totalSegments, setTotalSegments] = useState(0);
  const [isSegmented, setIsSegmented] = useState(false);
+ const [segmentQuestionCounts, setSegmentQuestionCounts] = useState<Record<number, { planned: number; generated: number }>>({});
  
  // Rating state
  const [showRatingModal, setShowRatingModal] = useState(false);
@@ -218,12 +252,32 @@ export default function CoursePage() {
 
  // Subscribe to segment updates and individual question inserts for real-time updates
  useEffect(() => {
-   if (!id || !isSegmented || !isProcessing || course?.published) return;
+   // Keep subscription active while processing OR if we don't have questions yet
+   const needsSubscription = isProcessing || (course && !course.published && questions.length === 0);
+  
+   console.log('🔍 Real-time subscription check:', {
+     id,
+     isProcessing,
+     coursePublished: course?.published,
+     questionCount: questions.length,
+     needsSubscription
+   });
+  
+   if (!id || !needsSubscription) {
+     console.log('📡 Skipping real-time subscription setup');
+     return;
+   }
 
-   console.log('🔄 Setting up real-time subscriptions');
+   console.log('🔄 Setting up real-time subscriptions for live question generation');
    
    // Immediately fetch current segment status when subscription is set up
-   fetchSegmentQuestions();
+   if (isSegmented) {
+     console.log('📋 Fetching initial segment questions');
+     fetchSegmentQuestions();
+   } else {
+     console.log('📋 Fetching initial questions for non-segmented course');
+     fetchQuestions();
+   }
    
    // Subscribe to segment updates
    const segmentChannel = supabase
@@ -240,11 +294,48 @@ export default function CoursePage() {
          console.log('📊 Segment update received:', payload);
          const updatedSegment = payload.new as any;
          
-         if (updatedSegment.status === 'completed') {
-           console.log(`✅ Segment ${updatedSegment.segment_index + 1} completed with ${updatedSegment.questions_count} questions`);
+         // Update segment question counts
+         if (updatedSegment.planned_questions_count > 0) {
+           setSegmentQuestionCounts(prev => ({
+             ...prev,
+             [updatedSegment.segment_index]: {
+               planned: updatedSegment.planned_questions_count || 0,
+               generated: updatedSegment.questions_count || 0
+             }
+           }));
+         }
+         
+         if (updatedSegment.status === 'completed' || updatedSegment.status === 'planning_complete') {
+           console.log(`✅ Segment ${updatedSegment.segment_index + 1} planning complete with ${updatedSegment.planned_questions_count} questions planned`);
            
            // Fetch updated questions from completed segments
            fetchSegmentQuestions();
+          
+          // Check if all segments are completed
+          if (updatedSegment.segment_index === totalSegments - 1 && updatedSegment.status === 'completed') {
+            console.log('🎉 All segments completed! Course should be published soon.');
+            // The backend will automatically publish the course
+            // We'll receive the update via the check-and-publish edge function
+            setTimeout(() => {
+              // Call check-and-publish once to trigger the backend check
+              fetch('/api/course/check-and-publish', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ course_id: id })
+              }).then(response => response.json())
+                .then(data => {
+                  if (data.published) {
+                    console.log('✅ Course has been published!');
+                    setCourse(prev => prev ? { ...prev, published: true } : null);
+                    setIsProcessing(false);
+                  }
+                }).catch(error => {
+                  console.error('Error checking course publish status:', error);
+                });
+            }, 5000); // Wait 5 seconds to ensure all questions are saved
+          }
          } else if (updatedSegment.status === 'processing') {
            console.log(`⏳ Segment ${updatedSegment.segment_index + 1} is processing`);
          } else if (updatedSegment.status === 'failed') {
@@ -265,7 +356,12 @@ export default function CoursePage() {
          filter: `course_id=eq.${id}`
        },
        (payload) => {
-         console.log('📝 New question received:', payload);
+         console.log('📝 New question received via real-time:', payload);
+         console.log('📝 Question details:', {
+           courseId: payload.new.course_id,
+           expectedCourseId: id,
+           match: payload.new.course_id === id
+         });
          const newQuestion = payload.new as any;
          
          // Parse and add the new question immediately
@@ -279,64 +375,192 @@ export default function CoursePage() {
          setQuestions(prev => {
            // Check if question already exists
            if (prev.find(q => q.id === newQuestion.id)) {
+             console.log('Question already exists, skipping');
              return prev;
            }
            
+           console.log(`✅ Adding new question to UI: ${parsedQuestion.question.substring(0, 50)}...`);
+           
            // Add new question and sort by timestamp
            const updated = [...prev, parsedQuestion];
+           
+           // Show toast notification for new question
+           toast({
+             title: "New question ready! 🎯",
+             description: `Segment ${(newQuestion.segment_index || 0) + 1}: "${parsedQuestion.question.substring(0, 50)}..."`,
+             duration: 3000,
+           });
+           
            return updated.sort((a, b) => a.timestamp - b.timestamp);
          });
          
-         // Update segment progress counts
+         // Update segment question counts
          if (newQuestion.segment_index !== undefined) {
-           setCompletedSegments(prev => {
-             // Count unique segments with questions
-             const segmentsWithQuestions = new Set(
-               questions.map(q => q.segment_index).filter(idx => idx !== undefined)
-             );
-             segmentsWithQuestions.add(newQuestion.segment_index);
-             return segmentsWithQuestions.size;
-           });
+           setSegmentQuestionCounts(prev => ({
+             ...prev,
+             [newQuestion.segment_index]: {
+               planned: prev[newQuestion.segment_index]?.planned || 0,
+               generated: (prev[newQuestion.segment_index]?.generated || 0) + 1
+             }
+           }));
+         }
+       }
+     )
+     .subscribe((status) => {
+       console.log('📡 Question channel subscription status:', status);
+       if (status === 'SUBSCRIBED') {
+         console.log('✅ Successfully subscribed to question updates');
+       } else if (status === 'CHANNEL_ERROR') {
+         console.error('❌ Error subscribing to question updates');
+       } else if (status === 'TIMED_OUT') {
+         console.error('⏰ Subscription timed out');
+       }
+     });
+     
+   // Subscribe to question plans table for tracking planned questions
+   const questionPlanChannel = supabase
+     .channel(`question_plans_${id}`)
+     .on(
+       'postgres_changes',
+       {
+         event: 'INSERT',
+         schema: 'public',
+         table: 'question_plans',
+         filter: `course_id=eq.${id}`
+       },
+       (payload) => {
+         console.log('📋 New question plan received:', payload);
+         const plan = payload.new as any;
+         
+         // Update planned question counts
+         if (plan.segment_index !== undefined) {
+           setSegmentQuestionCounts(prev => ({
+             ...prev,
+             [plan.segment_index]: {
+               planned: (prev[plan.segment_index]?.planned || 0) + 1,
+               generated: prev[plan.segment_index]?.generated || 0
+             }
+           }));
          }
        }
      );
      
-   // Subscribe to both channels
-   segmentChannel.subscribe();
-   questionChannel.subscribe();
+   // Subscribe to all channels
+   segmentChannel.subscribe((status) => {
+     console.log('📡 Segment channel subscription status:', status);
+   });
+   questionPlanChannel.subscribe((status) => {
+     console.log('📡 Question plan channel subscription status:', status);
+   });
 
    return () => {
      console.log('🔌 Unsubscribing from real-time updates');
      supabase.removeChannel(segmentChannel);
      supabase.removeChannel(questionChannel);
+     supabase.removeChannel(questionPlanChannel);
    };
- }, [id, isSegmented, isProcessing, course?.published]);
- 
+ }, [id, isProcessing, totalSegments, course, isSegmented]);
+
  // Additional polling for segmented courses to ensure UI updates
  useEffect(() => {
-   if (!id || !isSegmented || !isProcessing || course?.published) return;
+   if (!id || !isProcessing) return;
    
-   console.log('🔄 Setting up segment polling interval');
+   // Smart polling for segment updates - only when we expect changes
+   if (isSegmented && completedSegments < totalSegments) {
+     console.log('🔄 Setting up smart segment polling (only while segments are processing)');
+     
+     // Poll every 5 seconds, but only while segments are still processing
+     const pollInterval = setInterval(() => {
+       // Only fetch if we're still expecting more segments
+       if (completedSegments < totalSegments) {
+         console.log(`📊 Checking for new segment questions (${completedSegments}/${totalSegments} complete)`);
+         fetchSegmentQuestions();
+       } else {
+         console.log('✅ All segments complete, stopping polling');
+         clearInterval(pollInterval);
+       }
+     }, 5000); // Poll every 5 seconds instead of 3
+     
+     return () => {
+       console.log('🔌 Clearing segment polling interval');
+       clearInterval(pollInterval);
+     };
+   }
+ }, [id, isProcessing, totalSegments, course, isSegmented]);
+
+ // Polling for questions during processing (fallback for real-time)
+ useEffect(() => {
+   if (!id || !isProcessing) return;
    
-   // Poll every 3 seconds for segment updates
+   // Fallback polling for when real-time doesn't work
+   console.log('🔄 Setting up fallback question polling');
+   
+   // Poll every 5 seconds for new questions during processing
    const pollInterval = setInterval(() => {
-     fetchSegmentQuestions();
-   }, 3000);
+     console.log('📊 Fallback poll: Checking for new questions');
+     if (isSegmented) {
+       fetchSegmentQuestions();
+     } else {
+       fetchQuestions();
+     }
+   }, 5000);
    
    return () => {
-     console.log('🔌 Clearing segment polling interval');
+     console.log('🔌 Clearing fallback polling interval');
      clearInterval(pollInterval);
    };
- }, [id, isSegmented, isProcessing, course?.published]);
+ }, [id, isProcessing, isSegmented]);
+
+ // Check if course should be published (for async question generation)
+ useEffect(() => {
+   if (!id || !isProcessing || course?.published) return;
+   
+   // For courses that were generated without a user on the page,
+   // we need to periodically check if they've been published
+   console.log('📡 Setting up periodic check for stuck courses');
+   
+   // Check immediately
+   const checkPublishStatus = async () => {
+     try {
+       const response = await fetch(`/api/course/${id}`);
+       const data = await response.json();
+       
+       if (data.success && data.course && data.course.published) {
+         console.log('✅ Course has been published!');
+         setCourse(data.course);
+         setIsProcessing(false);
+         
+         // Fetch questions
+         fetchQuestions();
+       }
+     } catch (error) {
+       console.error('Error checking course status:', error);
+     }
+   };
+   
+   // Check immediately
+   checkPublishStatus();
+   
+   // Then check every 10 seconds (less frequent than before)
+   const interval = setInterval(checkPublishStatus, 10000);
+   
+   return () => clearInterval(interval);
+ }, [id, isProcessing, course?.published]);
 
  useEffect(() => {
    // Only fetch questions if course is loaded and published
    if (course && course.published && id) {
      fetchQuestions();
    }
-   // For segmented courses, also fetch questions from completed segments
-   else if (course && !course.published && isSegmented && id) {
-     fetchSegmentQuestions();
+   // For processing courses, fetch questions appropriately
+   else if (course && !course.published && id) {
+     if (isSegmented) {
+       // For segmented courses, fetch questions from completed segments
+       fetchSegmentQuestions();
+     } else {
+       // For non-segmented courses, fetch any existing questions
+       fetchQuestions();
+     }
    }
  }, [course, id, completedSegments]);
 
@@ -358,7 +582,7 @@ export default function CoursePage() {
    script.async = true;
    document.body.appendChild(script);
    } else {
-     console.log('📜 YouTube API script already exists');
+     console.log('�� YouTube API script already exists');
    }
 
    // Set up the callback for when API is ready
@@ -550,68 +774,9 @@ export default function CoursePage() {
          
          // Set up progress tracking
          if (typeof window !== 'undefined') {
-           // Set up polling to check for completion
-           let checkCounter = 0;
-           const pollInterval = setInterval(async () => {
-             const pollResponse = await fetch(`/api/course/${id}`);
-             const pollData = await pollResponse.json();
-             
-             if (pollData.success && pollData.course.published) {
-               // IMPORTANT: Also verify questions exist before considering processing complete
-               const questionsResponse = await fetch(`/api/course/${id}/questions`);
-               const questionsData = await questionsResponse.json();
-               
-               if (questionsData.success && questionsData.questions && questionsData.questions.length > 0) {
-                 console.log(`✅ Course processing complete! Found ${questionsData.questions.length} questions`);
-                 setCourse(pollData.course);
-                 
-                 // Reset player state to ensure proper re-initialization
-                 console.log('🎬 Resetting player state for processing completion');
-                 if (player || playerRef.current) {
-                   setPlayer(null);
-                   playerRef.current = null;
-                 }
-                 setIsVideoReady(false); // Reset video ready state
-                 
-                 setIsProcessing(false);
-                 clearInterval(pollInterval);
-                 // Set questions immediately instead of calling fetchQuestions
-                 const parsedQuestions = questionsData.questions.map((q: any) => ({
-                   ...q,
-                   options: parseOptionsWithTrueFalse(q.options || [], q.type),
-                   correct: parseInt(q.correct_answer) || 0,
-                   correct_answer: parseInt(q.correct_answer) || 0
-                 }));
-                 setQuestions(parsedQuestions);
-               } else {
-                 console.log(`⚠️ Course marked as published but no questions found yet. Continuing to poll...`);
-                 // Continue polling even though course is marked as published
-                 // This handles the edge case where published=true but questions aren't ready yet
-               }
-             } else if (checkCounter % 6 === 0) { // Only check segments every 30 seconds (6 * 5s)
-               // Check segments less frequently to avoid overwhelming the orchestrator
-               try {
-                 const checkResponse = await fetch('/api/course/check-segment-processing', {
-                   method: 'POST',
-                   headers: {
-                     'Content-Type': 'application/json',
-                   },
-                   body: JSON.stringify({ course_id: id })
-                 });
-                 
-                 if (checkResponse.ok) {
-                   const checkData = await checkResponse.json();
-                   console.log('🔄 Periodic segment check result:', checkData);
-                 }
-               } catch (error) {
-                 console.error('Failed to check segments:', error);
-               }
-             }
-             checkCounter++;
-           }, 5000); // Poll course status every 5 seconds
-           
-           // Clean up interval on unmount
-           return () => clearInterval(pollInterval);
+           // With live question generation, we don't need the legacy polling
+           // Questions will arrive via real-time subscriptions
+           console.log('📡 Course is processing - questions will arrive via real-time updates');
          }
        }
      } else {
@@ -623,37 +788,6 @@ export default function CoursePage() {
    } finally {
      setIsLoading(false);
    }
- };
-
- // Parse options - handle both array and JSON string formats
- const parseOptions = (options: string[] | string): string[] => {
-   if (Array.isArray(options)) {
-     return options;
-   }
-   
-   if (typeof options === 'string') {
-     try {
-       const parsed = JSON.parse(options);
-       return Array.isArray(parsed) ? parsed : [options];
-     } catch (e) {
-       // If parsing fails, treat as a single option
-       return [options];
-     }
-   }
-   
-   return [];
- };
-
- // Enhanced parseOptions function that handles true/false questions
- const parseOptionsWithTrueFalse = (options: string[] | string, questionType: string): string[] => {
-   const parsedOptions = parseOptions(options);
-   
-   // For true/false questions, ensure we have the correct options
-   if (parsedOptions.length === 0 && (questionType === 'true-false' || questionType === 'true_false')) {
-     return ['True', 'False'];
-   }
-   
-   return parsedOptions;
  };
 
  const fetchQuestions = async () => {
@@ -713,6 +847,20 @@ export default function CoursePage() {
        setSegments(data.segments || []);
        setCompletedSegments(data.completed_segments || 0);
        setTotalSegments(data.total_segments || 0);
+       
+       // Update segment question counts from API data
+       if (data.segments && data.segments.length > 0) {
+         const counts: Record<number, { planned: number; generated: number }> = {};
+         data.segments.forEach((segment: any) => {
+           if (segment.planned_questions_count > 0 || segment.questions_count > 0) {
+             counts[segment.segment_index] = {
+               planned: segment.planned_questions_count || 0,
+               generated: segment.questions_count || 0
+             };
+           }
+         });
+         setSegmentQuestionCounts(counts);
+       }
        
        // If all segments are completed but course isn't published yet, it will be soon
        if (data.completed_segments === data.total_segments && data.total_segments > 0) {
@@ -1685,16 +1833,18 @@ export default function CoursePage() {
                    <div className="space-y-2">
                      <div className="flex items-center justify-between text-sm">
                        <span className="text-blue-700 dark:text-blue-300">
-                         Segment Progress: {completedSegments} of {totalSegments} completed
+                         {totalSegments === 1 ? 'Processing Status' : `Segment Progress: ${completedSegments} of ${totalSegments} completed`}
                        </span>
                        <span className="text-blue-700 dark:text-blue-300">
                          {Math.round((completedSegments / totalSegments) * 100)}%
                        </span>
                      </div>
                      <Progress value={(completedSegments / totalSegments) * 100} className="h-2" />
+                     
                      {questions.length > 0 && (
-                       <p className="text-xs text-blue-600 dark:text-blue-400">
-                         {questions.length} questions generated so far
+                       <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                         <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                         {questions.length} question{questions.length !== 1 ? 's' : ''} ready to answer!
                        </p>
                      )}
                    </div>
@@ -1706,7 +1856,7 @@ export default function CoursePage() {
 
          {/* Video Player */}
          <InteractiveVideoPlayer
-           key={`video-player-${videoId}-${course.published ? 'published' : 'processing'}-${isProcessing ? 'processing' : 'ready'}`}
+           key={`video-player-${videoId}`}
            videoId={videoId}
            youtubeUrl={course.youtube_url}
            isYTApiLoaded={isYTApiLoaded}
