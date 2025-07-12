@@ -36,6 +36,13 @@ interface Course {
  averageRating?: number;
  totalRatings?: number;
  topic?: string;
+ // Enhanced recommendation fields
+ reasons?: string[];
+ difficulty_match?: 'too_easy' | 'perfect' | 'challenging' | 'too_hard';
+ addresses_mistakes?: string[];
+ thumbnail_url?: string;
+ channel_name?: string;
+ duration?: string;
 }
 
 interface Question {
@@ -272,16 +279,28 @@ export default function CoursePage() {
       playerRef.current = null;
     }
     
-    if (videoId && isYTApiLoaded && window.YT && window.YT.Player && !player && !isProcessing) {
-      console.log('🚀 Attempting to initialize player...');
-      // Add small delay to ensure DOM is ready
-      const timer = setTimeout(() => {
-      initializePlayer();
-      }, 100);
+    // Initialize player when all conditions are met
+    if (videoId && isYTApiLoaded && window.YT && window.YT.Player) {
+      // If we already have a player but no DOM element, reset it
+      if (player && !document.getElementById('youtube-player')) {
+        console.log('🔄 Player exists but DOM element missing - resetting');
+        setPlayer(null);
+        playerRef.current = null;
+        return;
+      }
       
-      return () => clearTimeout(timer);
+      // Only initialize if we don't have a player
+      if (!player) {
+        console.log('🚀 Attempting to initialize player...');
+        // Add small delay to ensure DOM is ready
+        const timer = setTimeout(() => {
+          initializePlayer();
+        }, 200); // Increased delay for better DOM readiness
+        
+        return () => clearTimeout(timer);
+      }
     }
-  }, [videoId, isYTApiLoaded, player, isProcessing]);
+  }, [videoId, isYTApiLoaded, player]);
 
  useEffect(() => {
    if (player && questions.length > 0) {
@@ -347,6 +366,16 @@ export default function CoursePage() {
      if (data.success) {
        setCourse(data.course);
        
+       // Extract video ID immediately, regardless of processing state
+       const extractedVideoId = extractVideoId(data.course.youtube_url);
+       console.log('🎬 Course loaded:', {
+         title: data.course.title,
+         youtubeUrl: data.course.youtube_url,
+         extractedVideoId: extractedVideoId,
+         published: data.course.published
+       });
+       setVideoId(extractedVideoId);
+       
        // Check if course is processing
        if (data.course && !data.course.published) {
          console.log('Course is still processing');
@@ -397,6 +426,15 @@ export default function CoursePage() {
                if (questionsData.success && questionsData.questions && questionsData.questions.length > 0) {
                  console.log(`✅ Course processing complete! Found ${questionsData.questions.length} questions`);
                  setCourse(pollData.course);
+                 
+                 // Reset player state to ensure proper re-initialization
+                 console.log('🎬 Resetting player state for processing completion');
+                 if (player || playerRef.current) {
+                   setPlayer(null);
+                   playerRef.current = null;
+                 }
+                 setIsVideoReady(false); // Reset video ready state
+                 
                  setIsProcessing(false);
                  clearInterval(pollInterval);
                  // Set questions immediately instead of calling fetchQuestions
@@ -438,40 +476,6 @@ export default function CoursePage() {
            return () => clearInterval(pollInterval);
          }
        }
-       
-       // Enhance course data with rating information
-      let courseWithRating = { ...data.course };
-      
-      try {
-        // Fetch rating data for this course
-        const ratingResponse = await fetch(`/api/courses/${id}/rating`);
-        if (ratingResponse.ok) {
-          const ratingData = await ratingResponse.json();
-          if (ratingData.success && ratingData.stats) {
-            courseWithRating.averageRating = ratingData.stats.average_rating || 0;
-            courseWithRating.totalRatings = ratingData.stats.total_ratings || 0;
-            console.log('⭐ Rating data loaded:', {
-              averageRating: courseWithRating.averageRating,
-              totalRatings: courseWithRating.totalRatings
-            });
-          }
-        }
-      } catch (ratingError) {
-        console.warn('Failed to fetch rating data:', ratingError);
-        // Continue without rating data
-      }
-      
-      setCourse(courseWithRating);
-       const extractedVideoId = extractVideoId(data.course.youtube_url);
-       console.log('🎬 Course loaded:', {
-         title: data.course.title,
-         youtubeUrl: data.course.youtube_url,
-         extractedVideoId: extractedVideoId,
-         published: data.course.published,
-         hasRatings: courseWithRating.totalRatings > 0,
-         averageRating: courseWithRating.averageRating
-       });
-       setVideoId(extractedVideoId);
      } else {
        setError(data.error || 'Failed to fetch course');
      }
@@ -645,14 +649,17 @@ export default function CoursePage() {
 
      console.log('📊 Sending wrong answers to next course API:', wrongAnswers);
 
-     // Step 1: Get course suggestions
+     // Step 1: Get course suggestions (enhanced if user is logged in)
      const suggestionsResponse = await fetch('/api/course/suggestions', {
        method: 'POST',
        headers: {
          'Content-Type': 'application/json',
        },
        body: JSON.stringify({
-         videoUrl: course?.youtube_url
+         videoUrl: course?.youtube_url,
+         userId: user?.id, // Pass user ID for enhanced recommendations
+         courseId: id as string, // Pass current course ID
+         trigger: 'course_completion' // Indicate this is triggered by course completion
        })
      });
      
@@ -673,7 +680,11 @@ export default function CoursePage() {
      
      console.log('🎯 Got course suggestion:', {
        topic: firstTopic.topic,
-       video: firstTopic.video
+       video: firstTopic.video,
+       // Log additional enhanced data if available
+       reasons: firstTopic.reasons,
+       difficulty_match: firstTopic.difficulty_match,
+       addresses_mistakes: firstTopic.addresses_mistakes
      });
 
      // Step 2: Use analyze-video-smart for more robust processing
@@ -757,14 +768,22 @@ export default function CoursePage() {
              questionsGenerated: true,
              questions: parsedQuestions,
              videoId: extractVideoId(courseData.course.youtube_url),
-             topic: firstTopic.topic
+             topic: firstTopic.topic,
+             // Enhanced fields from API response
+             reasons: firstTopic.reasons,
+             difficulty_match: firstTopic.difficulty_match,
+             addresses_mistakes: firstTopic.addresses_mistakes,
+             thumbnail_url: firstTopic.thumbnail_url,
+             channel_name: firstTopic.channel_name,
+             duration: firstTopic.duration
            });
            
            console.log('✅ Next course data fetched from database:', {
              courseId: smartAnalysisData.course_id,
              title: courseData.course.title,
              questionsCount: parsedQuestions.length,
-             topic: firstTopic.topic
+             topic: firstTopic.topic,
+             hasEnhancedData: !!firstTopic.reasons
            });
          } else {
            console.error('Failed to fetch questions for next course:', questionsData.error);
@@ -775,7 +794,14 @@ export default function CoursePage() {
              questionsGenerated: false,
              questions: [],
              videoId: extractVideoId(courseData.course.youtube_url),
-             topic: firstTopic.topic
+             topic: firstTopic.topic,
+             // Enhanced fields from API response
+             reasons: firstTopic.reasons,
+             difficulty_match: firstTopic.difficulty_match,
+             addresses_mistakes: firstTopic.addresses_mistakes,
+             thumbnail_url: firstTopic.thumbnail_url,
+             channel_name: firstTopic.channel_name,
+             duration: firstTopic.duration
            });
          }
        } else {
@@ -784,7 +810,7 @@ export default function CoursePage() {
          setNextCourse({
            id: smartAnalysisData.course_id,
            title: firstTopic.topic,
-           description: `AI Generated Course about ${firstTopic.topic}`,
+           description: firstTopic.description || `AI Generated Course about ${firstTopic.topic}`,
            youtube_url: firstTopic.video,
            created_at: new Date().toISOString(),
            published: true,
@@ -792,7 +818,14 @@ export default function CoursePage() {
            questionsGenerated: smartAnalysisData.segmented || smartAnalysisData.cached || !smartAnalysisData.background_processing,
            questions: [],
            videoId: extractVideoId(firstTopic.video),
-           topic: firstTopic.topic
+           topic: firstTopic.topic,
+           // Enhanced fields from API response
+           reasons: firstTopic.reasons,
+           difficulty_match: firstTopic.difficulty_match,
+           addresses_mistakes: firstTopic.addresses_mistakes,
+           thumbnail_url: firstTopic.thumbnail_url,
+           channel_name: firstTopic.channel_name,
+           duration: firstTopic.duration
          });
        }
      } catch (fetchError) {
@@ -801,7 +834,7 @@ export default function CoursePage() {
        setNextCourse({
          id: smartAnalysisData.course_id,
          title: firstTopic.topic,
-         description: `AI Generated Course about ${firstTopic.topic}`,
+         description: firstTopic.description || `AI Generated Course about ${firstTopic.topic}`,
          youtube_url: firstTopic.video,
          created_at: new Date().toISOString(),
          published: true,
@@ -809,7 +842,14 @@ export default function CoursePage() {
          questionsGenerated: smartAnalysisData.segmented || smartAnalysisData.cached || !smartAnalysisData.background_processing,
          questions: [],
          videoId: extractVideoId(firstTopic.video),
-         topic: firstTopic.topic
+         topic: firstTopic.topic,
+         // Enhanced fields from API response
+         reasons: firstTopic.reasons,
+         difficulty_match: firstTopic.difficulty_match,
+         addresses_mistakes: firstTopic.addresses_mistakes,
+         thumbnail_url: firstTopic.thumbnail_url,
+         channel_name: firstTopic.channel_name,
+         duration: firstTopic.duration
        });
      }
    } catch (err) {
@@ -1397,68 +1437,7 @@ export default function CoursePage() {
    );
  }
 
- if (isProcessing) {
-   return (
-     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
-       <Header />
-       <div className="container mx-auto px-4 py-8">
-         <div className="max-w-4xl mx-auto space-y-8">
-           <Button variant="ghost" onClick={handleBackToHome} className="mb-4">
-             <ArrowLeft className="mr-2 h-4 w-4" />
-             Back to Home
-           </Button>
-           
-           <div className="text-center space-y-4">
-             <h1 className="text-3xl font-bold tracking-tight lg:text-4xl">
-               {course?.title || 'Processing Course'}
-             </h1>
-             <p className="text-lg text-muted-foreground">
-               Your course is being generated. This may take a few minutes.
-             </p>
-           </div>
-           
-           <Card>
-             <CardContent className="p-6">
-               <div className="aspect-video w-full bg-muted flex items-center justify-center">
-                 <div className="text-center space-y-4">
-                   <div className="flex justify-center">
-                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-                   </div>
-                   <p className="text-muted-foreground">
-                     Analyzing video and generating interactive questions...
-                   </p>
-                   <p className="text-sm text-muted-foreground">
-                     The page will refresh automatically when ready.
-                   </p>
-                 </div>
-               </div>
-             </CardContent>
-           </Card>
-           
-           {course?.youtube_url && (
-             <Card>
-               <CardHeader>
-                 <CardTitle>Video Preview</CardTitle>
-               </CardHeader>
-               <CardContent>
-                 <div className="aspect-video">
-                   <iframe
-                     src={`https://www.youtube.com/embed/${extractVideoId(course.youtube_url)}`}
-                     title="YouTube video player"
-                     frameBorder="0"
-                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                     allowFullScreen
-                     className="w-full h-full rounded-lg"
-                   />
-                 </div>
-               </CardContent>
-             </Card>
-           )}
-         </div>
-       </div>
-     </div>
-   );
- }
+
 
  if (error) {
    return (
@@ -1517,14 +1496,27 @@ export default function CoursePage() {
            <h1 className="text-3xl font-bold tracking-tight lg:text-4xl">
              {course.title}
            </h1>
+           
+           {/* Processing Indicator */}
+           {isProcessing && (
+             <Alert className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+               <div className="flex items-center gap-2">
+                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                 <AlertDescription className="text-blue-700 dark:text-blue-300">
+                   <strong>Questions are being generated!</strong> You can start watching the video now - questions will appear automatically when ready.
+                 </AlertDescription>
+               </div>
+             </Alert>
+           )}
          </div>
 
          {/* Video Player */}
          <InteractiveVideoPlayer
+           key={`video-player-${videoId}-${course.published ? 'published' : 'processing'}-${isProcessing ? 'processing' : 'ready'}`}
            videoId={videoId}
            youtubeUrl={course.youtube_url}
            isYTApiLoaded={isYTApiLoaded}
-           error={error}
+           error={null}
            isVideoReady={isVideoReady}
            currentTime={currentTime}
            duration={duration}
@@ -1539,37 +1531,41 @@ export default function CoursePage() {
          />
 
          {/* Question or Transcript Display */}
-         {showQuestion && questions[currentQuestionIndex] ? (
-           <QuestionOverlay
-             question={questions[currentQuestionIndex]}
-             onAnswer={handleAnswer}
-             onContinue={handleContinueVideo}
-             isVisible={showQuestion}
-             player={player}
-             courseId={id as string}
-             segmentIndex={0}
-             isInline={true}
-           />
-         ) : (
-           <TranscriptDisplay
-             courseId={id as string}
-             currentTime={currentTime}
-             onSeek={handleVideoSeek}
-             formatTimestamp={formatTime}
-           />
+         {!isProcessing && (
+           showQuestion && questions[currentQuestionIndex] ? (
+             <QuestionOverlay
+               question={questions[currentQuestionIndex]}
+               onAnswer={handleAnswer}
+               onContinue={handleContinueVideo}
+               isVisible={showQuestion}
+               player={player}
+               courseId={id as string}
+               segmentIndex={0}
+               isInline={true}
+             />
+           ) : (
+             <TranscriptDisplay
+               courseId={id as string}
+               currentTime={currentTime}
+               onSeek={handleVideoSeek}
+               formatTimestamp={formatTime}
+             />
+           )
          )}
 
          {/* Course Curriculum Card */}
-         <CourseCurriculumCard
-           courseData={getCourseData()}
-           answeredQuestions={getAnsweredQuestionsForCurriculum()}
-           questionResults={questionResults}
-           expandedExplanations={expandedExplanations}
-           setExpandedExplanations={setExpandedExplanations}
-           setShowLoginModal={setShowLoginModal}
-           freeQuestionsLimit={FREE_QUESTIONS_LIMIT}
-           formatTimestamp={formatTimestamp}
-         />
+         {!isProcessing && questions.length > 0 && (
+           <CourseCurriculumCard
+             courseData={getCourseData()}
+             answeredQuestions={getAnsweredQuestionsForCurriculum()}
+             questionResults={questionResults}
+             expandedExplanations={expandedExplanations}
+             setExpandedExplanations={setExpandedExplanations}
+             setShowLoginModal={setShowLoginModal}
+             freeQuestionsLimit={FREE_QUESTIONS_LIMIT}
+             formatTimestamp={formatTimestamp}
+           />
+         )}
        </div>
      </div>
 
@@ -1634,6 +1630,56 @@ export default function CoursePage() {
                <h3 className="font-semibold text-sm mb-1">Up Next:</h3>
                <h4 className="font-medium">{nextCourse.title}</h4>
                <p className="text-sm text-muted-foreground mt-2">{nextCourse.description}</p>
+               
+               {/* Enhanced: Why this course? */}
+               {nextCourse.reasons && nextCourse.reasons.length > 0 && (
+                 <div className="mt-4 space-y-2">
+                   <h5 className="text-sm font-semibold">Why this course?</h5>
+                   <ul className="text-xs space-y-1">
+                     {nextCourse.reasons.map((reason, i) => (
+                       <li key={i} className="flex items-start gap-2">
+                         <CheckCircle className="h-3 w-3 text-green-500 mt-0.5 flex-shrink-0" />
+                         <span>{reason}</span>
+                       </li>
+                     ))}
+                   </ul>
+                 </div>
+               )}
+               
+               {/* Enhanced: Addresses mistakes */}
+               {nextCourse.addresses_mistakes && nextCourse.addresses_mistakes.length > 0 && (
+                 <div className="mt-3 p-2 bg-orange-50 dark:bg-orange-950/20 rounded text-xs">
+                   <span className="font-semibold text-orange-700 dark:text-orange-400">Helps with: </span>
+                   <span className="text-orange-600 dark:text-orange-300">{nextCourse.addresses_mistakes.join(', ')}</span>
+                 </div>
+               )}
+               
+               {/* Enhanced: Video metadata */}
+               <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
+                 {nextCourse.channel_name && (
+                   <>
+                     <span>{nextCourse.channel_name}</span>
+                     <span>•</span>
+                   </>
+                 )}
+                 {nextCourse.duration && <span>{nextCourse.duration}</span>}
+                 {nextCourse.difficulty_match && (
+                   <>
+                     <span>•</span>
+                     <Badge variant={
+                       nextCourse.difficulty_match === 'perfect' ? 'default' :
+                       nextCourse.difficulty_match === 'challenging' ? 'secondary' :
+                       'outline'
+                     } className="text-xs">
+                       {nextCourse.difficulty_match === 'perfect' ? '✓ Perfect match' :
+                        nextCourse.difficulty_match === 'challenging' ? 'Challenging' :
+                        nextCourse.difficulty_match === 'too_easy' ? 'Review' :
+                        'Advanced'}
+                     </Badge>
+                   </>
+                 )}
+               </div>
+               
                {nextCourse.questionsGenerated && (
                  <div className="mt-3 flex items-center gap-2 text-xs text-green-600">
                    <div className="w-2 h-2 bg-green-600 rounded-full"></div>

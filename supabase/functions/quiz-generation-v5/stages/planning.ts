@@ -298,7 +298,7 @@ Focus on content that appears within this time range while maintaining education
         }],
         generationConfig: PLANNING_GENERATION_CONFIG
       },
-      `Planning Stage - Generating question plans for segment ${segmentInfo.index + 1}/${segmentInfo.totalSegments}`
+      `Quiz Planning - Segment ${segmentInfo.index + 1}/${segmentInfo.totalSegments} - Video Analysis`
     );
 
     if (!response.ok) {
@@ -549,7 +549,7 @@ For hotspot questions: Include 2-3 sentences in visual_learning_objective descri
           }],
           generationConfig: PLANNING_GENERATION_CONFIG
       },
-      `Planning Stage - Generating question plans for full video`
+      `Quiz Planning - Full Video Analysis - Generating Plans`
     );
 
     if (!response.ok) {

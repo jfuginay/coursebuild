@@ -1,139 +1,76 @@
-# CourseForge AI - Scripts Documentation
+# Scripts Directory
 
-This directory contains utility scripts for maintaining and updating the CourseForge database.
+This directory contains utility scripts for managing the CourseForge AI application.
 
 ## Available Scripts
 
-### 1. **test-connection.js**
-Tests the Supabase connection and verifies environment variables are properly configured.
+### test-connection.js
+Tests the database connection to Supabase. Useful for verifying environment variables are set correctly.
 
 ```bash
 node scripts/test-connection.js
 ```
 
-### 2. **update-course-metadata.js**
-Updates existing courses with:
-- Real YouTube video titles (replacing placeholders)
-- AI-generated descriptions from video summaries
+### update-course-metadata.js
+Updates course metadata with proper video titles from YouTube. Fixes courses that have placeholder titles.
 
 ```bash
-# Dry run (no changes)
-node scripts/update-course-metadata.js --dry-run
-
-# Apply updates
 node scripts/update-course-metadata.js
 ```
 
-### 3. **verify-publishing-fix.js**
-Verifies that courses are only marked as published when questions exist in the database.
+### fix-anonymous-ratings.sql
+SQL script that creates anonymous user profiles for ratings that were created without user authentication.
+
+### add-sample-ratings.sql
+Adds sample ratings to courses for testing the rating system.
+
+### test-enhanced-recommendations.js
+Tests the enhanced recommendations system for course suggestions based on user learning profiles and wrong answers.
+
+### test-user-responses-in-recommendations.js (NEW)
+Tests how user question responses are being processed and displayed in the enhanced recommendations system. Shows the full analysis of wrong answers including all options and user selections.
 
 ```bash
-node scripts/verify-publishing-fix.js
+node scripts/test-enhanced-recommendations.js
 ```
 
-This script will:
-- Check all recent courses
-- Count questions for each course
-- Report any published courses without questions
-- Provide a summary of course status
-
-### 4. **fix-already-published.js**
-Fixes courses that were published without questions (unpublishes them).
+### check-course-status.js
+Checks the publication status of courses in the database and can fix courses that have questions but are not marked as published.
 
 ```bash
-# Dry run to see what would be changed
-node scripts/fix-already-published.js --dry-run
+# Check course status
+node scripts/check-course-status.js
 
-# Apply fixes
-node scripts/fix-already-published.js
+# Check a specific course
+node scripts/check-course-status.js <course-id>
+
+# Fix unpublished courses that have questions
+node scripts/check-course-status.js --fix
 ```
 
-This script ensures data integrity by:
-- Finding all published courses
-- Checking if they have questions
-- Unpublishing courses without questions
+Common issues this script can detect:
+- Courses marked as unpublished despite having questions
+- Courses created but never processed
+- Discrepancies between course status and question count
 
-## SQL Scripts
+## Common Tasks
 
-### Database Maintenance
+### Fix courses not showing on main page
+If courses are not appearing on the main page, they might be marked as unpublished:
 
-#### **add-sample-ratings.sql**
-Adds sample rating data for testing the rating system.
-
-#### **fix-anonymous-ratings.sql**
-Fixes ratings that were created without proper user associations.
-
-#### **quick-add-test-rating.sql**
-Quickly adds a test rating for development purposes.
-
-#### **setup-rating-system.sql**
-Sets up the complete rating system tables and functions.
-
-#### **verify-rating-tables.sql**
-Verifies the rating system tables are properly configured.
-
-#### **debug-rating-filter.sql**
-Helps debug issues with rating filters and queries.
-
-## Environment Setup
-
-All scripts require proper environment variables. Create a `.env.local` file with:
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-```
-
-Or use existing environment variables:
-- `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-
-## Development Workflow
-
-1. **Test Connection First**
-   ```bash
-   node scripts/test-connection.js
-   ```
-
-2. **Update Metadata**
-   ```bash
-   node scripts/update-course-metadata.js --dry-run
-   node scripts/update-course-metadata.js
-   ```
-
-3. **Verify Publishing**
-   ```bash
-   node scripts/verify-publishing-fix.js
-   ```
-
-4. **Fix Issues if Needed**
-   ```bash
-   node scripts/fix-already-published.js --dry-run
-   node scripts/fix-already-published.js
-   ```
-
-## Common Issues
-
-### Missing dotenv
-If you see warnings about dotenv, install it:
 ```bash
-npm install --save-dev dotenv
+# Check status
+node scripts/check-course-status.js
+
+# Fix issues
+node scripts/check-course-status.js --fix
 ```
 
-### Connection Errors
-- Verify your environment variables are correct
-- Check that your Supabase project is running
-- Ensure you're using the service role key for admin operations
+## Prerequisites
 
-### No Changes Applied
-- Remove `--dry-run` flag to apply actual changes
-- Check console output for specific error messages
-- Verify you have the necessary permissions
-
-## Rate Limiting
-
-Scripts that call external APIs (like YouTube oEmbed) include rate limiting:
-- Default: 1 request per second
-- Adjustable in the script if needed
-- Prevents API quota exhaustion 
+All scripts require:
+1. Node.js installed
+2. `.env.local` file with proper environment variables:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` 

@@ -99,16 +99,41 @@ class GeminiProvider {
 
     const url = `${this.baseUrl}/gemini-2.0-flash-exp:generateContent?key=${this.apiKey}`;
     
-        // Use LangSmith logger for the API call
+    // Create a descriptive run name based on question type
+    const questionTypeLabels: Record<string, string> = {
+      'multiple-choice': 'MCQ Generation',
+      'true-false': 'True/False Generation',
+      'matching': 'Matching Generation',
+      'sequencing': 'Sequencing Generation',
+      'hotspot': 'Hotspot Generation'
+    };
+    
+    const runName = `Quiz Generation v5 - ${questionTypeLabels[questionType] || questionType} - Gemini`;
+    
+    // Use LangSmith logger for the API call
     const startTime = Date.now();
     const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    // Log request to LangSmith
-    const runId = await langsmithLogger.logGeminiRequest(
+    // Log request to LangSmith with descriptive name
+    const runId = await langsmithLogger.createRun(
       requestId,
-      'gemini-2.0-flash-exp',
-      prompt,
-      requestBody.generationConfig
+      runName,
+      {
+        messages: [{
+          role: 'user',
+          content: prompt
+        }],
+        model: 'gemini-2.0-flash-exp',
+        config: requestBody.generationConfig,
+        question_type: questionType
+      },
+      {
+        model: 'gemini-2.0-flash-exp',
+        endpoint: 'generateContent',
+        prompt_length: prompt.length,
+        question_type: questionType
+      },
+      ['gemini', 'gemini-2.0-flash-exp', 'quiz-generation', 'text-generation', questionType]
     );
     
     if (!runId && langsmithLogger.isEnabled()) {
@@ -210,16 +235,43 @@ class OpenAIProvider {
       top_p: config.topP
     };
 
+    // Create a descriptive run name based on question type
+    const questionTypeLabels: Record<string, string> = {
+      'multiple-choice': 'MCQ Generation',
+      'true-false': 'True/False Generation', 
+      'matching': 'Matching Generation',
+      'sequencing': 'Sequencing Generation',
+      'hotspot': 'Hotspot Generation'
+    };
+    
+    const runName = `Quiz Generation v5 - ${questionTypeLabels[questionType] || questionType} - OpenAI`;
+
     // Use LangSmith logger for the API call
     const startTime = Date.now();
     const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    // Log request to LangSmith
-    const runId = await langsmithLogger.logOpenAIRequest(
+    // Log request to LangSmith with descriptive name
+    const runId = await langsmithLogger.createRun(
       requestId,
-      'gpt-4o-2024-08-06',
-      prompt,
-      requestBody
+      runName,
+      {
+        messages: requestBody.messages,
+        model: requestBody.model,
+        temperature: requestBody.temperature,
+        max_tokens: requestBody.max_tokens,
+        top_p: requestBody.top_p,
+        response_format: requestBody.response_format,
+        question_type: questionType
+      },
+      {
+        model: 'gpt-4o-2024-08-06',
+        endpoint: 'chat/completions',
+        prompt_length: prompt.length,
+        has_json_mode: true,
+        question_type: questionType,
+        schema_name: requestBody.response_format.json_schema.name
+      },
+      ['openai', 'gpt-4o-2024-08-06', 'quiz-generation', 'text-generation', questionType]
     );
     
     if (!runId && langsmithLogger.isEnabled()) {
@@ -298,28 +350,39 @@ export class LLMService {
     this.openaiProvider = new OpenAIProvider(this.config.openaiApiKey || '');
   }
 
-  async generateQuestion(questionType: string, prompt: string, config: any): Promise<LLMResponse> {
-    const primaryProvider = config.preferredProvider || this.config.preferredProvider;
-    const fallbackProvider = primaryProvider === 'openai' ? 'gemini' : 'openai';
-
-    console.log(`🎯 Attempting ${questionType} generation with ${primaryProvider}`);
-
+  /**
+   * Generate a question using the preferred provider or fallback
+   */
+  async generateQuestion(
+    questionType: string,
+    prompt: string,
+    config: any
+  ): Promise<LLMResponse> {
+    const preferredProvider = config.preferredProvider || (questionType === 'hotspot' ? 'gemini' : 'openai');
+    
+    console.log(`🔄 Question Generation: Using ${preferredProvider} for ${questionType}`);
+    
     try {
-      const result = await this.attemptGeneration(primaryProvider, questionType, prompt, config);
-      console.log(`✅ ${primaryProvider} generation successful`);
-      return result;
-    } catch (primaryError) {
-      console.warn(`⚠️ ${primaryProvider} failed: ${(primaryError as Error).message}`);
-      
-      try {
-        console.log(`🔄 Falling back to ${fallbackProvider}`);
-        const result = await this.attemptGeneration(fallbackProvider, questionType, prompt, config);
-        console.log(`✅ ${fallbackProvider} fallback successful`);
-        return result;
-      } catch (fallbackError) {
-        console.error(`❌ Both providers failed`);
-        throw new Error(`All providers failed. Primary (${primaryProvider}): ${(primaryError as Error).message}. Fallback (${fallbackProvider}): ${(fallbackError as Error).message}`);
+      if (preferredProvider === 'gemini' && this.geminiProvider) {
+        return await this.geminiProvider.generateResponse(prompt, questionType, config);
+      } else if (preferredProvider === 'openai' && this.openaiProvider) {
+        return await this.openaiProvider.generateResponse(prompt, questionType, config);
+      } else {
+        throw new Error(`Preferred provider ${preferredProvider} not available`);
       }
+    } catch (error) {
+      console.warn(`⚠️ Primary provider failed, attempting fallback...`, error);
+      
+      // Try fallback provider
+      if (preferredProvider === 'gemini' && this.openaiProvider) {
+        console.log(`🔄 Fallback: Using OpenAI for ${questionType}`);
+        return await this.openaiProvider.generateResponse(prompt, questionType, config);
+      } else if (preferredProvider === 'openai' && this.geminiProvider) {
+        console.log(`🔄 Fallback: Using Gemini for ${questionType}`);
+        return await this.geminiProvider.generateResponse(prompt, questionType, config);
+      }
+      
+      throw new Error(`All providers failed for ${questionType}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 

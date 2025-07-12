@@ -3,6 +3,7 @@ import OpenAI from 'openai';
 import { EdgeFunctionContext, ChatMessage, TranscriptSegment, OpenAIResponse, EnhancedAIResponse } from './types.ts';
 import { VisualGenerator } from './visual-generator.ts';
 import { langsmithLogger, logOpenAICall } from '../quiz-generation-v5/utils/langsmith-logger.ts';
+import { InsightExtractor } from './insight-extractor.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,7 +23,8 @@ serve(async (req) => {
       courseId: context.courseContext.courseId,
       currentVideoTime: context.courseContext.currentVideoTime,
       segmentsWatched: context.courseContext.playedTranscriptSegments.length,
-      totalSegments: context.courseContext.totalSegments
+      totalSegments: context.courseContext.totalSegments,
+      userId: context.userId ? 'present' : 'absent'
     });
 
     // Log available environment variables (for debugging)
@@ -59,6 +61,24 @@ serve(async (req) => {
       visualsCount: response.visuals?.length || 0,
       usage: response.usage
     });
+
+    // Extract insights from the conversation (fire and forget)
+    if (context.userId) {
+      const insightExtractor = new InsightExtractor();
+      const sessionId = `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Don't await - let it run in background
+      insightExtractor.extractInsights(
+        context.message,
+        response.response,
+        context,
+        sessionId,
+        messageId
+      ).catch(error => {
+        console.error('❌ Background insight extraction failed:', error);
+      });
+    }
 
     return new Response(JSON.stringify({
       success: true,

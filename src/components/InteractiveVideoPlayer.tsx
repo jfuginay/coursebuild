@@ -58,6 +58,14 @@ const InteractiveVideoPlayer: React.FC<InteractiveVideoPlayerProps> = ({
   nextCourse,
   nextCourseApiCalled
 }) => {
+  console.log('🎬 InteractiveVideoPlayer rendered:', {
+    videoId,
+    isYTApiLoaded,
+    error,
+    isVideoReady,
+    hasQuestions: questions.length > 0,
+    elementExists: typeof document !== 'undefined' ? !!document.getElementById('youtube-player') : 'SSR'
+  });
   return (
     <Card id="interactive-video-player">
       <CardHeader>

@@ -20,14 +20,12 @@ export interface EdgeFunctionContext {
   conversationHistory: ChatMessage[];
   courseContext: {
     courseId: string;
+    courseTitle?: string; // Add courseTitle
     currentVideoTime: number;
     playedTranscriptSegments: TranscriptSegment[];
     totalSegments: number;
   };
-  userContext: {
-    hashedUserId?: string;
-    sessionId: string;
-  };
+  userId?: string; // Add userId
 }
 
 export interface OpenAIResponse {

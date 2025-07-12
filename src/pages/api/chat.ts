@@ -21,6 +21,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       conversationHistoryLength: conversationHistory?.length || 0
     });
 
+    // Extract user ID from authorization header if present
+    let userId: string | undefined;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.substring(7);
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+        if (user && !error) {
+          userId = user.id;
+          console.log('👤 Authenticated user:', userId);
+        }
+      } catch (error) {
+        console.warn('⚠️ Failed to extract user from auth token:', error);
+      }
+    }
+
     // Get transcript segments for the course if courseId is provided
     let playedTranscriptSegments = [];
     let totalSegments = 0;
@@ -78,7 +94,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           totalSegments
         },
         userContext: {
-          sessionId: `session_${Date.now()}`
+          sessionId: `session_${Date.now()}`,
+          userId: userId // Pass the extracted user ID
         }
       })
     });
