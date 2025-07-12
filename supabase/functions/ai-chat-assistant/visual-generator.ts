@@ -205,21 +205,69 @@ Requirements:
 4. Keep it focused and readable
 5. Use proper Mermaid flowchart syntax
 
-Return ONLY valid Mermaid code starting with "flowchart TD" or "flowchart LR".
+IMPORTANT: Generate your response in the following JSON format:
+{
+  "title": "A clear, descriptive title for this flowchart based on the content",
+  "description": "A detailed explanation of what this flowchart shows and how it relates to the video content",
+  "mermaidCode": "The actual Mermaid flowchart code starting with 'flowchart TD' or 'flowchart LR'"
+}
 `;
 
-    const mermaidCode = await this.generateMermaidWithLLM(prompt);
-    
-    return {
-      type: 'mermaid',
-      code: mermaidCode,
-      title: `Process Flow from Video Content`,
-      description: `Visual representation based on the video transcript`,
-      interactionHints: [
-        'Follow the arrows to understand the flow',
-        'Decision points show different paths'
-      ]
-    };
+    try {
+      const response = await this.makeOpenAIRequest({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a Mermaid diagram expert. Generate valid Mermaid syntax and provide clear titles and descriptions.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.5,
+        max_tokens: 800
+      });
+
+      const result = JSON.parse(response.trim());
+      console.log('📊 Generated flowchart with title:', result.title);
+      
+      // Clean the mermaid code if needed
+      let mermaidCode = result.mermaidCode || '';
+      if (mermaidCode.startsWith('```')) {
+        mermaidCode = mermaidCode.replace(/^```(?:mermaid)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+      }
+      
+      return {
+        type: 'mermaid',
+        code: mermaidCode,
+        title: result.title || 'Process Flow from Video Content',
+        description: result.description || 'Visual representation based on the video transcript',
+        interactionHints: [
+          'Follow the arrows to understand the flow',
+          'Decision points show different paths'
+        ]
+      };
+    } catch (error) {
+      console.error('❌ Error generating flowchart:', error);
+      // Fallback approach
+      const mermaidCode = await this.generateMermaidWithLLM(
+        prompt.split('IMPORTANT:')[0] + 'Return ONLY valid Mermaid code starting with "flowchart TD" or "flowchart LR".'
+      );
+      
+      return {
+        type: 'mermaid',
+        code: mermaidCode,
+        title: `Process Flow from Video Content`,
+        description: `Visual representation based on the video transcript`,
+        interactionHints: [
+          'Follow the arrows to understand the flow',
+          'Decision points show different paths'
+        ]
+      };
+    }
   }
 
   private async generateMindMap(context: VisualGenerationContext, transcriptContext: string): Promise<VisualContent> {
@@ -240,21 +288,69 @@ Requirements:
 5. Keep labels concise but meaningful
 6. Use proper Mermaid mindmap syntax
 
-Return ONLY valid Mermaid code starting with "mindmap".
+IMPORTANT: Generate your response in the following JSON format:
+{
+  "title": "A clear, descriptive title for this mind map based on the content",
+  "description": "A detailed explanation of the concepts shown and their relationships from the video",
+  "mermaidCode": "The actual Mermaid mindmap code starting with 'mindmap'"
+}
 `;
 
-    const mermaidCode = await this.generateMermaidWithLLM(prompt);
-    
-    return {
-      type: 'mermaid',
-      code: mermaidCode,
-      title: `Concept Map from Video`,
-      description: `Conceptual overview based on the video content`,
-      interactionHints: [
-        'Explore from center outward',
-        'Each branch represents a related concept'
-      ]
-    };
+    try {
+      const response = await this.makeOpenAIRequest({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a Mermaid diagram expert. Generate valid Mermaid syntax and provide clear titles and descriptions.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.5,
+        max_tokens: 800
+      });
+
+      const result = JSON.parse(response.trim());
+      console.log('📊 Generated mindmap with title:', result.title);
+      
+      // Clean the mermaid code if needed
+      let mermaidCode = result.mermaidCode || '';
+      if (mermaidCode.startsWith('```')) {
+        mermaidCode = mermaidCode.replace(/^```(?:mermaid)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+      }
+      
+      return {
+        type: 'mermaid',
+        code: mermaidCode,
+        title: result.title || 'Concept Map from Video',
+        description: result.description || 'Conceptual overview based on the video content',
+        interactionHints: [
+          'Explore from center outward',
+          'Each branch represents a related concept'
+        ]
+      };
+    } catch (error) {
+      console.error('❌ Error generating mindmap:', error);
+      // Fallback approach
+      const mermaidCode = await this.generateMermaidWithLLM(
+        prompt.split('IMPORTANT:')[0] + 'Return ONLY valid Mermaid code starting with "mindmap".'
+      );
+      
+      return {
+        type: 'mermaid',
+        code: mermaidCode,
+        title: `Concept Map from Video`,
+        description: `Conceptual overview based on the video content`,
+        interactionHints: [
+          'Explore from center outward',
+          'Each branch represents a related concept'
+        ]
+      };
+    }
   }
 
   private async generateSequenceDiagram(context: VisualGenerationContext, transcriptContext: string): Promise<VisualContent> {
@@ -274,21 +370,69 @@ Requirements:
 4. Keep messages descriptive but concise
 5. Use proper Mermaid sequenceDiagram syntax
 
-Return ONLY valid Mermaid code starting with "sequenceDiagram".
+IMPORTANT: Generate your response in the following JSON format:
+{
+  "title": "A clear, descriptive title for this sequence diagram based on the content",
+  "description": "A detailed explanation of the process or interaction sequence shown from the video",
+  "mermaidCode": "The actual Mermaid sequence diagram code starting with 'sequenceDiagram'"
+}
 `;
 
-    const mermaidCode = await this.generateMermaidWithLLM(prompt);
-    
-    return {
-      type: 'mermaid',
-      code: mermaidCode,
-      title: `Sequence from Video Content`,
-      description: `Step-by-step process based on the video`,
-      interactionHints: [
-        'Read from top to bottom',
-        'Arrows show the flow of events'
-      ]
-    };
+    try {
+      const response = await this.makeOpenAIRequest({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a Mermaid diagram expert. Generate valid Mermaid syntax and provide clear titles and descriptions.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.5,
+        max_tokens: 800
+      });
+
+      const result = JSON.parse(response.trim());
+      console.log('📊 Generated sequence diagram with title:', result.title);
+      
+      // Clean the mermaid code if needed
+      let mermaidCode = result.mermaidCode || '';
+      if (mermaidCode.startsWith('```')) {
+        mermaidCode = mermaidCode.replace(/^```(?:mermaid)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+      }
+      
+      return {
+        type: 'mermaid',
+        code: mermaidCode,
+        title: result.title || 'Sequence from Video Content',
+        description: result.description || 'Step-by-step process based on the video',
+        interactionHints: [
+          'Read from top to bottom',
+          'Arrows show the flow of events'
+        ]
+      };
+    } catch (error) {
+      console.error('❌ Error generating sequence diagram:', error);
+      // Fallback approach
+      const mermaidCode = await this.generateMermaidWithLLM(
+        prompt.split('IMPORTANT:')[0] + 'Return ONLY valid Mermaid code starting with "sequenceDiagram".'
+      );
+      
+      return {
+        type: 'mermaid',
+        code: mermaidCode,
+        title: `Sequence from Video Content`,
+        description: `Step-by-step process based on the video`,
+        interactionHints: [
+          'Read from top to bottom',
+          'Arrows show the flow of events'
+        ]
+      };
+    }
   }
 
   private async generateComparisonChart(context: VisualGenerationContext, transcriptContext: string): Promise<VisualContent> {
@@ -308,21 +452,69 @@ Requirements:
 4. Show the main differences clearly
 5. Use proper Mermaid graph syntax
 
-Return ONLY valid Mermaid code starting with "graph TB" or "graph LR".
+IMPORTANT: Generate your response in the following JSON format:
+{
+  "title": "A clear, descriptive title for this comparison based on the content",
+  "description": "A detailed explanation of what is being compared and the key differences/similarities from the video",
+  "mermaidCode": "The actual Mermaid graph code starting with 'graph TB' or 'graph LR'"
+}
 `;
 
-    const mermaidCode = await this.generateMermaidWithLLM(prompt);
-    
-    return {
-      type: 'mermaid',
-      code: mermaidCode,
-      title: `Comparison from Video`,
-      description: `Visual comparison based on the video content`,
-      interactionHints: [
-        'Compare features side by side',
-        'Notice the connections between concepts'
-      ]
-    };
+    try {
+      const response = await this.makeOpenAIRequest({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a Mermaid diagram expert. Generate valid Mermaid syntax and provide clear titles and descriptions.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.5,
+        max_tokens: 800
+      });
+
+      const result = JSON.parse(response.trim());
+      console.log('📊 Generated comparison chart with title:', result.title);
+      
+      // Clean the mermaid code if needed
+      let mermaidCode = result.mermaidCode || '';
+      if (mermaidCode.startsWith('```')) {
+        mermaidCode = mermaidCode.replace(/^```(?:mermaid)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+      }
+      
+      return {
+        type: 'mermaid',
+        code: mermaidCode,
+        title: result.title || 'Comparison from Video',
+        description: result.description || 'Visual comparison based on the video content',
+        interactionHints: [
+          'Compare features side by side',
+          'Notice the connections between concepts'
+        ]
+      };
+    } catch (error) {
+      console.error('❌ Error generating comparison chart:', error);
+      // Fallback approach
+      const mermaidCode = await this.generateMermaidWithLLM(
+        prompt.split('IMPORTANT:')[0] + 'Return ONLY valid Mermaid code starting with "graph TB" or "graph LR".'
+      );
+      
+      return {
+        type: 'mermaid',
+        code: mermaidCode,
+        title: `Comparison from Video`,
+        description: `Visual comparison based on the video content`,
+        interactionHints: [
+          'Compare features side by side',
+          'Notice the connections between concepts'
+        ]
+      };
+    }
   }
 
   private async generateTimeline(context: VisualGenerationContext, transcriptContext: string): Promise<VisualContent> {
@@ -343,21 +535,69 @@ Requirements:
 5. Show progression clearly
 6. Use proper Mermaid timeline syntax
 
-Return ONLY valid Mermaid code starting with "timeline".
+IMPORTANT: Generate your response in the following JSON format:
+{
+  "title": "A clear, descriptive title for this timeline based on the content",
+  "description": "A detailed explanation of the chronological progression shown from the video",
+  "mermaidCode": "The actual Mermaid timeline code starting with 'timeline'"
+}
 `;
 
-    const mermaidCode = await this.generateMermaidWithLLM(prompt);
-    
-    return {
-      type: 'mermaid',
-      code: mermaidCode,
-      title: `Timeline from Video`,
-      description: `Chronological progression based on the video`,
-      interactionHints: [
-        'Read from left to right',
-        'Note the progression over time'
-      ]
-    };
+    try {
+      const response = await this.makeOpenAIRequest({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a Mermaid diagram expert. Generate valid Mermaid syntax and provide clear titles and descriptions.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.5,
+        max_tokens: 800
+      });
+
+      const result = JSON.parse(response.trim());
+      console.log('📊 Generated timeline with title:', result.title);
+      
+      // Clean the mermaid code if needed
+      let mermaidCode = result.mermaidCode || '';
+      if (mermaidCode.startsWith('```')) {
+        mermaidCode = mermaidCode.replace(/^```(?:mermaid)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+      }
+      
+      return {
+        type: 'mermaid',
+        code: mermaidCode,
+        title: result.title || 'Timeline from Video',
+        description: result.description || 'Chronological progression based on the video',
+        interactionHints: [
+          'Read from left to right',
+          'Note the progression over time'
+        ]
+      };
+    } catch (error) {
+      console.error('❌ Error generating timeline:', error);
+      // Fallback approach
+      const mermaidCode = await this.generateMermaidWithLLM(
+        prompt.split('IMPORTANT:')[0] + 'Return ONLY valid Mermaid code starting with "timeline".'
+      );
+      
+      return {
+        type: 'mermaid',
+        code: mermaidCode,
+        title: `Timeline from Video`,
+        description: `Chronological progression based on the video`,
+        interactionHints: [
+          'Read from left to right',
+          'Note the progression over time'
+        ]
+      };
+    }
   }
 
   private async generateAutomatic(context: VisualGenerationContext, transcriptContext: string): Promise<VisualContent> {
@@ -374,18 +614,65 @@ ${context.topic}
 Select from: flowchart, mindmap, sequence diagram, comparison graph, or timeline.
 Generate the most appropriate visualization based on the actual content discussed in the video.
 
-Return ONLY valid Mermaid code.
+IMPORTANT: Generate your response in the following JSON format:
+{
+  "title": "A clear, descriptive title for this diagram based on the content",
+  "description": "A detailed explanation of what this diagram shows and how it helps understand the video content",
+  "diagramType": "The type of diagram chosen (flowchart, mindmap, sequence, comparison, or timeline)",
+  "mermaidCode": "The actual Mermaid diagram code"
+}
 `;
 
-    const mermaidCode = await this.generateMermaidWithLLM(prompt);
-    
-    return {
-      type: 'mermaid',
-      code: mermaidCode,
-      title: `Video Content Visualization`,
-      description: `AI-selected visualization based on the video`,
-      interactionHints: ['Explore the diagram to understand the video content better']
-    };
+    try {
+      const response = await this.makeOpenAIRequest({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a Mermaid diagram expert. Generate valid Mermaid syntax and provide clear titles and descriptions.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.5,
+        max_tokens: 800
+      });
+
+      const result = JSON.parse(response.trim());
+      console.log('📊 Generated automatic diagram with title:', result.title);
+      console.log('  Chosen diagram type:', result.diagramType);
+      
+      // Clean the mermaid code if needed
+      let mermaidCode = result.mermaidCode || '';
+      if (mermaidCode.startsWith('```')) {
+        mermaidCode = mermaidCode.replace(/^```(?:mermaid)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+      }
+      
+      return {
+        type: 'mermaid',
+        code: mermaidCode,
+        title: result.title || 'Video Content Visualization',
+        description: result.description || 'AI-selected visualization based on the video',
+        interactionHints: this.getInteractionHints(result.diagramType || 'flowchart')
+      };
+    } catch (error) {
+      console.error('❌ Error generating automatic diagram:', error);
+      // Fallback approach
+      const mermaidCode = await this.generateMermaidWithLLM(
+        prompt.split('IMPORTANT:')[0] + 'Return ONLY valid Mermaid code.'
+      );
+      
+      return {
+        type: 'mermaid',
+        code: mermaidCode,
+        title: `Video Content Visualization`,
+        description: `AI-selected visualization based on the video`,
+        interactionHints: ['Explore the diagram to understand the video content better']
+      };
+    }
   }
 
   private async generateMermaidWithLLM(prompt: string): Promise<string> {
@@ -498,6 +785,33 @@ Return ONLY valid Mermaid code.
     C[Or ask for a specific diagram type]
     A --> B
     A --> C`;
+  }
+
+  private getInteractionHints(diagramType: string): string[] {
+    const hints: { [key: string]: string[] } = {
+      flowchart: [
+        'Follow the arrows to understand the flow',
+        'Decision points show different paths'
+      ],
+      mindmap: [
+        'Explore from center outward',
+        'Each branch represents a related concept'
+      ],
+      sequence: [
+        'Read from top to bottom',
+        'Arrows show the flow of events'
+      ],
+      comparison: [
+        'Compare features side by side',
+        'Notice the connections between concepts'
+      ],
+      timeline: [
+        'Read from left to right',
+        'Note the progression over time'
+      ]
+    };
+    
+    return hints[diagramType] || ['Explore the diagram to understand the video content better'];
   }
 
   extractVisualContext(context: EdgeFunctionContext): VisualGenerationContext {

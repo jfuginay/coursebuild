@@ -54,26 +54,51 @@ export function VisualChatMessage({
   const [expandedVisuals, setExpandedVisuals] = useState<Set<number>>(new Set());
   const [fullScreenVisual, setFullScreenVisual] = useState<{ index: number; visual: VisualContent } | null>(null);
   const [renderedDiagrams, setRenderedDiagrams] = useState<Map<number, string>>(new Map());
+  const [isFullscreenLoading, setIsFullscreenLoading] = useState(false);
   const diagramRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const fullScreenDiagramRef = useRef<HTMLDivElement>(null);
 
   // Function to render a diagram
-  const renderDiagram = async (visual: VisualContent, index: number, element: HTMLDivElement) => {
+  const renderDiagram = async (visual: VisualContent, index: number, element: HTMLDivElement, isFullscreen = false) => {
+    console.log(`🎨 Starting diagram render (${isFullscreen ? 'fullscreen' : 'normal'}) for index ${index}`);
+    console.log('Element:', element);
+    console.log('Visual code:', visual.code?.substring(0, 100) + '...');
+    
     if (visual.type === 'mermaid' && visual.code) {
       try {
+        // Show loading state for fullscreen
+        if (isFullscreen) {
+          setIsFullscreenLoading(true);
+          element.innerHTML = `
+            <div class="flex items-center justify-center h-full">
+              <div class="text-center">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
+                <p>Rendering diagram...</p>
+              </div>
+            </div>
+          `;
+        }
+        
+        // Wait a bit for DOM to be ready
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         // Clear previous content
         element.innerHTML = '';
         
         // Generate a unique ID for this render
         const graphId = `graph-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`;
+        console.log('🔧 Rendering with ID:', graphId);
         
         // Render the diagram
         const { svg } = await mermaid.render(graphId, visual.code);
+        console.log('✅ Mermaid render successful, SVG length:', svg.length);
+        
         element.innerHTML = svg;
         
         // Make the SVG responsive
         const svgElement = element.querySelector('svg');
         if (svgElement) {
+          console.log('🎯 Found SVG element, applying styles...');
           // Remove fixed width/height attributes
           svgElement.removeAttribute('width');
           svgElement.removeAttribute('height');
@@ -86,19 +111,52 @@ export function VisualChatMessage({
           svgElement.style.width = '100%';
           svgElement.style.height = '100%';
           svgElement.style.maxWidth = '100%';
+          
+          // For fullscreen, ensure it fills the container properly
+          if (isFullscreen) {
+            svgElement.style.minHeight = '400px';
+            svgElement.style.display = 'block';
+            console.log('🖥️ Fullscreen SVG styled successfully');
+          }
+        } else {
+          console.error('❌ No SVG element found in rendered content');
         }
         
-        // Store the rendered SVG
-        setRenderedDiagrams(prev => new Map(prev).set(index, svg));
+        // Store the rendered SVG for download purposes only
+        if (!isFullscreen) {
+          const cacheIndex = index % 1000;
+          setRenderedDiagrams(prev => new Map(prev).set(cacheIndex, svg));
+        }
+        
+        console.log(`✅ Diagram rendered successfully (${isFullscreen ? 'fullscreen' : 'normal'})`);
+        
+        if (isFullscreen) {
+          setIsFullscreenLoading(false);
+        }
       } catch (error) {
-        console.error('Error rendering mermaid diagram:', error);
+        console.error('❌ Error rendering mermaid diagram:', error);
+        console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+        
+        if (isFullscreen) {
+          setIsFullscreenLoading(false);
+        }
+        
         element.innerHTML = `
           <div class="text-red-500 p-4 border border-red-300 rounded">
             <p class="font-semibold">Error rendering diagram</p>
             <p class="text-sm mt-1">${error instanceof Error ? error.message : 'Unknown error'}</p>
+            <details class="mt-2">
+              <summary class="cursor-pointer">Debug info</summary>
+              <pre class="text-xs mt-1 bg-gray-100 p-2 rounded overflow-auto">
+Code: ${visual.code}
+Error: ${error instanceof Error ? error.stack : error}
+              </pre>
+            </details>
           </div>
         `;
       }
+    } else {
+      console.warn('⚠️ Invalid visual type or missing code:', visual.type, !!visual.code);
     }
   };
 
@@ -107,20 +165,62 @@ export function VisualChatMessage({
     message.visuals?.forEach(async (visual, index) => {
       const element = diagramRefs.current.get(index);
       if (element) {
-        await renderDiagram(visual, index, element);
+        console.log('Rendering diagram in message, index:', index);
+        await renderDiagram(visual, index, element, false);
       }
     });
   }, [message.visuals, message.id]);
 
   // Render fullscreen diagram when modal opens
   useEffect(() => {
-    if (fullScreenVisual && fullScreenDiagramRef.current) {
-      renderDiagram(fullScreenVisual.visual, fullScreenVisual.index, fullScreenDiagramRef.current);
+    console.log('🖥️ Fullscreen useEffect triggered:', {
+      hasFullScreenVisual: !!fullScreenVisual,
+      hasRef: !!fullScreenDiagramRef.current,
+      fullScreenVisual: fullScreenVisual
+    });
+    
+    if (fullScreenVisual) {
+      // Keep trying until the ref is available
+      const checkAndRender = async () => {
+        let attempts = 0;
+        const maxAttempts = 10;
+        
+        while (attempts < maxAttempts) {
+          console.log(`🔍 Attempt ${attempts + 1} to find fullscreen ref...`);
+          
+          if (fullScreenDiagramRef.current) {
+            console.log('✅ Found fullscreen diagram ref!');
+            console.log('🔄 Rendering fullscreen diagram for index:', fullScreenVisual.index);
+            console.log('Diagram code preview:', fullScreenVisual.visual.code?.substring(0, 200) + '...');
+            
+            try {
+              // Always re-render for fullscreen - this is more reliable
+              await renderDiagram(fullScreenVisual.visual, fullScreenVisual.index, fullScreenDiagramRef.current, true);
+              console.log('✅ Fullscreen render completed');
+              return; // Success, exit the loop
+            } catch (error) {
+              console.error('❌ Failed to render fullscreen diagram:', error);
+              return; // Error, exit the loop
+            }
+          }
+          
+          // Wait before next attempt
+          await new Promise(resolve => setTimeout(resolve, 100));
+          attempts++;
+        }
+        
+        console.error('❌ Failed to find fullscreen diagram ref after', maxAttempts, 'attempts');
+      };
+      
+      // Start checking with a small delay
+      const timeoutId = setTimeout(checkAndRender, 100);
+      return () => clearTimeout(timeoutId);
     }
   }, [fullScreenVisual]);
 
   const toggleExpand = (index: number) => {
     const visual = message.visuals![index];
+    console.log('Opening fullscreen for visual:', visual.title, 'index:', index);
     setFullScreenVisual({ index, visual });
     onVisualInteraction?.(visual, 'fullscreen_expand');
   };
@@ -150,8 +250,18 @@ export function VisualChatMessage({
   };
 
   const downloadDiagram = (visual: VisualContent, index: number) => {
-    const svg = renderedDiagrams.get(index);
-    if (!svg) return;
+    // Get the actual index for the cached SVG (use modulo for fullscreen)
+    const cacheIndex = index % 1000;
+    const svg = renderedDiagrams.get(cacheIndex);
+    if (!svg) {
+      console.error('No rendered SVG found for download');
+      toast({
+        title: "Download failed",
+        description: "No diagram found to download",
+        variant: "destructive",
+      });
+      return;
+    }
 
     // Create a blob from the SVG
     const blob = new Blob([svg], { type: 'image/svg+xml' });
@@ -274,19 +384,9 @@ export function VisualChatMessage({
       <Dialog open={!!fullScreenVisual} onOpenChange={(open) => !open && closeFullScreen()}>
         <DialogContent className="max-w-[95vw] w-full max-h-[95vh] h-full p-0">
           <DialogHeader className="p-4 border-b">
-            <div className="flex items-center justify-between">
-              <DialogTitle>
-                {fullScreenVisual?.visual.title || 'Diagram View'}
-              </DialogTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={closeFullScreen}
-                className="h-8 w-8 p-0"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+            <DialogTitle>
+              {fullScreenVisual?.visual.title || 'Diagram View'}
+            </DialogTitle>
           </DialogHeader>
           <div className="p-6 h-[calc(100%-80px)] overflow-auto bg-white dark:bg-gray-900">
             {fullScreenVisual && (
@@ -296,10 +396,23 @@ export function VisualChatMessage({
                     {fullScreenVisual.visual.description}
                   </p>
                 )}
+                
+                {/* Loading state */}
+                {isFullscreenLoading && (
+                  <div className="flex items-center justify-center h-64 mb-4">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
+                      <p className="text-sm text-gray-600">Loading diagram...</p>
+                    </div>
+                  </div>
+                )}
+                
                 <div 
                   ref={fullScreenDiagramRef}
-                  className="mermaid-fullscreen-container flex justify-center items-center min-h-[400px] h-full"
+                  className="mermaid-fullscreen-container flex justify-center items-center min-h-[400px] h-full w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded p-4"
+                  style={{ minHeight: '400px' }}
                 />
+                
                 {fullScreenVisual.visual.interactionHints && fullScreenVisual.visual.interactionHints.length > 0 && (
                   <div className="interaction-hints mt-4 text-sm text-gray-600 dark:text-gray-400 text-center">
                     {fullScreenVisual.visual.interactionHints.map((hint, i) => (
