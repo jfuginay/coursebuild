@@ -284,6 +284,25 @@ curl -X POST https://YOUR_PROJECT_ID.supabase.co/functions/v1/quiz-generation-v5
 
 ### January 2025 - Major Architecture Improvements
 
+#### Live Question Generation with Real-time Updates (NEW)
+- **Individual Question Processing**: Questions now generate and display individually as they complete
+- **Parallel Segment Planning**: Next segment planning begins as soon as previous segment's plan completes
+- **Real-time UI Updates**: Frontend subscribes to individual question insertions
+- **Progressive Loading**: Users see questions within seconds, not minutes
+- **Database Architecture**: 
+  - New `question_plans` table persists quiz plans for async processing
+  - Questions include `generation_status` and `segment_id` for tracking
+  - Segment planning decoupled from question generation
+- **Performance Benefits**:
+  - Faster time to first question (seconds vs minutes)
+  - Better resource utilization with parallel processing
+  - Improved fault tolerance - individual failures don't block segments
+- **User Experience**: 
+  - Live progress indicators show questions appearing in real-time
+  - Segment progress tracks both planning and generation status
+  - Questions appear progressively as video plays
+- **See [LIVE_QUESTION_GENERATION_IMPLEMENTATION.md](docs/LIVE_QUESTION_GENERATION_IMPLEMENTATION.md) for details**
+
 #### Enhanced Personalized Recommendations with AI Chat Insights (Algorithm v4.0)
 - **LLM-Powered Personalization**: Completely replaced hardcoded recommendation algorithms with AI-driven analysis
 - **Automatic Profile Initialization**: New users get comprehensive profiles built from:
