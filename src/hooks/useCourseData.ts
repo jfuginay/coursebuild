@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Course, Question } from '@/types/course';
 import { parseOptionsWithTrueFalse } from '@/utils/courseHelpers';
 
@@ -27,7 +27,7 @@ interface UseCourseDataResult {
   setSegmentQuestionCounts: React.Dispatch<React.SetStateAction<Record<number, { planned: number; generated: number }>>>;
   fetchCourse: () => Promise<void>;
   fetchQuestions: () => Promise<void>;
-  fetchSegmentQuestions: () => Promise<void>;
+  fetchSegmentQuestions: (includeIncomplete?: boolean) => Promise<void>;
 }
 
 export function useCourseData({ courseId }: UseCourseDataProps): UseCourseDataResult {
@@ -43,8 +43,96 @@ export function useCourseData({ courseId }: UseCourseDataProps): UseCourseDataRe
   const [totalSegments, setTotalSegments] = useState(0);
   const [isSegmented, setIsSegmented] = useState(false);
   const [segmentQuestionCounts, setSegmentQuestionCounts] = useState<Record<number, { planned: number; generated: number }>>({});
+  
+  // Track if we've initialized questions for this course
+  const hasInitializedQuestions = useRef<string | null>(null);
 
-  const fetchCourse = async () => {
+  // Function to fetch questions for segmented courses
+  const fetchSegmentQuestions = useCallback(async (includeIncomplete = false) => {
+    if (!courseId) return;
+    
+    try {
+      const params = new URLSearchParams();
+      if (includeIncomplete) {
+        params.append('include_incomplete', 'true');
+      }
+      
+      const response = await fetch(`/api/course/${courseId}/segment-questions${params.toString() ? `?${params}` : ''}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch segment questions');
+      }
+
+      console.log('📦 Fetched segment questions:', {
+        total: data.questions?.length || 0,
+        completedSegments: data.completed_segments,
+        totalSegments: data.total_segments,
+        includeIncomplete
+      });
+
+      if (data.questions) {
+        const parsedQuestions = data.questions.map((q: any) => ({
+          ...q,
+          options: parseOptionsWithTrueFalse(q.options || [], q.type)
+        }));
+        setQuestions(parsedQuestions);
+      }
+
+      // Update segment counts
+      if (data.segment_question_counts) {
+        setSegmentQuestionCounts(data.segment_question_counts);
+      }
+
+      setCompletedSegments(data.completed_segments || 0);
+      setTotalSegments(data.total_segments || 0);
+      
+      return data;
+    } catch (error) {
+      console.error('Error fetching segment questions:', error);
+      throw error;
+    }
+  }, [courseId]);
+
+  const fetchQuestions = useCallback(async () => {
+    if (!courseId) return;
+    
+    try {
+      const response = await fetch(`/api/course/${courseId}/questions`);
+      const data = await response.json();
+
+      if (data.success) {
+        // Parse options for each question to ensure they're arrays and correct_answer is a number
+        const parsedQuestions = data.questions.map((q: any) => ({
+          ...q,
+          options: parseOptionsWithTrueFalse(q.options || [], q.type),
+          correct: parseInt(q.correct_answer) || 0,
+          correct_answer: parseInt(q.correct_answer) || 0
+        }));
+        
+        console.log('📊 Questions fetched for course:', data.questions.length);
+        console.log('🎯 Debug info:', data.debug);
+        console.log('📝 Sample question data:', data.questions[0]);
+        
+        // Log visual questions specifically
+        const visualQuestions = parsedQuestions.filter((q: Question) => q.type === 'hotspot' || q.type === 'matching' || q.requires_video_overlay);
+        console.log('👁️ Visual questions found:', visualQuestions.length);
+        if (visualQuestions.length > 0) {
+          console.log('🖼️ First visual question:', visualQuestions[0]);
+        }
+        
+        setQuestions(parsedQuestions);
+      } else {
+        console.error('Failed to fetch questions:', data.error);
+      }
+    } catch (err) {
+      console.error('Error fetching questions:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [courseId]);
+
+  const fetchCourse = useCallback(async () => {
     if (!courseId) return;
     
     try {
@@ -64,9 +152,6 @@ export function useCourseData({ courseId }: UseCourseDataProps): UseCourseDataRe
             console.log(`📊 Course is segmented: ${data.course.total_segments} segments`);
             setIsSegmented(true);
             setTotalSegments(data.course.total_segments || 0);
-            
-            // Fetch initial segment status
-            fetchSegmentQuestions();
           }
           
           // Check if the course has a generic description that needs updating
@@ -114,118 +199,41 @@ export function useCourseData({ courseId }: UseCourseDataProps): UseCourseDataRe
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [courseId]);
 
-  const fetchQuestions = async () => {
-    if (!courseId) return;
-    
-    try {
-      const response = await fetch(`/api/course/${courseId}/questions`);
-      const data = await response.json();
-
-      if (data.success) {
-        // Parse options for each question to ensure they're arrays and correct_answer is a number
-        const parsedQuestions = data.questions.map((q: any) => ({
-          ...q,
-          options: parseOptionsWithTrueFalse(q.options || [], q.type),
-          correct: parseInt(q.correct_answer) || 0,
-          correct_answer: parseInt(q.correct_answer) || 0
-        }));
-        
-        console.log('📊 Questions fetched for course:', data.questions.length);
-        console.log('🎯 Debug info:', data.debug);
-        console.log('📝 Sample question data:', data.questions[0]);
-        
-        // Log visual questions specifically
-        const visualQuestions = parsedQuestions.filter((q: Question) => q.type === 'hotspot' || q.type === 'matching' || q.requires_video_overlay);
-        console.log('👁️ Visual questions found:', visualQuestions.length);
-        if (visualQuestions.length > 0) {
-          console.log('🖼️ First visual question:', visualQuestions[0]);
-        }
-        
-        setQuestions(parsedQuestions);
-      } else {
-        console.error('Failed to fetch questions:', data.error);
-      }
-    } catch (err) {
-      console.error('Error fetching questions:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchSegmentQuestions = async () => {
-    if (!courseId) return;
-    
-    try {
-      const response = await fetch(`/api/course/${courseId}/segment-questions?completed_only=true`);
-      const data = await response.json();
-
-      if (data.success) {
-        // Parse options for each question
-        const parsedQuestions = data.questions.map((q: any) => ({
-          ...q,
-          options: parseOptionsWithTrueFalse(q.options || [], q.type),
-          correct: parseInt(q.correct_answer) || 0,
-          correct_answer: parseInt(q.correct_answer) || 0
-        }));
-        
-        console.log('📊 Segment questions fetched:', parsedQuestions.length);
-        console.log(`📈 Progress: ${data.completed_segments}/${data.total_segments} segments completed`);
-        
-        setQuestions(parsedQuestions);
-        setSegments(data.segments || []);
-        setCompletedSegments(data.completed_segments || 0);
-        setTotalSegments(data.total_segments || 0);
-        
-        // Update segment question counts from API data
-        if (data.segments && data.segments.length > 0) {
-          const counts: Record<number, { planned: number; generated: number }> = {};
-          data.segments.forEach((segment: any) => {
-            if (segment.planned_questions_count > 0 || segment.questions_count > 0) {
-              counts[segment.segment_index] = {
-                planned: segment.planned_questions_count || 0,
-                generated: segment.questions_count || 0
-              };
-            }
-          });
-          setSegmentQuestionCounts(counts);
-        }
-        
-        // If all segments are completed but course isn't published yet, it will be soon
-        if (data.completed_segments === data.total_segments && data.total_segments > 0) {
-          console.log('✅ All segments completed, course should be published soon');
-        }
-      } else {
-        console.error('Failed to fetch segment questions:', data.error);
-      }
-    } catch (err) {
-      console.error('Error fetching segment questions:', err);
-    }
-  };
-
+  // Initial fetch of course data
   useEffect(() => {
     if (courseId) {
       fetchCourse();
     }
-  }, [courseId]);
+  }, [courseId, fetchCourse]);
 
+  // Fetch questions when course data is loaded
   useEffect(() => {
-    // Only fetch questions if course is loaded and published
-    if (course && course.published && courseId) {
+    // Only run when we have course data and it's a new course
+    if (!course || !courseId) return;
+    
+    // Check if we already fetched questions for this specific course
+    const currentCourseId = course.id;
+    if (hasInitializedQuestions.current === currentCourseId) return;
+    
+    // Mark this course as initialized
+    hasInitializedQuestions.current = currentCourseId;
+    
+    console.log('📚 Initializing questions for course:', currentCourseId);
+    
+    if (course.is_segmented) {
+      setIsSegmented(true);
+      setTotalSegments(course.total_segments || 0);
+      // When processing, include incomplete segments to show real-time updates
+      fetchSegmentQuestions(!course.published);
+    } else {
       fetchQuestions();
     }
-    // For processing courses, fetch questions appropriately
-    else if (course && !course.published && courseId) {
-      if (isSegmented) {
-        // For segmented courses, fetch questions from completed segments
-        fetchSegmentQuestions();
-      } else {
-        // For non-segmented courses, fetch any existing questions
-        fetchQuestions();
-      }
-    }
-  }, [course, courseId, completedSegments]);
+    
+    // Set processing state based on course published status
+    setIsProcessing(!course.published);
+  }, [course, courseId, fetchSegmentQuestions, fetchQuestions]);
 
   return {
     course,

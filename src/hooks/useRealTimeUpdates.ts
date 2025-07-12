@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Question } from '@/types/course';
 import { parseOptionsWithTrueFalse } from '@/utils/courseHelpers';
@@ -11,7 +11,7 @@ interface UseRealTimeUpdatesProps {
   questionCount: number;
   isSegmented: boolean;
   totalSegments: number;
-  fetchSegmentQuestions: () => Promise<void>;
+  fetchSegmentQuestions: (includeIncomplete?: boolean) => Promise<void>;
   fetchQuestions: () => Promise<void>;
   setQuestions: React.Dispatch<React.SetStateAction<Question[]>>;
   setSegmentQuestionCounts: React.Dispatch<React.SetStateAction<Record<number, { planned: number; generated: number }>>>;
@@ -34,6 +34,44 @@ export function useRealTimeUpdates({
   setIsProcessing
 }: UseRealTimeUpdatesProps) {
   const { toast } = useToast();
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Store functions in refs to avoid recreating debounced function
+  const fetchSegmentQuestionsRef = useRef(fetchSegmentQuestions);
+  const fetchQuestionsRef = useRef(fetchQuestions);
+  
+  // Update refs when functions change
+  useEffect(() => {
+    fetchSegmentQuestionsRef.current = fetchSegmentQuestions;
+    fetchQuestionsRef.current = fetchQuestions;
+  }, [fetchSegmentQuestions, fetchQuestions]);
+
+  // Stable debounced fetch function
+  const debouncedFetchQuestions = useCallback(() => {
+    // Clear any existing timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // Set a new timer
+    debounceTimerRef.current = setTimeout(() => {
+      console.log('📊 Debounced fetch: Checking for new questions');
+      if (isSegmented) {
+        fetchSegmentQuestionsRef.current(true); // Include incomplete segments
+      } else {
+        fetchQuestionsRef.current();
+      }
+    }, 1000); // Wait 1 second before making the API call
+  }, [isSegmented]); // Only depend on isSegmented
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
 
   // Subscribe to segment updates and individual question inserts for real-time updates
   useEffect(() => {
@@ -54,15 +92,6 @@ export function useRealTimeUpdates({
     }
 
     console.log('🔄 Setting up real-time subscriptions for live question generation');
-    
-    // Immediately fetch current segment status when subscription is set up
-    if (isSegmented) {
-      console.log('📋 Fetching initial segment questions');
-      fetchSegmentQuestions();
-    } else {
-      console.log('📋 Fetching initial questions for non-segmented course');
-      fetchQuestions();
-    }
     
     // Subscribe to segment updates
     const segmentChannel = supabase
@@ -93,8 +122,8 @@ export function useRealTimeUpdates({
           if (updatedSegment.status === 'completed' || updatedSegment.status === 'planning_complete') {
             console.log(`✅ Segment ${updatedSegment.segment_index + 1} planning complete with ${updatedSegment.planned_questions_count} questions planned`);
             
-            // Fetch updated questions from completed segments
-            fetchSegmentQuestions();
+            // Use debounced fetch to avoid multiple calls
+            debouncedFetchQuestions();
             
             // Check if all segments are completed
             if (updatedSegment.segment_index === totalSegments - 1 && updatedSegment.status === 'completed') {
@@ -139,55 +168,39 @@ export function useRealTimeUpdates({
           schema: 'public',
           table: 'questions',
           filter: `course_id=eq.${courseId}`
-        },
-        (payload) => {
-          console.log('📝 New question received via real-time:', payload);
-          console.log('📝 Question details:', {
-            courseId: payload.new.course_id,
-            expectedCourseId: courseId,
-            match: payload.new.course_id === courseId
-          });
-          const newQuestion = payload.new as any;
-          
-          // Parse and add the new question immediately
-          const parsedQuestion = {
-            ...newQuestion,
-            options: parseOptionsWithTrueFalse(newQuestion.options || [], newQuestion.type),
-            correct: parseInt(newQuestion.correct_answer) || 0,
-            correct_answer: parseInt(newQuestion.correct_answer) || 0
-          };
-          
-          setQuestions(prev => {
-            // Check if question already exists
-            if (prev.find(q => q.id === newQuestion.id)) {
-              console.log('Question already exists, skipping');
-              return prev;
-            }
-            
-            console.log(`✅ Adding new question to UI: ${parsedQuestion.question.substring(0, 50)}...`);
-            
-            // Add new question and sort by timestamp
-            const updated = [...prev, parsedQuestion];
-            
-            // Show toast notification for new question
-            toast({
-              title: "New question ready! 🎯",
-              description: `Segment ${(newQuestion.segment_index || 0) + 1}: "${parsedQuestion.question.substring(0, 50)}..."`,
-              duration: 3000,
+        }, async (payload) => {
+          if (!coursePublished) {
+            console.log('📨 New question received via real-time update:', {
+              id: payload.new.id,
+              type: payload.new.type,
+              timestamp: payload.new.timestamp,
+              segment_id: payload.new.segment_id
             });
             
-            return updated.sort((a, b) => a.timestamp - b.timestamp);
-          });
-          
-          // Update segment question counts
-          if (newQuestion.segment_index !== undefined) {
-            setSegmentQuestionCounts(prev => ({
-              ...prev,
-              [newQuestion.segment_index]: {
-                planned: prev[newQuestion.segment_index]?.planned || 0,
-                generated: (prev[newQuestion.segment_index]?.generated || 0) + 1
-              }
-            }));
+            // For multi-segment videos, use debounced fetch to avoid excessive calls
+            if (isSegmented) {
+              debouncedFetchQuestions();
+            } else {
+              // For single-segment videos, add the question directly
+              const newQuestion = payload.new as Question;
+              const parsedQuestion = {
+                ...newQuestion,
+                options: parseOptionsWithTrueFalse(newQuestion.options || [], newQuestion.type)
+              };
+              
+              setQuestions(prev => {
+                const exists = prev.some(q => q.id === parsedQuestion.id);
+                if (!exists) {
+                  const updated = [...prev, parsedQuestion].sort((a, b) => a.timestamp - b.timestamp);
+                  toast({
+                    title: "New question generated!",
+                    description: `Question ${updated.length} of ${questionCount > 0 ? questionCount : '?'} ready`,
+                  });
+                  return updated;
+                }
+                return prev;
+              });
+            }
           }
         }
       )
@@ -244,45 +257,23 @@ export function useRealTimeUpdates({
       supabase.removeChannel(questionChannel);
       supabase.removeChannel(questionPlanChannel);
     };
-  }, [courseId, isProcessing, totalSegments, coursePublished, isSegmented, questionCount]);
+  }, [courseId, isProcessing, totalSegments, coursePublished, isSegmented, questionCount, debouncedFetchQuestions, setQuestions, setSegmentQuestionCounts, setCourse, setIsProcessing, toast]);
 
-  // Additional polling for segmented courses to ensure UI updates
+  // Single consolidated polling mechanism for fallback (when real-time doesn't work)
   useEffect(() => {
     if (!courseId || !isProcessing) return;
     
-    // Smart polling for segment updates - only when we expect changes
-    if (isSegmented) {
-      console.log('🔄 Setting up smart segment polling (only while segments are processing)');
-      
-      // Poll every 5 seconds, but only while segments are still processing
-      const pollInterval = setInterval(() => {
-        console.log(`📊 Checking for new segment questions`);
-        fetchSegmentQuestions();
-      }, 5000); // Poll every 5 seconds
-      
-      return () => {
-        console.log('🔌 Clearing segment polling interval');
-        clearInterval(pollInterval);
-      };
-    }
-  }, [courseId, isProcessing, isSegmented]);
-
-  // Polling for questions during processing (fallback for real-time)
-  useEffect(() => {
-    if (!courseId || !isProcessing) return;
+    // Only use polling as a fallback - less frequent than real-time updates
+    console.log('🔄 Setting up fallback polling (every 10 seconds)');
     
-    // Fallback polling for when real-time doesn't work
-    console.log('🔄 Setting up fallback question polling');
-    
-    // Poll every 5 seconds for new questions during processing
     const pollInterval = setInterval(() => {
-      console.log('📊 Fallback poll: Checking for new questions');
+      console.log('📊 Fallback poll: Checking for updates');
       if (isSegmented) {
-        fetchSegmentQuestions();
+        fetchSegmentQuestionsRef.current(true); // Include incomplete segments
       } else {
-        fetchQuestions();
+        fetchQuestionsRef.current();
       }
-    }, 5000);
+    }, 10000); // Poll every 10 seconds (reduced from 5 seconds)
     
     return () => {
       console.log('🔌 Clearing fallback polling interval');
@@ -310,7 +301,11 @@ export function useRealTimeUpdates({
           setIsProcessing(false);
           
           // Fetch questions
-          fetchQuestions();
+          if (isSegmented) {
+            await fetchSegmentQuestionsRef.current(false); // Only completed segments for published course
+          } else {
+            await fetchQuestionsRef.current();
+          }
         }
       } catch (error) {
         console.error('Error checking course status:', error);
@@ -320,9 +315,9 @@ export function useRealTimeUpdates({
     // Check immediately
     checkPublishStatus();
     
-    // Then check every 10 seconds (less frequent than before)
-    const interval = setInterval(checkPublishStatus, 10000);
+    // Then check every 15 seconds (less frequent than before)
+    const interval = setInterval(checkPublishStatus, 15000);
     
     return () => clearInterval(interval);
-  }, [courseId, isProcessing, coursePublished]);
+  }, [courseId, isProcessing, coursePublished, isSegmented, setCourse, setIsProcessing]);
 } 

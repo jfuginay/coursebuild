@@ -22,11 +22,15 @@ export default async function handler(
   }
 
   try {
+    const courseId = req.query.id as string;
+    const completedOnly = req.query.completed_only !== 'false';
+    const includeIncomplete = req.query.include_incomplete === 'true';
+
     // First, get segment information for this course
     const { data: segments, error: segmentsError } = await supabase
       .from('course_segments')
       .select('*')
-      .eq('course_id', id)
+      .eq('course_id', courseId)
       .order('segment_index', { ascending: true });
 
     if (segmentsError) {
@@ -50,13 +54,14 @@ export default async function handler(
           is_correct_answer
         )
       `)
-      .eq('course_id', id)
+      .eq('course_id', courseId)
+      .order('segment_id', { ascending: true })
       .order('timestamp', { ascending: true });
 
     // Filter by specific segment if requested
     if (segment_index !== undefined) {
       query = query.eq('segment_index', parseInt(segment_index as string));
-    } else if (completed_only === 'true') {
+    } else if (completedOnly && !includeIncomplete) {
       // Only get questions from completed segments
       const completedSegments = segments?.filter(s => s.status === 'completed') || [];
       const completedIndices = completedSegments.map(s => s.segment_index);
@@ -161,14 +166,27 @@ export default async function handler(
     const completedSegments = segments?.filter(s => s.status === 'completed').length || 0;
     const totalSegments = segments?.length || 0;
 
-    console.log(`📊 Segment questions API:`, {
-      course_id: id,
-      segment_index,
-      completed_only,
-      total_segments: totalSegments,
-      completed_segments: completedSegments,
-      questions_returned: fullyValidQuestions.length
+    // Calculate segment question counts
+    const segmentQuestionCounts: Record<number, { planned: number; generated: number }> = {};
+    segments?.forEach((segment: any) => {
+      segmentQuestionCounts[segment.segment_index] = {
+        planned: segment.planned_questions_count || 0,
+        generated: segment.questions_count || 0
+      };
     });
+
+    // Only log when questions are actually returned or on verbose mode
+    if (fullyValidQuestions.length > 0 || process.env.VERBOSE_LOGGING === 'true') {
+      console.log('📊 Segment questions API:', {
+        course_id: id,
+        segment_index,
+        completed_only,
+        include_incomplete: includeIncomplete,
+        total_segments: segments?.length || 0,
+        completed_segments: segments?.filter((s: any) => s.status === 'completed').length || 0,
+        questions_returned: fullyValidQuestions.length
+      });
+    }
 
     return res.status(200).json({
       success: true,
