@@ -265,7 +265,7 @@ This edge function represents a production-ready implementation of advanced AI v
 - **Robust error handling** and logging
 - **Scalable architecture** for production use
 
-The implementation showcases cutting-edge AI capabilities for educational content generation and serves as a foundation for the CourseBuilder platform. 
+The implementation showcases cutting-edge AI capabilities for educational content generation and serves as a foundation for the CourseBuild platform. 
 
 ## 💡 **Development Notes**
 
@@ -277,7 +277,7 @@ This edge function represents a production-ready implementation of advanced AI v
 - **Robust error handling** and logging
 - **Scalable architecture** for production use
 
-The implementation showcases cutting-edge AI capabilities for educational content generation and serves as a foundation for the CourseBuilder platform. 
+The implementation showcases cutting-edge AI capabilities for educational content generation and serves as a foundation for the CourseBuild platform. 
 
 ## 💡 **Development Notes**
 
@@ -289,4 +289,4 @@ This edge function represents a production-ready implementation of advanced AI v
 - **Robust error handling** and logging
 - **Scalable architecture** for production use
 
-The implementation showcases cutting-edge AI capabilities for educational content generation and serves as a foundation for the CourseBuilder platform. 
+The implementation showcases cutting-edge AI capabilities for educational content generation and serves as a foundation for the CourseBuild platform. 

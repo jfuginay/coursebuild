@@ -1,4 +1,4 @@
-# CourseBuilder - Project Roadmap
+# CourseBuild - Project Roadmap
 
 ## 🎯 Mission
 Transform YouTube videos into interactive, AI-powered learning experiences that engage learners through intelligent questioning and progress tracking.
