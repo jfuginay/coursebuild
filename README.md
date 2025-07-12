@@ -25,6 +25,7 @@ CourseBuilder leverages dual LLM providers with full video transcription and int
 - **Segmented processing** for long videos (>10 minutes) with context preservation (NEW)
 
 ### 🔧 **Advanced Processing Pipeline**
+- **Video Duration Limit**: Maximum 45 minutes per video (clear error messages for longer videos)
 - **Enhanced 3-stage processing**: 
   - Stage 1: Full transcript generation + planning with dynamic frame sampling
   - Stage 2: Context-aware question generation with optimal timing
@@ -50,6 +51,39 @@ CourseBuilder leverages dual LLM providers with full video transcription and int
 - **Video overlay integration** with LLM-optimized timestamp placement
 - **Transcript-aware rendering** supporting contextual question display
 - **Complete metadata storage** including all bounding boxes for segmented videos (NEW)
+
+### 🤖 **AI Chat Assistant with Visual Generation**
+- **Intelligent Video Context Awareness** with full transcript integration for contextual responses
+- **Dynamic Visual Generation** using Mermaid diagrams to enhance learning comprehension
+- **Multi-Modal Learning Support** combining text responses with interactive visual content
+- **Smart Visual Detection** using pattern matching and LLM analysis to determine when diagrams would benefit learning
+- **Five Diagram Types** with specialized generation for different educational contexts:
+  - **Flowcharts**: Process flows and decision trees based on video content
+  - **Mind Maps**: Concept relationships and hierarchical knowledge structures
+  - **Sequence Diagrams**: Step-by-step processes and interactions
+  - **Comparison Charts**: Side-by-side analysis of concepts from video
+  - **Timelines**: Chronological progression and historical sequences
+- **Contextual Title & Description Generation** using LLM to create meaningful, content-specific diagram metadata
+- **Interactive Fullscreen Experience** with responsive diagram scaling and robust DOM handling
+- **Advanced Error Handling** with detailed debugging, loading states, and fallback mechanisms
+- **Export & Sharing Capabilities** including diagram code copying, SVG download, and note-saving functionality
+- **LangSmith Integration** for comprehensive API call logging and monitoring of visual generation pipeline
+
+#### **Visual Generation Pipeline**
+- **Pattern-Based Detection**: Recognizes explicit visual requests ("create a flowchart", "show me a diagram")
+- **LLM-Enhanced Analysis**: Uses GPT-4o-mini to analyze complex queries for visual learning opportunities
+- **Conservative Generation**: High confidence threshold (0.8) ensures visuals only generated when truly beneficial
+- **Context-Rich Prompts**: Passes full video transcript context (up to 5000 chars) for accurate diagram generation
+- **Structured Output**: JSON responses with title, description, and Mermaid code for consistent frontend rendering
+- **Robust Fallback**: Multiple error recovery mechanisms with detailed logging for troubleshooting
+
+#### **Frontend Visual Components**
+- **VisualChatMessage Component**: Advanced React component for rendering chat messages with embedded diagrams
+- **Real-time Mermaid Rendering**: Dynamic SVG generation with responsive sizing and fullscreen capabilities
+- **Interactive Modal System**: Fullscreen diagram viewing with polling-based DOM readiness detection
+- **Loading States**: Professional spinner animations and status indicators during diagram generation
+- **Error Recovery**: Graceful error display with debug information and retry mechanisms
+- **Export Integration**: One-click copying, downloading, and note-saving functionality
 
 ### 📊 **Quality Assurance & Monitoring**
 - **Comprehensive error recovery** with multi-provider fallback
@@ -132,6 +166,7 @@ npm run demo:targeted-visual
 | Component | Status | Version | Features |
 |-----------|--------|---------|----------|
 | **Quiz Generation v5.0** | ✅ Live | Latest | Full transcript, LLM timing, base-60 conversion |
+| **AI Chat Assistant** | ✅ Live | Latest | Visual diagram generation, context-aware responses |
 | **Transcript Generation** | ✅ Production | - | Complete video analysis with visual descriptions |
 | **Timestamp Optimization** | ✅ Active | - | LLM-based placement after concepts explained |
 | **Database Schema** | ✅ Updated | - | Transcript storage and enhanced metrics |
@@ -143,6 +178,7 @@ npm run demo:targeted-visual
 The backend processing is powered by Quiz Generation v5.0 with advanced transcript-aware generation:
 
 - **`quiz-generation-v5`**: Main pipeline with full transcript generation and LLM timing
+- **`ai-chat-assistant`**: Intelligent chat assistant with visual diagram generation using Mermaid
 - **`course-suggestions`**: AI-powered course continuation recommendations
 - **`orchestrate-segment-processing`**: Backend orchestrator for reliable segment sequencing
 - **`process-video-segment`**: Individual segment processor with atomic claiming
@@ -151,6 +187,9 @@ The backend processing is powered by Quiz Generation v5.0 with advanced transcri
 ```bash
 # Deploy Quiz Generation v5.0
 cd supabase && npx supabase functions deploy quiz-generation-v5 --project-ref YOUR_PROJECT_ID
+
+# Deploy AI Chat Assistant
+npx supabase functions deploy ai-chat-assistant --project-ref YOUR_PROJECT_ID
 
 # Deploy Orchestrator
 npx supabase functions deploy orchestrate-segment-processing --project-ref YOUR_PROJECT_ID
@@ -256,6 +295,19 @@ curl -X POST https://YOUR_PROJECT_ID.supabase.co/functions/v1/quiz-generation-v5
 - **Automatic Updates**: Generic descriptions are automatically replaced with meaningful summaries when transcripts are generated
 - **Segmented Processing Support**: Descriptions update automatically after all segments complete processing
 - **API Endpoint**: New `/api/course/update-summary` endpoint for on-demand description updates
+
+#### AI Chat Assistant with Visual Generation (NEW)
+- **Comprehensive Visual Learning Enhancement**: Integrated AI chat assistant with intelligent Mermaid diagram generation
+- **Context-Aware Responses**: Full video transcript integration enables contextually relevant answers and visual aids
+- **Smart Visual Detection**: Conservative LLM-based analysis determines when diagrams would enhance learning
+- **Five Specialized Diagram Types**: Flowcharts, mind maps, sequence diagrams, comparison charts, and timelines
+- **Dynamic Title & Description Generation**: LLM creates meaningful, content-specific metadata instead of placeholder text
+- **Robust Fullscreen Experience**: 
+  - Fixed diagram rendering issues with polling-based DOM readiness detection
+  - Enhanced error handling with detailed debugging information
+  - Professional loading states and smooth user experience
+- **Export & Sharing Features**: One-click code copying, SVG downloads, and note-saving functionality
+- **Production Ready**: Deployed `ai-chat-assistant` edge function with LangSmith integration for monitoring
 
 ### Complete Hotspot Metadata Fix for Segmented Processing (December 2024)
 - **Fixed Missing Metadata**: Segmented video processing now saves ALL hotspot metadata fields
@@ -478,6 +530,50 @@ Content-Type: application/json
 ### Key Timestamp Format Note
 
 Gemini uses base-60 timestamps where 100 = 1:00 = 60 seconds. The v5.0 system automatically converts these to standard seconds for consistency across the platform.
+
+### AI Chat Assistant API
+
+```http
+POST /functions/v1/ai-chat-assistant
+Authorization: Bearer <SUPABASE_KEY>
+Content-Type: application/json
+
+{
+  "course_id": "uuid",
+  "message": "Create a flowchart showing the main concepts from this video",
+  "request_type": "general_chat", // or "explain_video", "question_hint"
+  "video_context": {
+    "current_time": 125.5,
+    "played_segments": [...] // Optional: previously watched segments
+  }
+}
+```
+
+**Response with visual content:**
+```json
+{
+  "response": "Here's a flowchart showing the main concepts...",
+  "hasVisuals": true,
+  "visuals": [
+    {
+      "type": "mermaid",
+      "code": "flowchart TD\n    A[Concept 1] --> B[Concept 2]...",
+      "title": "Main Concepts from Video Analysis",
+      "description": "This flowchart illustrates the key concepts discussed in the video and their relationships...",
+      "interactionHints": [
+        "Follow the arrows to understand the flow",
+        "Decision points show different paths"
+      ]
+    }
+  ]
+}
+```
+
+**Visual Generation Features:**
+- **Smart Detection**: Only generates visuals when they enhance learning
+- **Context Awareness**: Uses full video transcript for accurate diagrams
+- **Five Diagram Types**: Flowcharts, mind maps, sequences, comparisons, timelines
+- **Quality Metadata**: LLM-generated titles and descriptions specific to content
 
 ---
 

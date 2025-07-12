@@ -1,11 +1,9 @@
 {
   "compilerOptions": {
-    "allowJs": true,
-    "lib": ["deno.window"],
-    "strict": true
+    "allowImportingTsExtensions": true,
+    "lib": ["deno.window"]
   },
   "imports": {
-    "supabase": "https://esm.sh/@supabase/supabase-js@2",
-    "openai": "https://esm.sh/openai@4.28.0"
+    "openai": "npm:openai@^4.20.0"
   }
 } 
