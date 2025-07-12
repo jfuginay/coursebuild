@@ -362,6 +362,8 @@ curl -X POST https://YOUR_PROJECT_ID.supabase.co/functions/v1/quiz-generation-v5
   - **Current Course Context**: System now includes completed course details for better continuity
   - **Meaningful Mistake Descriptors**: AI now generates specific descriptions like "Confused CRI with color temperature" instead of generic "mistake 1"
   - **Improved LangSmith Titles**: Changed format to `<Function> - <Action> - <Model>` for better log visibility
+  - **Segment Update Fix**: UI now updates immediately when first segment completes (added polling + immediate fetch)
+  - **Video Player Grey Box Fix**: Fixed issue where video player showed grey box after questions generated
 - **See [ENHANCED_RECOMMENDATIONS_WITH_CHAT_INSIGHTS.md](docs/ENHANCED_RECOMMENDATIONS_WITH_CHAT_INSIGHTS.md) for implementation details**
 
 #### Video Title Integration
