@@ -58,6 +58,9 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
       const data = await response.json();
 
       if (data.success) {
+        // Debug: Log the number of courses fetched from database
+        console.log(`📊 Fetched ${data.courses.length} courses from database`);
+        
         // Debug: Log the fetched courses to see if questionCount is included
         console.log('🔍 Fetched courses:', data.courses.map((c: Course) => ({
           title: c.title,
