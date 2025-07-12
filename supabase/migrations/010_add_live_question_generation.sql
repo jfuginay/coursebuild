@@ -43,7 +43,7 @@ ON question_plans(status, created_at);
 -- Add planning status to course_segments
 ALTER TABLE course_segments
 ADD COLUMN IF NOT EXISTS planning_status VARCHAR(50) DEFAULT 'pending',
-ADD COLUMN IF NOT EXISTS question_plans_count INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS planned_questions_count INTEGER DEFAULT 0,
 ADD COLUMN IF NOT EXISTS questions_generated_count INTEGER DEFAULT 0;
 
 -- Create function to update segment question counts
@@ -84,16 +84,22 @@ TO service_role
 USING (true)
 WITH CHECK (true);
 
--- Allow authenticated users to read their own course question plans
+-- Allow authenticated users to read question plans for courses they created or enrolled in
 CREATE POLICY "Users can read question plans for their courses"
 ON question_plans
 FOR SELECT
 TO authenticated
 USING (
   EXISTS (
-    SELECT 1 FROM courses
-    WHERE courses.id = question_plans.course_id
-    AND courses.user_id = auth.uid()
+    SELECT 1 FROM user_course_creations
+    WHERE user_course_creations.course_id = question_plans.course_id
+    AND user_course_creations.user_id = auth.uid()
+  )
+  OR
+  EXISTS (
+    SELECT 1 FROM user_course_enrollments
+    WHERE user_course_enrollments.course_id = question_plans.course_id
+    AND user_course_enrollments.user_id = auth.uid()
   )
 );
 

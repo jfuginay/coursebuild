@@ -4,6 +4,27 @@
 
 This implementation enables real-time question generation and display, allowing users to see questions appear individually as they are generated rather than waiting for entire segments to complete.
 
+## Architecture Overview
+
+### Pipeline Flow
+1. **Video Analysis** → Determine if segmentation needed
+2. **Segment Creation** → Split video into segments OR create single segment
+3. **Parallel Planning** → Plan questions for all segments
+4. **Individual Generation** → Generate each question separately
+5. **Real-time Updates** → Push questions to UI as they complete
+
+### Single-Segment Videos
+As of the latest update, ALL videos now use the live question generation pipeline:
+- **Short videos** (< 5 minutes) are processed as a single segment
+- Questions are still generated individually and appear live
+- Users see the same progressive loading experience
+- This ensures consistency across all video lengths
+
+Previously, single-segment videos used the old synchronous pipeline. Now they benefit from:
+- Live question appearance as each is generated
+- Better error recovery (individual questions can retry)
+- Consistent user experience regardless of video length
+
 ## Architecture Changes
 
 ### 1. Database Schema
@@ -131,3 +152,66 @@ Track these metrics:
 - Database write throughput
 - Real-time subscription count
 - Error rates by question type 
+
+## Troubleshooting
+
+### UUID Error When Saving Questions
+If you see errors like `invalid input syntax for type uuid: "q2_multiple-choice_128"`, this means the question ID is being used as the database primary key incorrectly.
+
+**Fix:** The `generate-individual-questions` function should not specify an `id` field when inserting questions. The database will generate a UUID automatically. The original plan question ID can be stored in the metadata for reference.
+
+### Course Not Publishing After Questions Generated
+Due to the async nature of individual question generation, the course might not be marked as published even after all questions are generated.
+
+**Solution:** A separate `check-and-publish-course` edge function periodically checks:
+1. All segments are completed
+2. All question plans are processed (no pending/generating status)
+3. Questions exist in the database
+4. If all checks pass, the course is marked as published
+
+The frontend polls this endpoint every 5 seconds until the course is published. 
+
+### Questions Not Appearing in Real-time
+If questions only appear when segments complete rather than individually:
+
+**Common Causes:**
+1. Real-time not enabled for the `questions` table in Supabase
+2. Subscription setup issues in the frontend
+3. RLS policies blocking real-time events
+
+**Solutions:**
+1. **Enable Real-time**: Run migration `011_enable_realtime_for_questions.sql`
+2. **Frontend Fixes**:
+   - Changed subscription from `isSegmented` to `isProcessing` dependency
+   - Added subscription status logging
+   - Added 2-second polling as fallback
+3. **Check Supabase Dashboard**: Ensure real-time is enabled for the questions table
+
+**Fallback Mechanism:**
+The system now includes a 2-second polling interval during processing as a fallback if real-time fails. This ensures questions always appear progressively even if WebSocket connections have issues. 
+
+### Question Types Not Saving Properly
+Some question types (especially complex ones like hotspot, matching, sequencing) may not save correctly if the data structure handling is incomplete.
+
+**Issue Details:**
+- Multiple choice questions need options stored as JSON string
+- True/false questions need correct_answer converted to index (0 for True, 1 for False)
+- Hotspot questions need complex metadata including bounding boxes
+- Matching and sequencing questions need their pairs/items in metadata
+
+**Fix Applied:**
+The `generate-individual-questions` function now matches the data structure handling from `quiz-generation-v5`:
+1. **Options Storage**: Arrays are JSON.stringify'd before storage
+2. **True/False Handling**: Boolean answers converted to indices
+3. **Complex Metadata**: All special fields (bounding boxes, matching pairs, etc.) stored in metadata JSON
+4. **Timestamp Rounding**: Frame timestamps and regular timestamps rounded to integers
+5. **Visual Asset Flag**: Set for hotspot, matching, and sequencing questions
+
+**Test Each Question Type:**
+```javascript
+// Monitor console for each type:
+- Multiple choice: Check options array is stored
+- True/false: Verify correct_answer is 0 or 1
+- Hotspot: Ensure bounding_boxes table gets populated
+- Matching: Check metadata contains matching_pairs
+- Sequencing: Check metadata contains sequence_items

@@ -138,12 +138,55 @@ serve(async (req: Request) => {
     }
 
     if (!shouldSegment) {
-      console.log('📝 Video is short enough to process in one go');
+      console.log('📝 Video is short enough to process in one segment');
       
-      // For short videos, just use the regular quiz generation pipeline
-      const functionUrl = `${supabaseUrl}/functions/v1/quiz-generation-v5`;
+      // Create a single segment for consistency with the live generation pipeline
+      const segments = [{
+        course_id,
+        segment_index: 0,
+        start_time: 0,
+        end_time: totalDuration,
+        title: `Full Video: ${formatSecondsForDisplay(0)} - ${formatSecondsForDisplay(totalDuration)}`,
+        status: 'pending'
+      }];
       
-      const response = await fetch(functionUrl, {
+      // Insert the single segment into database
+      const { data: createdSegments, error: segmentsError } = await supabase
+        .from('course_segments')
+        .insert(segments)
+        .select();
+
+      if (segmentsError) {
+        throw new Error(`Failed to create segment: ${segmentsError.message}`);
+      }
+
+      console.log('✅ Created single segment for full video');
+      
+      // Initialize progress tracking if session_id is provided
+      if (session_id) {
+        await supabase
+          .from('quiz_generation_progress')
+          .insert({
+            course_id,
+            session_id,
+            stage: 'planning',
+            current_step: 'Starting single segment processing',
+            stage_progress: 0,
+            overall_progress: 0,
+            metadata: {
+              total_segments: 1,
+              segment_duration: totalDuration,
+              video_duration: totalDuration
+            }
+          });
+      }
+
+      // Trigger the segment orchestrator for single segment too
+      console.log('🎼 Triggering segment orchestrator for single segment');
+
+      const orchestratorUrl = `${supabaseUrl}/functions/v1/orchestrate-segment-processing`;
+      
+      const orchestratorResponse = await fetch(orchestratorUrl, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${supabaseKey}`,
@@ -151,26 +194,34 @@ serve(async (req: Request) => {
         },
         body: JSON.stringify({
           course_id,
-          youtube_url,
-          max_questions: max_questions_per_segment,
-          session_id
+          check_only: false
         })
       });
 
-      const result = await response.json();
-      
-      // NOTE: We don't mark the course as published here anymore
-      // The quiz generation pipeline will handle this after verifying questions exist
-      if (result.success) {
-        console.log('✅ Quiz generation triggered successfully');
+      if (!orchestratorResponse.ok) {
+        const errorText = await orchestratorResponse.text();
+        console.error('❌ Error triggering orchestrator:', errorText);
+        throw new Error(`Failed to trigger orchestrator: ${errorText}`);
       }
+
+      const orchestratorResult = await orchestratorResponse.json();
+      console.log('✅ Orchestrator triggered successfully for single segment:', orchestratorResult.status);
       
       return new Response(
         JSON.stringify({
           success: true,
-          segmented: false,
-          message: 'Video processed without segmentation',
-          result
+          segmented: false, // Keep this false to indicate it's a single segment
+          total_segments: 1,
+          segment_duration: totalDuration,
+          video_duration: totalDuration,
+          message: 'Video will be processed as a single segment with live question generation',
+          segments: [{
+            index: 0,
+            start_time: 0,
+            end_time: totalDuration,
+            title: createdSegments[0].title,
+            status: 'pending'
+          }]
         }),
         { 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },

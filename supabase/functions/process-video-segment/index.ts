@@ -134,11 +134,21 @@ serve(async (req: Request) => {
     // Calculate segment duration and adjust max questions (1 per minute)
     const segmentDurationSeconds = end_time - start_time;
     const segmentDurationMinutes = Math.ceil(segmentDurationSeconds / 60);
-    const adjustedMaxQuestions = Math.min(segmentDurationMinutes, max_questions);
+    
+    // For single-segment videos, ensure at least 5 questions regardless of duration
+    let adjustedMaxQuestions: number;
+    if (total_segments === 1) {
+      // Single segment: at least 5 questions, but respect max_questions limit
+      adjustedMaxQuestions = Math.min(Math.max(segmentDurationMinutes, 5), max_questions);
+      console.log(`   📌 Single-segment video: Ensuring minimum 5 questions`);
+    } else {
+      // Multi-segment: 1 per minute as before
+      adjustedMaxQuestions = Math.min(segmentDurationMinutes, max_questions);
+    }
 
     console.log(`🎬 Processing segment ${segment_index + 1}/${total_segments} for course ${course_id}`);
     console.log(`   📹 Time range: ${formatSecondsForDisplay(start_time)} - ${formatSecondsForDisplay(end_time)} (${segmentDurationMinutes} minutes)`);
-    console.log(`   🎯 Max questions for this segment: ${adjustedMaxQuestions} (1 per minute)`);
+    console.log(`   🎯 Max questions for this segment: ${adjustedMaxQuestions}${total_segments === 1 ? ' (minimum 5 for single segment)' : ' (1 per minute)'}`);
     console.log(`   🔗 Has previous context: ${!!previous_segment_context}`);
     
     // Validate and convert timestamps in previous context
@@ -577,7 +587,7 @@ serve(async (req: Request) => {
     
     // For backward compatibility, we'll need an array of generated questions for context extraction
     // In the future, we should fetch these from the database
-    const generatedQuestions = [];
+    const generatedQuestions: any[] = [];
 
     // Extract context for next segment
     // TODO: In the future, fetch generated questions from the database
@@ -677,99 +687,13 @@ serve(async (req: Request) => {
         console.error('Failed to trigger orchestrator:', err);
       }
     } else if (isLastSegment) {
-      console.log(`✅ This was the LAST segment (${segment_index + 1}/${total_segments})! Will finalize course after all DB operations complete...`);
+      console.log(`✅ This was the LAST segment (${segment_index + 1}/${total_segments})!`);
+      console.log(`📝 Course publishing will be handled by the check-and-publish mechanism once all questions are generated.`);
       
-      // IMPORTANT: Course publishing is now moved to AFTER all DB operations are complete
-      // This prevents the race condition where the course page sees published=true before questions are inserted
+      // Update segment status but don't publish the course immediately
+      // The check-and-publish-course function will handle this asynchronously
     } else {
       console.log(`📝 Segment ${segment_index + 1} has a next segment but it's not pending (status: ${nextSegment?.status})`);
-    }
-
-    // If this is the last segment, publish the course AFTER all operations are complete
-    if (isLastSegment) {
-      console.log(`🏁 All database operations complete for last segment. Now finalizing course...`);
-      
-      // IMPORTANT: Verify questions exist before marking as published
-      const { count: questionCount, error: countError } = await supabase
-        .from('questions')
-        .select('*', { count: 'exact', head: true })
-        .eq('course_id', course_id);
-      
-      if (countError) {
-        console.error('Failed to count questions:', countError);
-      }
-      
-      console.log(`📊 Total questions in database for course: ${questionCount || 0}`);
-      
-      if (!questionCount || questionCount === 0) {
-        console.warn(`⚠️ No questions found for course ${course_id}. Not marking as published yet.`);
-        
-        // Update segment status but don't publish the course
-        return new Response(
-          JSON.stringify({
-            success: true,
-            segment_index,
-            questions_generated: questionsGenerated,
-            generation_metadata: { 
-              successful_generations: questionsGenerated,
-              failed_generations: errorCount,
-              segment_complete: questionGenResult.segment_complete 
-            },
-            context_for_next: cumulativeContext,
-            next_segment_triggered: false,
-            errors: [],
-            warning: 'Course not published - no questions found in database'
-          }),
-          { 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 200 
-          }
-        );
-      }
-      
-      // Update course as fully processed
-      // NOTE: We'll mark as published, but the frontend can still show questions incrementally
-      const { error: courseUpdateError } = await supabase
-        .from('courses')
-        .update({ 
-          published: true,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', course_id);
-        
-      if (courseUpdateError) {
-        console.error('Failed to update course status:', courseUpdateError);
-      } else {
-        console.log(`✅ Course marked as published (${questionCount} questions verified)`);
-      }
-
-      // Update progress to completed
-      if (session_id) {
-        const { error: progressError } = await supabase
-          .from('quiz_generation_progress')
-          .update({
-            stage: 'completed',
-            current_step: 'All segments processed successfully',
-            stage_progress: 1.0,
-            overall_progress: 1.0,
-            updated_at: new Date().toISOString()
-          })
-          .eq('course_id', course_id)
-          .eq('session_id', session_id);
-          
-        if (progressError) {
-          console.error('Failed to update progress status:', progressError);
-        } else {
-          console.log('✅ Progress marked as completed');
-        }
-      }
-      
-      console.log(`📊 Final segment summary:
-        - Segment: ${segment_index + 1}/${total_segments}
-        - Questions generated: ${questionsGenerated}
-        - Questions complete: ${questionGenResult.segment_complete}
-        - Total questions in course: ${questionCount}
-        - Course published: ${!courseUpdateError}`);
     }
 
     return new Response(
