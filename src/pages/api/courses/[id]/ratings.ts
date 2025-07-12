@@ -115,7 +115,7 @@ export default async function handler(
         
         if (!authError && user) {
           const { data: userRating, error: userRatingError } = await supabase
-            .from('course_ratings')
+            .from('user_course_ratings')
             .select('rating')
             .eq('user_id', user.id)
             .eq('course_id', courseId)
@@ -134,7 +134,7 @@ export default async function handler(
     // Include detailed information if requested
     if (detailed === 'true' && response.totalRatings > 0) {
       const { data: recentRatings, error: recentError } = await supabase
-        .from('course_ratings')
+        .from('user_course_ratings')
         .select('rating, created_at, engagement_score, rating_context')
         .eq('course_id', courseId)
         .order('created_at', { ascending: false })

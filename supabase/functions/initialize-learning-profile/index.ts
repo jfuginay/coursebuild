@@ -137,7 +137,7 @@ async function gatherUserData(supabaseClient: any, userId: string) {
 
     // Get user's course ratings
     supabaseClient
-      .from('course_ratings')
+      .from('user_course_ratings')
       .select(`
         *,
         courses!inner(

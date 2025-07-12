@@ -18,13 +18,12 @@ export default async function handler(
 
   try {
     // Refresh the materialized view to ensure rating stats are up-to-date
-    // COMMENTED OUT: course_rating_stats table does not exist
-    // const { error: refreshError } = await supabase.rpc('refresh_course_rating_stats');
-    // if (refreshError) {
-    //   console.error('Error refreshing course_rating_stats:', refreshError);
-    //   // Decide if this should be a hard error or just a warning
-    //   // For now, let's log it and continue, as courses can still be fetched
-    // }
+    const { error: refreshError } = await supabase.rpc('refresh_course_rating_stats');
+    if (refreshError) {
+      console.error('Error refreshing course_rating_stats:', refreshError);
+      // Decide if this should be a hard error or just a warning
+      // For now, let's log it and continue, as courses can still be fetched
+    }
 
     // Get basic course data first (reliable baseline)
     let query = supabase
@@ -67,33 +66,32 @@ export default async function handler(
         let totalRatings = 0;
         let questionCount = 0;
 
-        // COMMENTED OUT: course_rating_stats table does not exist
-        // try {
-        //   // Try to get rating stats for this course
-        //   const { data: ratingStats, error: ratingError } = await supabase
-        //     .from('course_rating_stats')
-        //     .select('average_rating, total_ratings')
-        //     .eq('course_id', course.id)
-        //     .maybeSingle(); // Use maybeSingle to handle no results gracefully
+        try {
+          // Try to get rating stats for this course
+          const { data: ratingStats, error: ratingError } = await supabase
+            .from('course_rating_stats')
+            .select('average_rating, total_ratings')
+            .eq('course_id', course.id)
+            .maybeSingle(); // Use maybeSingle to handle no results gracefully
 
-        //   if (!ratingError && ratingStats) {
-        //     averageRating = Number(ratingStats.average_rating) || 0;
-        //     totalRatings = Number(ratingStats.total_ratings) || 0;
+          if (!ratingError && ratingStats) {
+            averageRating = Number(ratingStats.average_rating) || 0;
+            totalRatings = Number(ratingStats.total_ratings) || 0;
             
-        //     // Debug: Log rating data for courses that have ratings
-        //     if (totalRatings > 0) {
-        //       console.log(`⭐ Course "${course.title}" has ratings:`, {
-        //         averageRating,
-        //         totalRatings,
-        //         courseId: course.id
-        //       });
-        //     }
-        //   } else if (ratingError) {
-        //     console.warn(`❌ Rating error for course ${course.id}:`, ratingError);
-        //   }
-        // } catch (ratingError) {
-        //   console.warn(`❌ Rating fetch error for course ${course.id}:`, ratingError);
-        // }
+            // Debug: Log rating data for courses that have ratings
+            if (totalRatings > 0) {
+              console.log(`⭐ Course "${course.title}" has ratings:`, {
+                averageRating,
+                totalRatings,
+                courseId: course.id
+              });
+            }
+          } else if (ratingError) {
+            console.warn(`❌ Rating error for course ${course.id}:`, ratingError);
+          }
+        } catch (ratingError) {
+          console.warn(`❌ Rating fetch error for course ${course.id}:`, ratingError);
+        }
 
         try {
           // Get question count for this course
