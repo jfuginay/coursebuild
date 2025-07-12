@@ -36,6 +36,10 @@ interface Course {
  averageRating?: number;
  totalRatings?: number;
  topic?: string;
+ // Segmentation fields
+ is_segmented?: boolean;
+ total_segments?: number;
+ segment_duration?: number;
  // Enhanced recommendation fields
  reasons?: string[];
  difficulty_match?: 'too_easy' | 'perfect' | 'challenging' | 'too_hard';
@@ -135,6 +139,12 @@ export default function CoursePage() {
  const [nextCourseModalShown, setNextCourseModalShown] = useState(false); // Track if modal has been shown
  const [isProcessing, setIsProcessing] = useState(false); // Track if course is still processing
  
+ // Segment processing state
+ const [segments, setSegments] = useState<any[]>([]);
+ const [completedSegments, setCompletedSegments] = useState(0);
+ const [totalSegments, setTotalSegments] = useState(0);
+ const [isSegmented, setIsSegmented] = useState(false);
+ 
  // Rating state
  const [showRatingModal, setShowRatingModal] = useState(false);
  const [hasRated, setHasRated] = useState(false);
@@ -205,12 +215,76 @@ export default function CoursePage() {
    }
  });
 
+ // Subscribe to segment updates for real-time question loading
+ useEffect(() => {
+   if (!id || !isSegmented || !isProcessing || course?.published) return;
+
+   console.log('🔄 Setting up real-time segment subscription');
+   
+   // Immediately fetch current segment status when subscription is set up
+   fetchSegmentQuestions();
+   
+   const channel = supabase
+     .channel(`course_segments_${id}`)
+     .on(
+       'postgres_changes',
+       {
+         event: 'UPDATE',
+         schema: 'public',
+         table: 'course_segments',
+         filter: `course_id=eq.${id}`
+       },
+       (payload) => {
+         console.log('📊 Segment update received:', payload);
+         const updatedSegment = payload.new as any;
+         
+         if (updatedSegment.status === 'completed') {
+           console.log(`✅ Segment ${updatedSegment.segment_index + 1} completed with ${updatedSegment.questions_count} questions`);
+           
+           // Fetch updated questions from completed segments
+           fetchSegmentQuestions();
+         } else if (updatedSegment.status === 'processing') {
+           console.log(`⏳ Segment ${updatedSegment.segment_index + 1} is processing`);
+         } else if (updatedSegment.status === 'failed') {
+           console.log(`❌ Segment ${updatedSegment.segment_index + 1} failed: ${updatedSegment.error_message}`);
+         }
+       }
+     )
+     .subscribe();
+
+   return () => {
+     console.log('🔌 Unsubscribing from segment updates');
+     supabase.removeChannel(channel);
+   };
+ }, [id, isSegmented, isProcessing, course?.published]);
+ 
+ // Additional polling for segmented courses to ensure UI updates
+ useEffect(() => {
+   if (!id || !isSegmented || !isProcessing || course?.published) return;
+   
+   console.log('🔄 Setting up segment polling interval');
+   
+   // Poll every 3 seconds for segment updates
+   const pollInterval = setInterval(() => {
+     fetchSegmentQuestions();
+   }, 3000);
+   
+   return () => {
+     console.log('🔌 Clearing segment polling interval');
+     clearInterval(pollInterval);
+   };
+ }, [id, isSegmented, isProcessing, course?.published]);
+
  useEffect(() => {
    // Only fetch questions if course is loaded and published
    if (course && course.published && id) {
      fetchQuestions();
    }
- }, [course, id]);
+   // For segmented courses, also fetch questions from completed segments
+   else if (course && !course.published && isSegmented && id) {
+     fetchSegmentQuestions();
+   }
+ }, [course, id, completedSegments]);
 
  useEffect(() => {
    console.log('🔍 Checking YouTube API availability...');
@@ -380,6 +454,16 @@ export default function CoursePage() {
        if (data.course && !data.course.published) {
          console.log('Course is still processing');
          setIsProcessing(true);
+         
+         // Check if course is segmented
+         if (data.course.is_segmented) {
+           console.log(`📊 Course is segmented: ${data.course.total_segments} segments`);
+           setIsSegmented(true);
+           setTotalSegments(data.course.total_segments || 0);
+           
+           // Fetch initial segment status
+           fetchSegmentQuestions();
+         }
          
          // Check if the course has a generic description that needs updating
          const hasGenericDescription = data.course.description && (
@@ -551,6 +635,40 @@ export default function CoursePage() {
      console.error('Error fetching questions:', err);
    } finally {
      setIsLoading(false);
+   }
+ };
+
+ const fetchSegmentQuestions = async () => {
+   try {
+     const response = await fetch(`/api/course/${id}/segment-questions?completed_only=true`);
+     const data = await response.json();
+
+     if (data.success) {
+       // Parse options for each question
+       const parsedQuestions = data.questions.map((q: any) => ({
+         ...q,
+         options: parseOptionsWithTrueFalse(q.options || [], q.type),
+         correct: parseInt(q.correct_answer) || 0,
+         correct_answer: parseInt(q.correct_answer) || 0
+       }));
+       
+       console.log('📊 Segment questions fetched:', parsedQuestions.length);
+       console.log(`📈 Progress: ${data.completed_segments}/${data.total_segments} segments completed`);
+       
+       setQuestions(parsedQuestions);
+       setSegments(data.segments || []);
+       setCompletedSegments(data.completed_segments || 0);
+       setTotalSegments(data.total_segments || 0);
+       
+       // If all segments are completed but course isn't published yet, it will be soon
+       if (data.completed_segments === data.total_segments && data.total_segments > 0) {
+         console.log('✅ All segments completed, course should be published soon');
+       }
+     } else {
+       console.error('Failed to fetch segment questions:', data.error);
+     }
+   } catch (err) {
+     console.error('Error fetching segment questions:', err);
    }
  };
 
@@ -1500,11 +1618,33 @@ export default function CoursePage() {
            {/* Processing Indicator */}
            {isProcessing && (
              <Alert className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
-               <div className="flex items-center gap-2">
-                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                 <AlertDescription className="text-blue-700 dark:text-blue-300">
-                   <strong>Questions are being generated!</strong> You can start watching the video now - questions will appear automatically when ready.
-                 </AlertDescription>
+               <div className="flex flex-col gap-3">
+                 <div className="flex items-center gap-2">
+                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                   <AlertDescription className="text-blue-700 dark:text-blue-300">
+                     <strong>Questions are being generated!</strong> You can start watching the video now - questions will appear automatically when ready.
+                   </AlertDescription>
+                 </div>
+                 
+                 {/* Segment Progress */}
+                 {isSegmented && totalSegments > 0 && (
+                   <div className="space-y-2">
+                     <div className="flex items-center justify-between text-sm">
+                       <span className="text-blue-700 dark:text-blue-300">
+                         Segment Progress: {completedSegments} of {totalSegments} completed
+                       </span>
+                       <span className="text-blue-700 dark:text-blue-300">
+                         {Math.round((completedSegments / totalSegments) * 100)}%
+                       </span>
+                     </div>
+                     <Progress value={(completedSegments / totalSegments) * 100} className="h-2" />
+                     {questions.length > 0 && (
+                       <p className="text-xs text-blue-600 dark:text-blue-400">
+                         {questions.length} questions generated so far
+                       </p>
+                     )}
+                   </div>
+                 )}
                </div>
              </Alert>
            )}
@@ -1531,7 +1671,7 @@ export default function CoursePage() {
          />
 
          {/* Question or Transcript Display */}
-         {!isProcessing && (
+         {(!isProcessing || (isProcessing && questions.length > 0)) && (
            showQuestion && questions[currentQuestionIndex] ? (
              <QuestionOverlay
                question={questions[currentQuestionIndex]}
@@ -1554,7 +1694,7 @@ export default function CoursePage() {
          )}
 
          {/* Course Curriculum Card */}
-         {!isProcessing && questions.length > 0 && (
+         {questions.length > 0 && (
            <CourseCurriculumCard
              courseData={getCourseData()}
              answeredQuestions={getAnsweredQuestionsForCurriculum()}

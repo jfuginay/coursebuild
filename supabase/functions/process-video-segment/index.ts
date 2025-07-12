@@ -783,6 +783,7 @@ serve(async (req: Request) => {
       }
       
       // Update course as fully processed
+      // NOTE: We'll mark as published, but the frontend can still show questions incrementally
       const { error: courseUpdateError } = await supabase
         .from('courses')
         .update({ 
