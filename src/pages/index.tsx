@@ -68,6 +68,18 @@ interface ApiResponse {
   };
 }
 
+interface Course {
+  id: string;
+  title: string;
+  description: string;
+  youtube_url: string;
+  created_at: string;
+  published: boolean;
+  averageRating?: number;
+  totalRatings?: number;
+  questionCount?: number;
+}
+
 export default function Home() {
   const router = useRouter();
   const { user } = useAuth();
@@ -77,6 +89,7 @@ export default function Home() {
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
   const [useCache, setUseCache] = useState(true);
   const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [tips, setTips] = useState([
     {
       title: "Did you know?",
@@ -108,7 +121,8 @@ export default function Home() {
     handleSubmit,
     formState: { errors },
     reset,
-    watch
+    watch,
+    setValue
   } = useForm<CourseGenerationFormData>({
     resolver: zodResolver(courseGenerationSchema)
   });
@@ -359,6 +373,34 @@ export default function Home() {
     }
   });
 
+  // Fetch courses for quick access buttons
+  useEffect(() => {
+    const fetchCourses = async () => {
+      try {
+        const response = await fetch('/api/courses');
+        const data = await response.json();
+        if (data.success) {
+          setCourses(data.courses);
+        }
+      } catch (error) {
+        console.error('Error fetching courses:', error);
+      }
+    };
+    
+    fetchCourses();
+  }, []);
+
+  // Extract first 3 words from course title
+  const getButtonTitle = (title: string) => {
+    return title.split(' ').slice(0, 3).join(' ');
+  };
+
+  // Handle quick course button click
+  const handleQuickCourseClick = async (course: Course) => {
+    setValue('youtubeUrl', course.youtube_url);
+    await generateCourse({ youtubeUrl: course.youtube_url }, true);
+  };
+
   return (
     <>
       <Head>
@@ -374,7 +416,7 @@ export default function Home() {
           <Header />
           
           <div className="container mx-auto px-4 py-8">
-            <div className="w-full max-w-6xl mx-auto">
+            <div className="w-full max-w-7xl mx-auto">
               <div className="text-center mb-12">
                 <Loader2 className="h-12 w-12 animate-spin mx-auto mb-6 text-primary" />
                 <h1 className="text-3xl font-bold mb-3">
@@ -396,7 +438,7 @@ export default function Home() {
               
               {/* Fun facts or tips while waiting */}
               {tips && tips.length > 0 && currentTipIndex < tips.length ? (
-                <Card className="max-w-2xl mx-auto mb-8 transition-all duration-500">
+                <Card className="max-w-3xl mx-auto mb-8 transition-all duration-500">
                   <CardHeader>
                     <CardTitle className="text-lg transition-opacity duration-500">
                       {tips[currentTipIndex].title}
@@ -409,7 +451,7 @@ export default function Home() {
                   </CardContent>
                 </Card>
               ) : (
-                <Card className="max-w-2xl mx-auto mb-8">
+                <Card className="max-w-3xl mx-auto mb-8">
                   <CardHeader>
                     <CardTitle className="text-lg">Loading facts...</CardTitle>
                   </CardHeader>
@@ -422,7 +464,7 @@ export default function Home() {
               )}
               
               {/* Progress indicators */}
-              <div className="max-w-2xl mx-auto mb-8">
+              <div className="max-w-3xl mx-auto mb-8">
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
                     <div className={`h-8 w-8 rounded-full flex items-center justify-center ${
@@ -528,26 +570,37 @@ export default function Home() {
           <Header />
           
           <div className="container mx-auto px-4 py-8">
-            <div className="max-w-4xl mx-auto space-y-8">
+            <div className="max-w-6xl mx-auto space-y-8">
               {/* Hero Section */}
               <div className="text-center space-y-4">
                 <h1 id="main-headline" className="text-4xl font-bold tracking-tight lg:text-5xl">
                   Transform YouTube Videos into 
                   <span className="text-primary"> Interactive Courses</span>
                 </h1>
-                <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
                   Paste any YouTube URL and let AI generate an engaging, interactive course 
                   with questions and segments automatically.
                 </p>
               </div>
 
               {/* Course Generation Form */}
-              <Card className="w-full max-w-2xl mx-auto">
+              <Card className="w-full max-w-3xl mx-auto">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Play className="h-5 w-5" />
-                    Generate Course from YouTube
-                  </CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <Play className="h-5 w-5" />
+                      Generate Course from YouTube
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-blue-500" />
+                      <Switch
+                        id="use-cache"
+                        checked={useCache}
+                        onCheckedChange={setUseCache}
+                        disabled={isLoading}
+                      />
+                    </div>
+                  </div>
                   <CardDescription>
                     Enter a YouTube URL to start creating your AI-powered course
                   </CardDescription>
@@ -570,22 +623,6 @@ export default function Home() {
                       )}
                     </div>
 
-                    <div className="flex items-center space-x-3 py-2">
-                      <Switch
-                        id="use-cache"
-                        checked={useCache}
-                        onCheckedChange={setUseCache}
-                        disabled={isLoading}
-                      />
-                      <Label htmlFor="use-cache" className="flex items-center gap-2 cursor-pointer">
-                        <Zap className="h-4 w-4 text-blue-500" />
-                        Use cached results
-                        <span className="text-sm text-muted-foreground">
-                          (faster if video was previously analyzed)
-                        </span>
-                      </Label>
-                    </div>
-
                     <div className="flex gap-3">
                       <Button 
                         id="generate-course-button"
@@ -599,13 +636,47 @@ export default function Home() {
                         Generate Course
                       </Button>
                     </div>
+
+                    {/* Quick Access Course Buttons - Infinite Scroll */}
+                    <div className="relative overflow-hidden">
+                      <div className="flex gap-2 animate-infinite-scroll">
+                        {/* First set of buttons */}
+                        {courses.slice(0, 13).map((course) => (
+                          <Button
+                            key={`first-${course.id}`}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={isLoading}
+                            onClick={() => handleQuickCourseClick(course)}
+                            className="whitespace-nowrap flex-shrink-0"
+                          >
+                            {getButtonTitle(course.title)}
+                          </Button>
+                        ))}
+                        {/* Duplicate set for seamless loop */}
+                        {courses.slice(0, 13).map((course) => (
+                          <Button
+                            key={`second-${course.id}`}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={isLoading}
+                            onClick={() => handleQuickCourseClick(course)}
+                            className="whitespace-nowrap flex-shrink-0"
+                          >
+                            {getButtonTitle(course.title)}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
                   </form>
                 </CardContent>
               </Card>
 
               {/* Error Display */}
               {error && (
-                <Alert variant="destructive" className="max-w-2xl mx-auto">
+                <Alert variant="destructive" className="max-w-3xl mx-auto">
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
