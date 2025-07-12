@@ -255,24 +255,33 @@ export default function CoursePage() {
    };
  }, [isYTApiLoaded]);
 
- useEffect(() => {
-   console.log('🎯 Player initialization check:', {
-     videoId: videoId,
-     isYTApiLoaded: isYTApiLoaded,
-     hasWindowYT: !!(window.YT && window.YT.Player),
-     hasPlayer: !!player
-   });
-   
-   if (videoId && isYTApiLoaded && window.YT && window.YT.Player && !player) {
-     console.log('🚀 Attempting to initialize player...');
-     // Add small delay to ensure DOM is ready
-     const timer = setTimeout(() => {
-     initializePlayer();
-     }, 100);
-     
-     return () => clearTimeout(timer);
-   }
- }, [videoId, isYTApiLoaded, player]);
+  // Initialize YouTube player when API is ready and video ID is available
+  useEffect(() => {
+    console.log('🎬 YouTube Player useEffect triggered:', {
+      videoId: videoId,
+      isYTApiLoaded: isYTApiLoaded,
+      hasWindowYT: !!(window.YT && window.YT.Player),
+      hasPlayer: !!player,
+      isProcessing: isProcessing
+    });
+    
+    // Reset player if transitioning from processing to published
+    if (!isProcessing && player && !document.getElementById('youtube-player')) {
+      console.log('🔄 Resetting player due to state transition');
+      setPlayer(null);
+      playerRef.current = null;
+    }
+    
+    if (videoId && isYTApiLoaded && window.YT && window.YT.Player && !player && !isProcessing) {
+      console.log('🚀 Attempting to initialize player...');
+      // Add small delay to ensure DOM is ready
+      const timer = setTimeout(() => {
+      initializePlayer();
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [videoId, isYTApiLoaded, player, isProcessing]);
 
  useEffect(() => {
    if (player && questions.length > 0) {

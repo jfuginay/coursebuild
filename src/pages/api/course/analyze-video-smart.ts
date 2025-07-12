@@ -257,30 +257,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const errorText = await initResponse.text();
         console.error('❌ Smart processing initialization failed:', errorText);
         
-        // Parse error response to check if it's a video duration error
-        let errorObj;
-        try {
-          errorObj = JSON.parse(errorText);
-        } catch {
-          errorObj = { error: errorText };
-        }
-        
-        // Check if it's a video duration error
-        if (errorObj.video_duration && errorObj.max_duration) {
-          // Clean up the course if it's a duration error
-          await supabase
-            .from('quiz_generation_progress')
-            .delete()
-            .match({ course_id: course_id, session_id: session_id });
-          
-          return res.status(400).json({
-            success: false,
-            error: errorObj.error,
-            video_duration: errorObj.video_duration,
-            max_duration: errorObj.max_duration
-          });
-        }
-        
         // Only mark as failed if it's a clear error (not a timeout)
         await supabase
           .from('quiz_generation_progress')
