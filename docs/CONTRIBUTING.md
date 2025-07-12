@@ -1,10 +1,10 @@
-# Contributing to CourseBuilder
+# Contributing to CourseBuild
 
-Welcome to CourseBuilder! 🎉 We're excited to have you join our mission to transform YouTube videos into interactive, AI-powered learning experiences. This guide will help you get started with contributing to our open source project.
+Welcome to CourseBuild! 🎉 We're excited to have you join our mission to transform YouTube videos into interactive, AI-powered learning experiences. This guide will help you get started with contributing to our open source project.
 
 ## 🌟 Why Contribute?
 
-CourseBuilder is revolutionizing online learning by:
+CourseBuild is revolutionizing online learning by:
 - **Democratizing Education**: Making any YouTube video an interactive course
 - **AI-Powered Learning**: Using Gemini AI to generate intelligent questions
 - **Open Source Impact**: Building tools that benefit the entire learning community
@@ -426,7 +426,7 @@ You're helping democratize education and making learning more accessible for eve
 4. **Make your contribution** 💻
 5. **Submit a pull request** 🚀
 
-**Welcome to the CourseBuilder community!** 🎉
+**Welcome to the CourseBuild community!** 🎉
 
 ---
 

@@ -362,7 +362,7 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>CourseBuilder - Transform YouTube Videos into Interactive Courses</title>
+        <title>CourseBuild - Transform YouTube Videos into Interactive Courses</title>
         <meta name="description" content="Transform any YouTube video into an interactive, structured course with AI-powered analysis, timestamps, and quiz questions" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />

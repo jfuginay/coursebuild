@@ -213,7 +213,7 @@ const Logo: React.FC<LogoProps> = ({ variant = 'full', size = 'md' }) => {
       {/* Logo Text */}
       <div className="flex flex-col">
         <div className={`${text} font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent`}>
-          CourseBuilder
+          CourseBuild
         </div>
       </div>
     </div>

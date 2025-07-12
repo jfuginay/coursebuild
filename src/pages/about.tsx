@@ -116,7 +116,7 @@ export default function About() {
   return (
     <>
       <Head>
-        <title>About - CourseBuilder</title>
+        <title>About - CourseBuild</title>
       </Head>
       <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
         <Header />
@@ -126,13 +126,13 @@ export default function About() {
           {/* Hero Section */}
           <div className="text-center space-y-4">
             <Badge variant="secondary" className="mb-4">
-              About CourseBuilder
+              About CourseBuild
             </Badge>
             <h1 className="text-4xl font-bold tracking-tight lg:text-5xl">
               How It Works
             </h1>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              CourseBuilder transforms YouTube videos into interactive, structured courses 
+              CourseBuild transforms YouTube videos into interactive, structured courses 
               using advanced artificial intelligence and machine learning.
             </p>
           </div>
@@ -144,7 +144,7 @@ export default function About() {
                 <div className="p-2 bg-blue-100 rounded-lg">
                   <Play className="h-5 w-5 text-blue-600" />
                 </div>
-                How CourseBuilder Transforms Learning
+                How CourseBuild Transforms Learning
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -339,7 +339,7 @@ export default function About() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-muted-foreground">
-                CourseBuilder leverages cutting-edge artificial intelligence technologies including:
+                CourseBuild leverages cutting-edge artificial intelligence technologies including:
               </p>
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
