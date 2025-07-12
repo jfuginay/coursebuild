@@ -336,6 +336,13 @@ curl -X POST https://YOUR_PROJECT_ID.supabase.co/functions/v1/quiz-generation-v5
   - `AI Chat Insight Extraction - [Course Name]`
   - `Initialize Learning Profile - User [ID]`
   - `Enhanced Recommendations - Video Selection ([n] candidates)`
+- **Bug Fixes and Improvements (v4.1-v4.2)**:
+  - **Fixed Wrong Questions Loading**: Resolved database queries and joins preventing mistake data from reaching AI
+  - **Course Publishing Fix**: Identified and fixed 5 courses marked as `published = false` despite having questions
+  - **Duration Filtering**: Added maximum 20-minute video limit with ideal range of 5-15 minutes
+  - **Current Course Context**: System now includes completed course details for better continuity
+  - **Meaningful Mistake Descriptors**: AI now generates specific descriptions like "Confused CRI with color temperature" instead of generic "mistake 1"
+  - **Improved LangSmith Titles**: Changed format to `<Function> - <Action> - <Model>` for better log visibility
 - **See [ENHANCED_RECOMMENDATIONS_WITH_CHAT_INSIGHTS.md](docs/ENHANCED_RECOMMENDATIONS_WITH_CHAT_INSIGHTS.md) for implementation details**
 
 #### Video Title Integration
