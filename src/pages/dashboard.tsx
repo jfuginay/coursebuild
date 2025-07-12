@@ -191,12 +191,6 @@ export default function DashboardPage() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Badge 
-                variant={userData.subscription_tier === 'premium' ? 'default' : 'secondary'}
-                className="capitalize"
-              >
-                {userData.subscription_tier} Plan
-              </Badge>
               <Button variant="outline" size="sm">
                 <Settings className="h-4 w-4 mr-2" />
                 Settings
