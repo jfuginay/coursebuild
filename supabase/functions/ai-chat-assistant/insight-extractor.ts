@@ -138,7 +138,7 @@ export class InsightExtractor {
       messages: [
         {
           role: "system",
-          content: "You are an educational insight extractor. Analyze student-AI conversations to identify learning patterns, preferences, struggles, and successes. Extract actionable insights for personalized learning recommendations."
+          content: "You are Curio, an educational insight extractor. Analyze student-AI conversations to identify learning patterns, preferences, struggles, and successes. Extract actionable insights for personalized learning recommendations."
         },
         {
           role: "user",

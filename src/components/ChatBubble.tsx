@@ -94,7 +94,7 @@ export default function ChatBubble({
     {
       id: '1',
       text: courseId 
-        ? "Hi! I'm here to help you with this course. I can answer questions about the content you've watched so far. How can I assist you today?"
+        ? "Hi! I'm Curio, your personal learning assistant. I can answer questions about the content you've watched so far. How can I assist you today?"
         : "Hi! I'm here to help you with your course. How can I assist you today?",
       isUser: false,
       timestamp: new Date()
@@ -103,6 +103,12 @@ export default function ChatBubble({
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Track action changes for button animation
+  const previousActionRef = useRef<'explain' | 'help' | 'fact-check'>('explain');
+  const [shouldBlink, setShouldBlink] = useState(false);
+  const [isActionButtonHovered, setIsActionButtonHovered] = useState(false);
+  const [isTransitioningToDefault, setIsTransitioningToDefault] = useState(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -111,6 +117,53 @@ export default function ChatBubble({
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+  
+  // Determine current action type
+  const getCurrentAction = (): 'explain' | 'help' | 'fact-check' => {
+    if (hasJustAnswered && activeQuestion) {
+      return 'fact-check';
+    } else if (activeQuestion) {
+      return 'help';
+    } else {
+      return 'explain';
+    }
+  };
+  
+  // Get current action
+  const currentAction = getCurrentAction();
+  
+  // Detect action changes and trigger animations
+  useEffect(() => {
+    if (currentAction !== previousActionRef.current) {
+      const wasExplain = previousActionRef.current === 'explain';
+      const isExplain = currentAction === 'explain';
+      
+      // Update the ref
+      previousActionRef.current = currentAction;
+      
+      // Trigger animations based on the transition
+      if (!isExplain) {
+        // Changing TO help/fact-check - trigger blink only on initial change
+        if (wasExplain) {
+          setShouldBlink(true);
+          const timer = setTimeout(() => {
+            setShouldBlink(false);
+          }, 600);
+          return () => clearTimeout(timer);
+        }
+      } else if (isExplain && !wasExplain) {
+        // Changing back TO explain - minimal animation
+        setIsTransitioningToDefault(true);
+        const timer = setTimeout(() => {
+          setIsTransitioningToDefault(false);
+        }, 300);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [currentAction]);
+  
+  // Apply hover animation when action changes from default (explain/video)
+  const shouldShowHoverAnimation = isActionButtonHovered || (currentAction !== 'explain' && !isTransitioningToDefault);
 
   const handleVisualInteraction = (visual: VisualContent, action: string) => {
     console.log('Visual interaction:', action, visual);
@@ -480,18 +533,13 @@ Options: ${activeQuestion.options.join(', ')}`;
   const renderChatWindow = () => {
     if (useModernStyle) {
       return (
-        <BackgroundGradient
-          className="rounded-[22px] bg-transparent"
-          containerClassName="mb-4"
-          animate={isHovered}
+        <Card 
+          className={`w-[500px] shadow-xl transition-all duration-300 bg-card/90 backdrop-blur-sm border border-[#02cced]/20 rounded-[22px] ${
+            isMinimized ? 'h-14' : 'h-[700px]'
+          }`}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
         >
-          <Card 
-            className={`w-[500px] shadow-xl transition-all duration-300 bg-card/90 backdrop-blur-sm border-0 rounded-[22px] ${
-              isMinimized ? 'h-14' : 'h-[700px]'
-            }`}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-          >
             {/* Geometric pattern overlay */}
             <div className="absolute inset-0 opacity-5 pointer-events-none">
               <div className="absolute top-4 right-4 w-20 h-20 border-2 border-[#02cced]/20 rounded-full" />
@@ -499,7 +547,11 @@ Options: ${activeQuestion.options.join(', ')}`;
               <div className="absolute top-1/2 left-1/2 w-12 h-12 border border-[#02cced]/10 rounded-full -translate-x-1/2 -translate-y-1/2" />
             </div>
 
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 py-3 bg-gradient-to-r from-[#02cced] to-[#02cced]/90 text-white rounded-t-[22px] relative z-10">
+            <CardHeader 
+              className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 py-3 bg-gradient-to-r from-[#02cced] to-[#02cced]/90 hover:from-[#02cced]/95 hover:to-[#02cced] text-white rounded-t-[22px] relative z-10 cursor-pointer select-none transition-all duration-200"
+              onClick={() => setIsMinimized(!isMinimized)}
+              title={isMinimized ? "Maximize chat" : "Minimize chat"}
+            >
               <div className="flex items-center space-x-2">
                 <Avatar className="h-6 w-6 ring-2 ring-white/20">
                   <AvatarFallback className="bg-white/10 text-white text-xs backdrop-blur-sm">
@@ -508,23 +560,18 @@ Options: ${activeQuestion.options.join(', ')}`;
                 </Avatar>
                 <div>
                   <h3 className="text-sm font-bold">Curio AI</h3>
-                  <p className="text-xs opacity-90">Visual Learning Assistant</p>
+                  <p className="text-xs opacity-90">Personal Learning Assistant</p>
                 </div>
               </div>
               <div className="flex items-center space-x-1">
+
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setUseModernStyle(!useModernStyle)}
-                  className="h-6 w-6 p-0 hover:bg-white/20 text-white transition-all duration-200"
-                  title="Toggle Style"
-                >
-                  <MessageCircle className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsMinimized(!isMinimized)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsMinimized(!isMinimized);
+                  }}
                   className="h-6 w-6 p-0 hover:bg-white/20 text-white transition-all duration-200"
                 >
                   <Minus className="h-3 w-3" />
@@ -532,7 +579,10 @@ Options: ${activeQuestion.options.join(', ')}`;
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setIsOpen(false)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsOpen(false);
+                  }}
                   className="h-6 w-6 p-0 hover:bg-white/20 text-white transition-all duration-200"
                 >
                   <X className="h-3 w-3" />
@@ -598,7 +648,6 @@ Options: ${activeQuestion.options.join(', ')}`;
               </CardContent>
             )}
           </Card>
-        </BackgroundGradient>
       );
     }
 
@@ -703,13 +752,52 @@ Options: ${activeQuestion.options.join(', ')}`;
 
   return (
     <div className={`fixed bottom-4 right-4 z-50 ${className}`}>
-      {/* Chat Window */}
-      {isOpen && renderChatWindow()}
+      {/* Integrated Chat and Curio Container */}
+      <div className="relative">
+        {/* Chat Window - positioned based on minimized state */}
+        {isOpen && (
+          <div className={`absolute right-0 transition-all duration-300 ${isMinimized ? 'bottom-0' : 'bottom-48 animate-slide-up'}`}>
+            {/* Matching glow effect for chat - only when not minimized */}
+            {!isMinimized && (
+              <div className="absolute inset-0 bg-gradient-to-r from-[#02cced]/10 via-[#02cced]/5 to-[#02cced]/10 blur-2xl scale-110 -z-10" />
+            )}
+            
+            {renderChatWindow()}
+            
+            {/* Speech bubble tail pointing down to Curio - only when not minimized */}
+            {!isMinimized && (
+              <>
+                <div className="absolute -bottom-[8px] right-[72px] overflow-hidden z-10">
+                  <div className="w-8 h-8 bg-card/90 backdrop-blur-sm transform rotate-45 border-r-2 border-b-2 border-[#02cced]/20" />
+                </div>
+                
+                {/* Connecting dots animation */}
+                <div className="absolute -bottom-14 right-[76px] flex flex-col gap-1.5 items-center">
+                  <div className="w-1.5 h-1.5 bg-[#02cced]/40 rounded-full animate-pulse" />
+                  <div className="w-1.5 h-1.5 bg-[#02cced]/30 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
+                  <div className="w-1.5 h-1.5 bg-[#02cced]/20 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }} />
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
-      {/* Action Buttons */}
-      <div className="flex flex-col items-end space-y-2 mb-4">
-        {/* Single Context-Aware Action Button */}
-        <Button
+                {/* Action Buttons - positioned to the left of Curio */}
+        <div className="absolute top-1/2 -left-16 -translate-y-1/2">
+          <div className="relative">
+            {/* Hover glow effect */}
+            {(shouldShowHoverAnimation || isTransitioningToDefault) && (
+              <div className={`absolute inset-0 rounded-full blur-xl scale-150 pointer-events-none transition-all duration-300 ${
+                hasJustAnswered && activeQuestion
+                  ? 'bg-[#7b61ff]'
+                  : activeQuestion
+                  ? 'bg-[#fdd686]'
+                  : 'bg-[#02cced]'
+              } ${isActionButtonHovered ? 'opacity-40' : isTransitioningToDefault ? 'opacity-10' : 'opacity-25'}`} />
+            )}
+            
+            {/* Single Context-Aware Action Button */}
+            <Button
           onClick={() => {
             // Determine which action to take based on context
             if (hasJustAnswered && activeQuestion) {
@@ -723,14 +811,18 @@ Options: ${activeQuestion.options.join(', ')}`;
               handleExplainVideo();
             }
           }}
+          onMouseEnter={() => setIsActionButtonHovered(true)}
+          onMouseLeave={() => setIsActionButtonHovered(false)}
           disabled={isLoading}
-          className={`rounded-full w-12 h-12 shadow-lg hover:shadow-xl transition-all duration-300 border-0 ${
+                      className={`rounded-full w-12 h-12 shadow-lg transition-all duration-300 border-0 group/action ${
+              shouldShowHoverAnimation ? 'shadow-xl' : ''
+            } ${
             hasJustAnswered && activeQuestion
               ? 'bg-gradient-to-r from-[#7b61ff] to-[#7b61ff]/90 hover:from-[#7b61ff]/90 hover:to-[#7b61ff]'
               : activeQuestion
               ? 'bg-gradient-to-r from-[#fdd686] to-[#fdd686]/90 hover:from-[#fdd686]/90 hover:to-[#fdd686]'
               : 'bg-gradient-to-r from-[#02cced] to-[#02cced]/90 hover:from-[#02cced]/90 hover:to-[#02cced]'
-          } text-white`}
+          } text-white ${shouldBlink ? 'animate-blink-once' : ''} ${shouldShowHoverAnimation ? 'animate-hover-bounce' : ''} ${isTransitioningToDefault ? 'animate-fade-in' : ''}`}
           size="lg"
           title={
             hasJustAnswered && activeQuestion
@@ -741,43 +833,63 @@ Options: ${activeQuestion.options.join(', ')}`;
           }
         >
           {hasJustAnswered && activeQuestion ? (
-            <Search className="h-5 w-5" />
+            <Search className={`h-5 w-5 transition-transform duration-300 ${isActionButtonHovered ? 'scale-125 rotate-12' : 'scale-110 rotate-6'}`} />
           ) : activeQuestion ? (
-            <HelpCircle className="h-5 w-5" />
+            <HelpCircle className={`h-5 w-5 transition-transform duration-300 ${isActionButtonHovered ? 'scale-125 rotate-12' : 'scale-110 rotate-6'}`} />
           ) : (
-            <Video className="h-5 w-5" />
+            <Video className={`h-5 w-5 transition-all ${isTransitioningToDefault ? 'opacity-80 scale-95 duration-300' : 'transition-transform duration-300 group-hover/action:scale-125 group-hover/action:rotate-12'}`} />
           )}
         </Button>
-      </div>
+          </div>
+        </div>
 
       {/* Main Chat Bubble Button */}
-      <Button
-        onClick={() => setIsOpen(!isOpen)}
-        className="rounded-full w-40 h-40 shadow-xl hover:shadow-2xl transition-all duration-300 bg-transparent hover:bg-transparent p-0 border-0 overflow-hidden group"
-        size="lg"
-      >
-        {isOpen ? (
-          <div className="w-full h-full flex items-center justify-center bg-gradient-to-r from-[#02cced] to-[#02cced]/90 rounded-full transition-all duration-300">
-            <X className="h-6 w-6 text-white" />
-          </div>
-        ) : (
+      <div className="relative">
+        {/* Active chat indicator ring */}
+        {isOpen && !isMinimized && (
+          <div className="absolute inset-0 rounded-full ring-4 ring-[#02cced] ring-opacity-50 animate-pulse" />
+        )}
+        
+        <Button
+          onClick={() => {
+            if (!isOpen) {
+              // If chat is closed, open it
+              setIsOpen(true);
+              setIsMinimized(false);
+            } else {
+              // If chat is open, toggle minimize/maximize
+              setIsMinimized(!isMinimized);
+            }
+          }}
+          className={`rounded-full w-40 h-40 shadow-xl hover:shadow-2xl transition-all duration-300 bg-transparent hover:bg-transparent p-0 border-0 overflow-hidden group ${isOpen && !isMinimized ? 'ring-2 ring-[#02cced]' : ''}`}
+          size="lg"
+          title={!isOpen ? "Open chat" : (isMinimized ? "Maximize chat" : "Minimize chat")}
+        >
           <div className="relative w-full h-full">
-            {/* Glow effect behind image */}
-            <div className="absolute inset-0 bg-gradient-to-r from-[#02cced]/20 via-[#02cced]/10 to-[#02cced]/20 blur-xl scale-110 opacity-60 group-hover:opacity-100 transition-opacity duration-300" />
+            {/* Glow effect behind image - enhanced when chat is open */}
+            <div className={`absolute inset-0 bg-gradient-to-r from-[#02cced]/20 via-[#02cced]/10 to-[#02cced]/20 blur-xl scale-110 transition-all duration-300 ${isOpen ? 'opacity-100' : 'opacity-60 group-hover:opacity-100'}`} />
             
             <img 
               src="/Curio.gif" 
               alt="Curio" 
-              className="w-full h-full object-cover rounded-full relative z-10 group-hover:scale-105 transition-transform duration-300"
+              className={`w-full h-full object-cover rounded-full relative z-10 transition-transform duration-300 ${isOpen ? 'scale-105' : 'group-hover:scale-105'}`}
             />
             
             {/* Floating elements around the button */}
             <div className="absolute top-4 -right-1 w-3 h-3 bg-[#02cced] rounded-full animate-pulse opacity-80" />
             <div className="absolute bottom-8 -left-1 w-2 h-2 bg-[#fdd686] rounded-full animate-pulse opacity-80" style={{ animationDelay: '0.5s' }} />
             <div className="absolute top-1/3 -left-2 w-2 h-2 bg-[#02cced] rounded-full animate-pulse opacity-60" style={{ animationDelay: '1s' }} />
+            
+            {/* Small indicator dot when chat is open */}
+            {isOpen && (
+              <div className={`absolute top-2 right-2 w-4 h-4 rounded-full border-2 border-white shadow-lg z-20 transition-all duration-300 ${
+                isMinimized ? 'bg-[#fdd686]' : 'bg-[#02cced]'
+              }`} />
+            )}
           </div>
-        )}
-      </Button>
+        </Button>
+      </div>
+      </div>
     </div>
   );
 }
