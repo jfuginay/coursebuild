@@ -1,120 +1,33 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bot, MessageCircle, X, Send, Minus, HelpCircle, Video, Search } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { VisualChatMessage } from './VisualChatMessage';
+import { useAuth } from '@/contexts/AuthContext';
 
-// Fallback UI components in case shadcn/ui imports fail
-const Button = ({ children, onClick, disabled, className = '', size = 'default', variant = 'default', title, ...props }: any) => (
-  <button
-    onClick={onClick}
-    disabled={disabled}
-    title={title}
-    className={`inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background ${
-      variant === 'ghost' 
-        ? 'hover:bg-accent hover:text-accent-foreground' 
-        : 'bg-primary text-primary-foreground hover:bg-primary/90'
-    } ${
-      size === 'sm' ? 'h-9 px-3 rounded-md' : 
-      size === 'lg' ? 'h-11 px-8 rounded-md' : 
-      'h-10 py-2 px-4'
-    } ${className}`}
-    {...props}
-  >
-    {children}
-  </button>
-);
-
-const Input = ({ className = '', ...props }: any) => (
-  <input
-    className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
-    {...props}
-  />
-);
-
-const Card = ({ children, className = '', ...props }: any) => (
-  <div className={`rounded-lg border bg-card text-card-foreground shadow-sm ${className}`} {...props}>
-    {children}
-  </div>
-);
-
-const CardContent = ({ children, className = '', ...props }: any) => (
-  <div className={`p-6 pt-0 ${className}`} {...props}>
-    {children}
-  </div>
-);
-
-const CardHeader = ({ children, className = '', ...props }: any) => (
-  <div className={`flex flex-col space-y-1.5 p-6 ${className}`} {...props}>
-    {children}
-  </div>
-);
-
-const Avatar = ({ children, className = '', ...props }: any) => (
-  <div className={`relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full ${className}`} {...props}>
-    {children}
-  </div>
-);
-
-const AvatarFallback = ({ children, className = '', ...props }: any) => (
-  <div className={`flex h-full w-full items-center justify-center rounded-full bg-muted ${className}`} {...props}>
-    {children}
-  </div>
-);
-
-// Import the VisualChatMessage component (you'll need to ensure this exists)
-// If it doesn't exist, create a simple fallback:
-const VisualChatMessage = ({ message, onVisualInteraction }: any) => {
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
+// Fallback BackgroundGradient component if the original doesn't exist
+const BackgroundGradient = ({ 
+  children, 
+  className = '', 
+  containerClassName = '',
+  animate = false 
+}: {
+  children: React.ReactNode;
+  className?: string;
+  containerClassName?: string;
+  animate?: boolean;
+}) => {
   return (
-    <div className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}>
-      <div className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
-        message.isUser 
-          ? 'bg-primary text-primary-foreground' 
-          : 'bg-muted'
-      }`}>
-        {message.factCheckResult ? (
-          <div className="space-y-2">
-            <div className="font-semibold text-purple-600">🔍 Fact Check Result</div>
-            <div><strong>Question:</strong> {message.factCheckResult.question}</div>
-            <div><strong>Your Answer:</strong> {message.factCheckResult.userAnswer}</div>
-            <div><strong>Correct Answer:</strong> {message.factCheckResult.supposedAnswer}</div>
-            {message.factCheckResult.explanation && (
-              <div><strong>Explanation:</strong> {message.factCheckResult.explanation}</div>
-            )}
-          </div>
-        ) : (
-          <>
-            <div>{message.text}</div>
-            {message.visuals && message.visuals.length > 0 && (
-              <div className="mt-2 space-y-2">
-                {message.visuals.map((visual: any, index: number) => (
-                  <div key={index} className="p-2 bg-background rounded border">
-                    <div className="text-xs font-semibold mb-1">{visual.title || `${visual.type} visualization`}</div>
-                    <div className="text-xs text-muted-foreground">{visual.description}</div>
-                    {visual.interactionHints && (
-                      <div className="text-xs mt-1 opacity-75">
-                        💡 {visual.interactionHints.join(', ')}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-        <div className="text-xs opacity-75 mt-1">{formatTime(message.timestamp)}</div>
+    <div className={containerClassName}>
+      <div className={`relative ${className} ${animate ? 'animate-pulse' : ''}`}>
+        {children}
+        {/* Subtle gradient effect as fallback */}
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5 rounded-[22px] pointer-events-none" />
       </div>
     </div>
   );
-};
-
-// Mock useAuth hook if it doesn't exist
-const useAuth = () => {
-  return {
-    user: null,
-    session: { access_token: null }
-  };
 };
 
 interface VisualContent {
@@ -131,7 +44,7 @@ interface ChatMessage {
   isUser: boolean;
   timestamp: Date;
   visuals?: VisualContent[];
-  factCheckResult?: any;
+  factCheckResult?: any; // For fact check messages
 }
 
 interface ChatBubbleProps {
@@ -144,6 +57,7 @@ interface ChatBubbleProps {
     options: string[];
     correct_answer: string | number;
     explanation: string;
+    // Additional properties for different question types
     sequence_items?: string[];
     matching_pairs?: Array<{
       left?: string;
@@ -157,9 +71,9 @@ interface ChatBubbleProps {
     }>;
     target_objects?: string[];
   } | null;
-  isAnswerIncorrect?: boolean;
-  userAnswer?: string;
-  hasJustAnswered?: boolean;
+  isAnswerIncorrect?: boolean; // Track if user just answered incorrectly
+  userAnswer?: string; // The user's answer
+  hasJustAnswered?: boolean; // Track if user just answered (right or wrong)
 }
 
 export default function ChatBubble({ 
@@ -174,6 +88,8 @@ export default function ChatBubble({
   const { user, session } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const [useModernStyle, setUseModernStyle] = useState(true); // Toggle between styles
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: '1',
@@ -228,6 +144,7 @@ export default function ChatBubble({
         'Content-Type': 'application/json',
       };
       
+      // Add authorization header if user is authenticated
       if (session?.access_token) {
         headers['Authorization'] = `Bearer ${session.access_token}`;
       }
@@ -260,7 +177,7 @@ export default function ChatBubble({
         text: data.response,
         isUser: false,
         timestamp: new Date(),
-        visuals: data.visuals
+        visuals: data.visuals // Include any generated visuals
       };
 
       setMessages(prev => [...prev, aiMessage]);
@@ -298,10 +215,12 @@ export default function ChatBubble({
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
 
+    // Open chat if it's not already open
     if (!isOpen) {
       setIsOpen(true);
     }
     
+    // Unminimize if minimized
     if (isMinimized) {
       setIsMinimized(false);
     }
@@ -319,6 +238,7 @@ export default function ChatBubble({
         'Content-Type': 'application/json',
       };
       
+      // Add authorization header if user is authenticated
       if (session?.access_token) {
         headers['Authorization'] = `Bearer ${session.access_token}`;
       }
@@ -351,7 +271,7 @@ export default function ChatBubble({
         text: data.response,
         isUser: false,
         timestamp: new Date(),
-        visuals: data.visuals
+        visuals: data.visuals // Include any generated visuals
       };
 
       setMessages(prev => [...prev, aiMessage]);
@@ -395,6 +315,7 @@ Options: ${activeQuestion.options.join(', ')}`;
 
     const userDisplayMessage = "🔍 Fact check the answer";
     
+    // Add user message
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       text: userDisplayMessage,
@@ -405,20 +326,25 @@ Options: ${activeQuestion.options.join(', ')}`;
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
     
+    // Open chat if it's not already open
     if (!isOpen) {
       setIsOpen(true);
     }
     
+    // Unminimize if minimized
     if (isMinimized) {
       setIsMinimized(false);
     }
     
     try {
+      // Extract the correct answer based on question type
       let correctAnswerText = '';
       
       switch (activeQuestion.type) {
         case 'true-false':
         case 'true_false':
+          // For true/false, correct_answer is 0 (True) or 1 (False)
+          // Handle both string and number values
           const tfAnswer = typeof activeQuestion.correct_answer === 'number' 
             ? activeQuestion.correct_answer 
             : parseInt(String(activeQuestion.correct_answer), 10);
@@ -428,6 +354,8 @@ Options: ${activeQuestion.options.join(', ')}`;
           
         case 'multiple-choice':
         case 'multiple_choice':
+          // For multiple choice, correct_answer is an index into options array
+          // Handle both string and number values for correct_answer
           const correctIndex = typeof activeQuestion.correct_answer === 'number' 
             ? activeQuestion.correct_answer 
             : parseInt(String(activeQuestion.correct_answer), 10);
@@ -435,15 +363,18 @@ Options: ${activeQuestion.options.join(', ')}`;
           if (Array.isArray(activeQuestion.options) && !isNaN(correctIndex) && correctIndex >= 0 && correctIndex < activeQuestion.options.length) {
             correctAnswerText = activeQuestion.options[correctIndex];
           } else {
+            // Fallback if index is invalid
             correctAnswerText = `Option ${correctIndex + 1}`;
           }
           break;
           
         case 'sequencing':
         case 'sequence':
+          // For sequencing, the correct answer is the entire sequence in order
           if (activeQuestion.sequence_items && Array.isArray(activeQuestion.sequence_items)) {
             correctAnswerText = activeQuestion.sequence_items.join(' → ');
           } else if (Array.isArray(activeQuestion.options)) {
+            // Fallback if sequence_items isn't available
             correctAnswerText = activeQuestion.options.join(' → ');
           } else {
             correctAnswerText = 'Correct sequence not available';
@@ -451,6 +382,7 @@ Options: ${activeQuestion.options.join(', ')}`;
           break;
           
         case 'matching':
+          // For matching, show all correct pairs
           if (activeQuestion.matching_pairs && Array.isArray(activeQuestion.matching_pairs)) {
             const pairs = activeQuestion.matching_pairs.map((pair: any) => 
               `${pair.left || pair.left_item || 'Item'} ↔ ${pair.right || pair.right_item || 'Match'}`
@@ -462,6 +394,7 @@ Options: ${activeQuestion.options.join(', ')}`;
           break;
           
         case 'hotspot':
+          // For hotspot, identify the correct clickable areas
           if (activeQuestion.bounding_boxes && Array.isArray(activeQuestion.bounding_boxes)) {
             const correctBoxes = activeQuestion.bounding_boxes
               .filter((box: any) => box.isCorrectAnswer)
@@ -470,6 +403,7 @@ Options: ${activeQuestion.options.join(', ')}`;
               ? `Click on: ${correctBoxes.join(', ')}`
               : 'Correct hotspot area';
           } else if (activeQuestion.target_objects && Array.isArray(activeQuestion.target_objects)) {
+            // Fallback to target_objects if available
             correctAnswerText = `Click on: ${activeQuestion.target_objects.join(', ')}`;
           } else {
             correctAnswerText = 'Correct hotspot area';
@@ -477,6 +411,7 @@ Options: ${activeQuestion.options.join(', ')}`;
           break;
           
         default:
+          // Fallback for unknown types
           correctAnswerText = String(activeQuestion.correct_answer);
       }
 
@@ -505,10 +440,12 @@ Options: ${activeQuestion.options.join(', ')}`;
 
       const data = await response.json();
       
+      // The API returns the fact check result directly
       if (data) {
+        // Add fact check result as a special message
         const factCheckMessage: ChatMessage = {
           id: (Date.now() + 1).toString(),
-          text: '',
+          text: '', // Empty text since we'll use a custom component
           isUser: false,
           timestamp: new Date(),
           factCheckResult: {
@@ -535,120 +472,264 @@ Options: ${activeQuestion.options.join(', ')}`;
     }
   };
 
-  return (
-    <div className={`fixed bottom-4 right-4 z-50 ${className}`}>
-      {/* Chat Window */}
-      {isOpen && (
-        <Card className={`mb-4 w-[500px] shadow-lg transition-all duration-300 ${
-          isMinimized ? 'h-14' : 'h-[700px]'
-        }`}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 py-3 bg-primary text-primary-foreground">
-            <div className="flex items-center space-x-2">
-              <Avatar className="h-6 w-6">
-                <AvatarFallback className="bg-primary-foreground text-primary text-xs">
-                  <Bot className="h-3 w-3" />
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <h3 className="text-sm font-semibold">CourseBuild AI</h3>
-                <p className="text-xs opacity-90">Always here to help</p>
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  // Render the chat window based on style preference
+  const renderChatWindow = () => {
+    if (useModernStyle) {
+      return (
+        <BackgroundGradient
+          className="rounded-[22px] bg-transparent"
+          containerClassName="mb-4"
+          animate={isHovered}
+        >
+          <Card 
+            className={`w-[500px] shadow-xl transition-all duration-300 bg-card/90 backdrop-blur-sm border-0 rounded-[22px] ${
+              isMinimized ? 'h-14' : 'h-[700px]'
+            }`}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+          >
+            {/* Geometric pattern overlay */}
+            <div className="absolute inset-0 opacity-5 pointer-events-none">
+              <div className="absolute top-4 right-4 w-20 h-20 border-2 border-[#02cced]/20 rounded-full" />
+              <div className="absolute bottom-4 left-4 w-16 h-16 border-2 border-[#fdd686]/20 rounded-full" />
+              <div className="absolute top-1/2 left-1/2 w-12 h-12 border border-[#02cced]/10 rounded-full -translate-x-1/2 -translate-y-1/2" />
+            </div>
+
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 py-3 bg-gradient-to-r from-[#02cced] to-[#02cced]/90 text-white rounded-t-[22px] relative z-10">
+              <div className="flex items-center space-x-2">
+                <Avatar className="h-6 w-6 ring-2 ring-white/20">
+                  <AvatarFallback className="bg-white/10 text-white text-xs backdrop-blur-sm">
+                    <Bot className="h-3 w-3" />
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <h3 className="text-sm font-bold">Curio AI</h3>
+                  <p className="text-xs opacity-90">Visual Learning Assistant</p>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center space-x-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsMinimized(!isMinimized)}
-                className="h-6 w-6 p-0 hover:bg-primary-foreground/20"
-              >
-                <Minus className="h-3 w-3" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsOpen(false)}
-                className="h-6 w-6 p-0 hover:bg-primary-foreground/20"
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            </div>
-          </CardHeader>
-          
-          {!isMinimized && (
-            <CardContent className="p-0 flex flex-col h-[620px]">
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {messages.map((message) => (
-                  <VisualChatMessage
-                    key={message.id}
-                    message={message}
-                    onVisualInteraction={handleVisualInteraction}
-                  />
-                ))}
-                {isLoading && (
-                  <div className="flex justify-start">
-                    <div className="bg-muted rounded-lg px-3 py-2 text-sm">
-                      <div className="flex items-center space-x-1">
-                        <div className="flex space-x-1">
-                          <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"></div>
-                          <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                          <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+              <div className="flex items-center space-x-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setUseModernStyle(!useModernStyle)}
+                  className="h-6 w-6 p-0 hover:bg-white/20 text-white transition-all duration-200"
+                  title="Toggle Style"
+                >
+                  <MessageCircle className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsMinimized(!isMinimized)}
+                  className="h-6 w-6 p-0 hover:bg-white/20 text-white transition-all duration-200"
+                >
+                  <Minus className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsOpen(false)}
+                  className="h-6 w-6 p-0 hover:bg-white/20 text-white transition-all duration-200"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            </CardHeader>
+            
+            {!isMinimized && (
+              <CardContent className="p-0 flex flex-col h-[620px] relative z-10">
+                {/* Messages */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-background/50 backdrop-blur-sm">
+                  {messages.map((message) => (
+                    <VisualChatMessage
+                      key={message.id}
+                      message={message}
+                      onVisualInteraction={handleVisualInteraction}
+                    />
+                  ))}
+                  {isLoading && (
+                    <div className="flex justify-start">
+                      <div className="bg-[#02cced]/10 border border-[#02cced]/20 rounded-lg px-3 py-2 text-sm backdrop-blur-sm">
+                        <div className="flex items-center space-x-1">
+                          <div className="flex space-x-1">
+                            <div className="w-2 h-2 bg-[#02cced] rounded-full animate-bounce"></div>
+                            <div className="w-2 h-2 bg-[#02cced] rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                            <div className="w-2 h-2 bg-[#02cced] rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-
-              {/* Input */}
-              <div className="p-4 border-t">
-                <div className="flex items-center space-x-2">
-                  <Input
-                    value={inputMessage}
-                    onChange={(e) => setInputMessage(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder="Ask me anything... I can create diagrams too!"
-                    className="flex-1"
-                    disabled={isLoading}
-                  />
-                  <Button
-                    onClick={handleSendMessage}
-                    disabled={!inputMessage.trim() || isLoading}
-                    size="sm"
-                    className="px-3"
-                  >
-                    <Send className="h-4 w-4" />
-                  </Button>
+                  )}
+                  <div ref={messagesEndRef} />
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Try asking "How does X work?" or "Compare A and B" for visual explanations
-                </p>
+
+                {/* Input */}
+                <div className="p-4 border-t border-[#02cced]/20 bg-background/80 backdrop-blur-sm rounded-b-[22px]">
+                  <div className="flex items-center space-x-2">
+                    <div className="relative flex-1 group">
+                      <Input
+                        value={inputMessage}
+                        onChange={(e) => setInputMessage(e.target.value)}
+                        onKeyPress={handleKeyPress}
+                        placeholder="Ask me anything... I can create diagrams too!"
+                        className="border-[#02cced]/20 focus:border-[#02cced]/60 bg-background/80 backdrop-blur-sm transition-all placeholder:text-muted-foreground/70 rounded-lg focus:ring-2 focus:ring-[#02cced]/20"
+                        disabled={isLoading}
+                      />
+                      <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-[#02cced]/0 via-[#02cced]/10 to-[#fdd686]/5 opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none" />
+                    </div>
+                    <Button
+                      onClick={handleSendMessage}
+                      disabled={!inputMessage.trim() || isLoading}
+                      size="sm"
+                      className="px-3 bg-gradient-to-r from-[#02cced] to-[#02cced]/90 hover:from-[#02cced]/90 hover:to-[#02cced] text-white shadow-lg hover:shadow-xl transition-all duration-300 border-0"
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 bg-[#02cced] rounded-full animate-pulse" />
+                    Try asking "How does X work?" or "Compare A and B" for visual explanations
+                  </p>
+                </div>
+              </CardContent>
+            )}
+          </Card>
+        </BackgroundGradient>
+      );
+    }
+
+    // Classic style (fallback/alternative)
+    return (
+      <Card className={`mb-4 w-[500px] shadow-lg transition-all duration-300 ${
+        isMinimized ? 'h-14' : 'h-[700px]'
+      }`}>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 py-3 bg-primary text-primary-foreground">
+          <div className="flex items-center space-x-2">
+            <Avatar className="h-6 w-6">
+              <AvatarFallback className="bg-primary-foreground text-primary text-xs">
+                <Bot className="h-3 w-3" />
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <h3 className="text-sm font-semibold">CourseBuild AI</h3>
+              <p className="text-xs opacity-90">Always here to help</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setUseModernStyle(!useModernStyle)}
+              className="h-6 w-6 p-0 hover:bg-primary-foreground/20"
+              title="Toggle Style"
+            >
+              <MessageCircle className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsMinimized(!isMinimized)}
+              className="h-6 w-6 p-0 hover:bg-primary-foreground/20"
+            >
+              <Minus className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsOpen(false)}
+              className="h-6 w-6 p-0 hover:bg-primary-foreground/20"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        </CardHeader>
+        
+        {!isMinimized && (
+          <CardContent className="p-0 flex flex-col h-[620px]">
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {messages.map((message) => (
+                <VisualChatMessage
+                  key={message.id}
+                  message={message}
+                  onVisualInteraction={handleVisualInteraction}
+                />
+              ))}
+              {isLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-muted rounded-lg px-3 py-2 text-sm">
+                    <div className="flex items-center space-x-1">
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-primary rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input */}
+            <div className="p-4 border-t">
+              <div className="flex items-center space-x-2">
+                <Input
+                  value={inputMessage}
+                  onChange={(e) => setInputMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Ask me anything..."
+                  className="flex-1"
+                  disabled={isLoading}
+                />
+                <Button
+                  onClick={handleSendMessage}
+                  disabled={!inputMessage.trim() || isLoading}
+                  size="sm"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
               </div>
-            </CardContent>
-          )}
-        </Card>
-      )}
+            </div>
+          </CardContent>
+        )}
+      </Card>
+    );
+  };
+
+  return (
+    <div className={`fixed bottom-4 right-4 z-50 ${className}`}>
+      {/* Chat Window */}
+      {isOpen && renderChatWindow()}
 
       {/* Action Buttons */}
       <div className="flex flex-col items-end space-y-2 mb-4">
+        {/* Single Context-Aware Action Button */}
         <Button
           onClick={() => {
+            // Determine which action to take based on context
             if (hasJustAnswered && activeQuestion) {
+              // User has answered a question (right or wrong) - show fact check
               handleFactCheck();
             } else if (activeQuestion) {
+              // Question is shown but not answered - show help
               handleHelpWithQuestion();
             } else {
+              // Just watching video - show video explanation
               handleExplainVideo();
             }
           }}
           disabled={isLoading}
-          className={`rounded-full w-12 h-12 shadow-lg hover:shadow-xl transition-all duration-300 ${
+          className={`rounded-full w-12 h-12 shadow-lg hover:shadow-xl transition-all duration-300 border-0 ${
             hasJustAnswered && activeQuestion
-              ? 'bg-purple-500 hover:bg-purple-600'
+              ? 'bg-gradient-to-r from-[#7b61ff] to-[#7b61ff]/90 hover:from-[#7b61ff]/90 hover:to-[#7b61ff]'
               : activeQuestion
-              ? 'bg-orange-500 hover:bg-orange-600'
-              : 'bg-blue-500 hover:bg-blue-600'
+              ? 'bg-gradient-to-r from-[#fdd686] to-[#fdd686]/90 hover:from-[#fdd686]/90 hover:to-[#fdd686]'
+              : 'bg-gradient-to-r from-[#02cced] to-[#02cced]/90 hover:from-[#02cced]/90 hover:to-[#02cced]'
           } text-white`}
           size="lg"
           title={
@@ -672,19 +753,29 @@ Options: ${activeQuestion.options.join(', ')}`;
       {/* Main Chat Bubble Button */}
       <Button
         onClick={() => setIsOpen(!isOpen)}
-        className="rounded-full w-40 h-40 shadow-lg hover:shadow-xl transition-all duration-300 bg-transparent hover:bg-transparent p-0 border-0 overflow-hidden"
+        className="rounded-full w-40 h-40 shadow-xl hover:shadow-2xl transition-all duration-300 bg-transparent hover:bg-transparent p-0 border-0 overflow-hidden group"
         size="lg"
       >
         {isOpen ? (
-          <div className="w-full h-full flex items-center justify-center bg-primary rounded-full">
-            <X className="h-6 w-6 text-primary-foreground" />
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-r from-[#02cced] to-[#02cced]/90 rounded-full transition-all duration-300">
+            <X className="h-6 w-6 text-white" />
           </div>
         ) : (
-          <img 
-            src="/Curio.gif" 
-            alt="Curio AI Assistant" 
-            className="w-full h-full object-cover rounded-full"
-          />
+          <div className="relative w-full h-full">
+            {/* Glow effect behind image */}
+            <div className="absolute inset-0 bg-gradient-to-r from-[#02cced]/20 via-[#02cced]/10 to-[#02cced]/20 blur-xl scale-110 opacity-60 group-hover:opacity-100 transition-opacity duration-300" />
+            
+            <img 
+              src="/Curio.gif" 
+              alt="Curio" 
+              className="w-full h-full object-cover rounded-full relative z-10 group-hover:scale-105 transition-transform duration-300"
+            />
+            
+            {/* Floating elements around the button */}
+            <div className="absolute top-4 -right-1 w-3 h-3 bg-[#02cced] rounded-full animate-pulse opacity-80" />
+            <div className="absolute bottom-8 -left-1 w-2 h-2 bg-[#fdd686] rounded-full animate-pulse opacity-80" style={{ animationDelay: '0.5s' }} />
+            <div className="absolute top-1/3 -left-2 w-2 h-2 bg-[#02cced] rounded-full animate-pulse opacity-60" style={{ animationDelay: '1s' }} />
+          </div>
         )}
       </Button>
     </div>
