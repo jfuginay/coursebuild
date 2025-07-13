@@ -41,9 +41,9 @@ function sanitizeYouTubeUrl(url: string): string {
   return sanitized;
 }
 
-// Transform quiz-generation-v4 response to expected frontend structure
+// Transform quiz-generation-v5 response to expected frontend structure
 function transformResponseToExpectedFormat(edgeResponse: any): any {
-  // Handle new quiz-generation-v4 response structure
+  // Handle new quiz-generation-v5 response structure
   const { 
     final_questions = [], 
     video_summary = "AI Generated Course", 
@@ -52,7 +52,7 @@ function transformResponseToExpectedFormat(edgeResponse: any): any {
     pipeline_metadata = {}
   } = edgeResponse;
   
-  // Use final_questions from quiz-generation-v4 response
+  // Use final_questions from quiz-generation-v5 response
   const questions = final_questions || [];
   
   if (!questions || !Array.isArray(questions)) {
@@ -65,7 +65,7 @@ function transformResponseToExpectedFormat(edgeResponse: any): any {
         visual_questions_enabled: false,
         visual_questions_count: 0,
         frame_capture_available: false,
-        pipeline_v4_enabled: true
+        pipeline_v5_enabled: true
       }
     };
   }
@@ -221,7 +221,7 @@ function transformResponseToExpectedFormat(edgeResponse: any): any {
   
   return {
     title: video_summary.substring(0, 80) + (video_summary.length > 80 ? "..." : ""),
-    description: `Interactive course with ${visualQuestionsCount} visual questions generated using Quiz Generation Pipeline v4.0.`,
+    description: `Interactive course with ${visualQuestionsCount} visual questions generated using Quiz Generation Pipeline v5.0.`,
     duration: durationText,
     segments: segments,
     video_summary: video_summary,
@@ -230,7 +230,7 @@ function transformResponseToExpectedFormat(edgeResponse: any): any {
       visual_questions_enabled: visualQuestionsCount > 0,
       visual_questions_count: visualQuestionsCount,
       frame_capture_available: true,
-      pipeline_v4_enabled: true,
+      pipeline_v5_enabled: true,
       average_quality_score: avgQualityScore,
       pipeline_metadata: pipeline_metadata
     }

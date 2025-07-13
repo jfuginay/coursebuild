@@ -61,7 +61,7 @@ export function useRealTimeUpdates({
       } else {
         fetchQuestionsRef.current();
       }
-    }, 1000); // Wait 1 second before making the API call
+    }, 2000); // Increased from 1000ms to 2000ms to reduce re-renders
   }, [isSegmented]); // Only depend on isSegmented
 
   // Cleanup debounce timer on unmount
@@ -264,7 +264,7 @@ export function useRealTimeUpdates({
     if (!courseId || !isProcessing) return;
     
     // Only use polling as a fallback - less frequent than real-time updates
-    console.log('🔄 Setting up fallback polling (every 10 seconds)');
+    console.log('🔄 Setting up fallback polling (every 15 seconds)');
     
     const pollInterval = setInterval(() => {
       console.log('📊 Fallback poll: Checking for updates');
@@ -273,7 +273,7 @@ export function useRealTimeUpdates({
       } else {
         fetchQuestionsRef.current();
       }
-    }, 10000); // Poll every 10 seconds (reduced from 5 seconds)
+    }, 15000); // Increased from 10000ms to 15000ms
     
     return () => {
       console.log('🔌 Clearing fallback polling interval');
@@ -315,8 +315,8 @@ export function useRealTimeUpdates({
     // Check immediately
     checkPublishStatus();
     
-    // Then check every 15 seconds (less frequent than before)
-    const interval = setInterval(checkPublishStatus, 15000);
+    // Then check every 20 seconds (increased from 15 seconds)
+    const interval = setInterval(checkPublishStatus, 20000);
     
     return () => clearInterval(interval);
   }, [courseId, isProcessing, coursePublished, isSegmented, setCourse, setIsProcessing]);

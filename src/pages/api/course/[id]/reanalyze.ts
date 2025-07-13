@@ -35,9 +35,9 @@ export default async function handler(
     console.log('🔄 Re-analyzing course:', course.id);
     console.log('📹 YouTube URL:', course.youtube_url);
 
-    // Call the Quiz Generation v4.0 edge function to analyze the video
+    // Call the Quiz Generation v5.0 edge function to analyze the video
     const edgeResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/quiz-generation-v4`,
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/quiz-generation-v5`,
       {
         method: 'POST',
         headers: {
@@ -56,7 +56,7 @@ export default async function handler(
 
     if (!edgeResponse.ok) {
       const errorText = await edgeResponse.text();
-      console.error('❌ Quiz Generation v4.0 error:', errorText);
+      console.error('❌ Quiz Generation v5.0 error:', errorText);
       return res.status(500).json({ 
         error: 'Failed to generate questions',
         details: errorText 

@@ -29,6 +29,7 @@ interface CourseRecommendation {
   thumbnail_url: string;
   score: number;
   reasons: string[];
+  progression_type?: 'series_continuation' | 'topic_advancement' | 'reinforcement' | 'prerequisite';
   difficulty_match: 'too_easy' | 'perfect' | 'challenging' | 'too_hard';
   interest_alignment: number;
   predicted_engagement: number;
@@ -331,6 +332,11 @@ async function generateSearchTermsWithLLM(context: any): Promise<string[]> {
   const data = await response.json();
   const result = JSON.parse(data.choices[0].message.content);
 
+  // Log series detection if found
+  if (result.series_detected) {
+    console.log('📺 Series detected:', result.series_info);
+  }
+
   return result.search_terms || [];
 }
 
@@ -518,7 +524,8 @@ async function selectFinalRecommendations(context: any): Promise<CourseRecommend
       difficulty_match: selection.difficulty_match,
       interest_alignment: selection.interest_alignment,
       predicted_engagement: selection.predicted_engagement,
-      addresses_mistakes: selection.addresses_mistakes || []
+      addresses_mistakes: selection.addresses_mistakes || [],
+      progression_type: selection.progression_type
     };
   }).filter(Boolean);
 }
@@ -553,18 +560,40 @@ function buildSearchTermPrompt(
     wrongQuestions
   );
 
+  // Calculate performance on current course if available
+  let currentCoursePerformance = null;
+  if (currentCourseId && performanceData.length > 0) {
+    const currentCourseQuestions = performanceData.filter(p => 
+      p.questions?.course_id === currentCourseId
+    );
+    if (currentCourseQuestions.length > 0) {
+      const correct = currentCourseQuestions.filter(p => p.is_correct).length;
+      currentCoursePerformance = (correct / currentCourseQuestions.length * 100).toFixed(0);
+    }
+  }
+
   let prompt = `Generate ${requestedCount + 2} specific YouTube search terms for educational videos based on this comprehensive user analysis.
 
 TRIGGER: ${trigger}
 
 `;
 
-  // Current video context - critical for continuity
+  // Current video context - critical for continuity and series detection
   if (currentCourseContext) {
     prompt += `JUST COMPLETED VIDEO:
 Title: "${currentCourseContext.title}"
 Description: ${currentCourseContext.description?.substring(0, 300)}...
 YouTube URL: ${currentCourseContext.youtube_url}
+User Performance: ${currentCoursePerformance ? `${currentCoursePerformance}% accuracy` : 'Not available'}
+
+CRITICAL SERIES/PROGRESSION DETECTION:
+1. Check if the title contains series indicators (Part X, Episode Y, Chapter Z, #N, etc.)
+2. If it's part of a series:
+   - HIGH PERFORMANCE (>80%): Search for the NEXT episode/part in the series
+   - MEDIUM PERFORMANCE (50-80%): Mix of next episode and reinforcement content
+   - LOW PERFORMANCE (<50%): Focus on review/prerequisite content before advancing
+3. If NOT part of a series, identify the natural progression of the topic
+4. Look for channel-specific series patterns in the title/description
 
 Key requirement: The next videos MUST feel like natural continuations or related topics to this video.
 
@@ -577,28 +606,58 @@ Key requirement: The next videos MUST feel like natural continuations or related
   prompt += `
 SEARCH TERM GENERATION RULES:
 
-1. ANALYZE the user data to identify:
+1. SERIES PROGRESSION PRIORITY:
+   ${currentCourseContext ? `
+   - First, analyze if "${currentCourseContext.title}" is part of a series
+   - Extract series name and current position (e.g., "Part 5" → search for "Part 6")
+   - Include variations: "Part 6", "Episode 6", "Chapter 6", etc.
+   - Also search for "[series name] part 6" or "[topic] part 6"` : ''}
+
+2. PERFORMANCE-BASED PROGRESSION:
+   ${currentCoursePerformance ? `
+   - User scored ${currentCoursePerformance}% on current video
+   ${parseInt(currentCoursePerformance) > 80 ? 
+     '- ADVANCE: Focus on next level/part/advanced topics' :
+     parseInt(currentCoursePerformance) > 50 ?
+     '- MIXED: Balance between advancement and reinforcement' :
+     '- REINFORCE: Focus on review, prerequisites, and foundational content'}` : 
+   '- No performance data available, balance between advancement and review'}
+
+3. NATURAL TOPIC PROGRESSION:
+   - Identify the learning path (e.g., "basics" → "intermediate" → "advanced")
+   - Consider typical course sequences in this domain
+   - Look for "next steps" or "after learning X" type content
+
+4. ANALYZE the user data to identify:
    - Knowledge gaps from wrong answers
    - Natural next topics based on current video
    - Difficulty level appropriate for the user
    - Content matching their learning style
 
-2. GENERATE search terms that:
+5. GENERATE search terms that:
+   - Prioritize series continuation if detected
    - Are specific and targeted (not generic)
    - Include difficulty indicators when relevant
    - Match the user's demonstrated preferences
    - Build upon what they just watched
    - Address their specific mistakes or struggles
 
-3. FORMAT each search term to maximize YouTube search effectiveness:
+6. FORMAT each search term to maximize YouTube search effectiveness:
    - Include topic + format (tutorial, explanation, course)
    - Add level indicators (beginner, intermediate, advanced)
    - Use specific terminology from their domain
+   - Include channel name if series detected
 
 Return search terms in this JSON format:
 {
+  "series_detected": true/false,
+  "series_info": {
+    "series_name": "detected series name if any",
+    "current_part": "current episode/part number",
+    "next_part": "next episode/part to search for"
+  },
   "search_terms": [
-    "specific search term 1",
+    "specific search term 1 (prioritize series continuation)",
     "specific search term 2",
     "specific search term 3",
     "specific search term 4",
@@ -606,10 +665,10 @@ Return search terms in this JSON format:
     "specific search term 6",
     "specific search term 7"
   ],
-  "reasoning": "Brief explanation of why these search terms were chosen"
+  "reasoning": "Brief explanation of why these search terms were chosen, including series detection logic"
 }
 
-Remember: Quality over quantity. Each search term should have a clear purpose based on the user analysis.`;
+Remember: Quality over quantity. Each search term should have a clear purpose based on the user analysis and progression logic.`;
 
   return prompt;
 }
@@ -968,15 +1027,27 @@ function buildFinalSelectionPrompt(
     };
   });
 
+  // Calculate user's performance on this course
+  const questionsAttempted = wrongQuestions.length > 0 ? wrongQuestions[0].total_questions || wrongQuestions.length : 0;
+  const accuracy = questionsAttempted > 0 ? ((questionsAttempted - wrongQuestions.length) / questionsAttempted * 100).toFixed(0) : null;
+
   let prompt = `Select and rank the ${requestedCount} best YouTube videos from these options for personalized learning.
 
 `;
 
-  // Add current course context
+  // Add current course context with performance
   if (currentCourseContext) {
     prompt += `JUST COMPLETED VIDEO:
 - Title: "${currentCourseContext.title}"
 - Topic: ${currentCourseContext.description?.substring(0, 150)}...
+- User Performance: ${accuracy ? `${accuracy}% accuracy (${wrongQuestions.length} mistakes out of ${questionsAttempted} questions)` : 'No questions attempted'}
+
+SERIES/PROGRESSION DETECTION:
+Analyze if this video is part of a series by looking for:
+- Part/Episode/Chapter numbers in the title
+- Sequential indicators (#1, #2, etc.)
+- "Introduction", "Basics", "Advanced" progression markers
+- Channel-specific series patterns
 
 The recommended videos should naturally follow from or relate to this content.
 
@@ -1000,6 +1071,7 @@ ${wrongQuestionDetails.slice(0, 10).map((wq, i) =>
   prompt += `USER PROFILE:
 - Learning Style: ${JSON.stringify(userProfile?.learning_style || {})}
 - Struggling Concepts: ${userProfile?.struggling_concepts?.map((c: any) => c.concept).join(', ') || 'None identified'}
+${accuracy ? `- Current Course Performance: ${accuracy}% accuracy` : ''}
 
 AVAILABLE VIDEOS:
 ${videoOptions.map((video, i) => 
@@ -1013,15 +1085,20 @@ ${videoOptions.map((video, i) =>
 
 Select videos in this JSON format:
 {
+  "series_analysis": {
+    "current_video_series": "identify if current video is part of a series",
+    "recommended_continuation": "explain the natural progression"
+  },
   "selected_videos": [
     {
       "video_id": "selected video ID",
       "score": 0.0-1.0,
       "reasons": [
+        "Natural continuation of the series/topic",
         "Addresses mistake about X",
-        "Explains concept Y clearly", 
-        "Matches visual learning preference"
+        "Appropriate for ${accuracy ? `${accuracy}%` : 'unknown'} performance level"
       ],
+      "progression_type": "series_continuation|topic_advancement|reinforcement|prerequisite",
       "difficulty_match": "too_easy|perfect|challenging|too_hard",
       "interest_alignment": 0.0-1.0,
       "predicted_engagement": 0.0-1.0,
@@ -1044,27 +1121,46 @@ IMPORTANT: For the "addresses_mistakes" array:
   - "Mixed up warm/cool color terminology"
 - Each entry should be a short phrase that clearly identifies the mistake
 
-SELECTION CRITERIA:
+SELECTION CRITERIA WITH PROGRESSION PRIORITY:
 `;
 
   if (currentCourseContext) {
-    prompt += `0. CONTINUITY IS KEY: Videos should feel like natural next steps after "${currentCourseContext.title}"
+    prompt += `0. SERIES CONTINUATION PRIORITY:
+   - If the current video is part of a series (Part 5, Episode 3, etc.), prioritize the next in series
+   - ${accuracy && parseInt(accuracy) > 80 ? 
+       'HIGH PERFORMANCE: Strongly prioritize advancing to next part/episode' :
+       accuracy && parseInt(accuracy) > 50 ?
+       'MEDIUM PERFORMANCE: Balance between next episode and supplementary content' :
+       'LOW PERFORMANCE: Consider review content before advancing in series'}
 `;
   }
 
-  prompt += `1. DURATION PREFERENCE: Prioritize shorter videos (3-15 minutes ideal).
-2. MUST prioritize videos that address the user's specific mistakes
-3. Match difficulty to user's current level
-4. Align with learning style preferences
-5. Consider video quality (channel reputation, clarity)
-6. Prefer comprehensive explanations for concepts user struggled with
-7. Balance between fixing knowledge gaps and advancing learning
-8. Ensure logical progression - avoid jumping too far ahead or repeating covered material
+  prompt += `1. NATURAL PROGRESSION:
+   - Even if not a formal series, identify the logical next step in learning
+   - Consider: basics → intermediate → advanced progression
+   - Look for "next steps", "after learning X", or "building on Y" content
+2. PERFORMANCE-BASED SELECTION:
+   ${accuracy ? `
+   - User scored ${accuracy}% on current video
+   ${parseInt(accuracy) > 80 ?
+     '- Prioritize advancement and more challenging content' :
+     parseInt(accuracy) > 50 ?
+     '- Mix advancement with reinforcement of weak areas' :
+     '- Focus on prerequisites and foundational content'}` :
+   '- No performance data - balance advancement and review'}
+3. DURATION PREFERENCE: Prioritize shorter videos (3-15 minutes ideal)
+4. MUST prioritize videos that address the user's specific mistakes
+5. Match difficulty to user's current level and performance
+6. Align with learning style preferences
+7. Consider video quality (channel reputation, clarity)
+8. Prefer comprehensive explanations for concepts user struggled with
+9. Ensure logical progression - avoid jumping too far ahead or unnecessary repetition
 
-IMPORTANT DURATION RULES:
+IMPORTANT RULES:
+- SERIES VIDEOS GET HIGHEST PRIORITY when performance is good (>80%)
+- Natural topic progression is key - videos should feel like a learning journey
 - All videos in the list are already filtered to be 20 minutes or less
-- Shorter videos (<10 min) should score higher than longer ones (15-20 min) if content quality is similar
-- Consider that shorter videos are more likely to maintain user engagement`;
+- Shorter videos (<10 min) should score higher than longer ones if content quality is similar`;
 
   return prompt;
 }
@@ -1230,7 +1326,7 @@ async function storeRecommendation(
       recommended_courses: recommendations,
       recommendation_context: {
         trigger: context.trigger,
-        algorithm_version: '3.0', // Updated version
+        algorithm_version: '4.2', // Updated version for series progression
         user_state: {
           profile_confidence: context.userProfile?.profile_confidence || 0.5,
           insights_count: context.insightsUsed,

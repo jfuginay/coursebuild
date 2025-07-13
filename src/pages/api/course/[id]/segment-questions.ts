@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
+import { parseCorrectAnswer } from '@/utils/questionHelpers';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -128,7 +129,8 @@ export default async function handler(
         has_visual_overlay: boundingBoxes.length > 0,
         bounding_box_count: boundingBoxes.length,
         requires_video_overlay: question.has_visual_asset && boundingBoxes.length > 0,
-        correct: question.correct_answer,
+        correct: parseCorrectAnswer(question.correct_answer, question.type),
+        correct_answer: question.correct_answer,
         visual_context: question.visual_context
       };
     });

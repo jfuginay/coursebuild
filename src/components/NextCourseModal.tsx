@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, ArrowRight, RefreshCw, BookOpen } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +15,7 @@ interface NextCourse {
   channel_name?: string;
   duration?: string;
   difficulty_match?: 'too_easy' | 'perfect' | 'challenging' | 'too_hard';
+  progression_type?: 'series_continuation' | 'topic_advancement' | 'reinforcement' | 'prerequisite';
   questionsGenerated?: boolean;
 }
 
@@ -95,12 +96,59 @@ export default function NextCourseModal({
       setIsSubmittingRating(false);
     }
   };
+
+  const getProgressionIcon = (type?: string) => {
+    switch (type) {
+      case 'series_continuation':
+        return <ArrowRight className="h-4 w-4" />;
+      case 'topic_advancement':
+        return <ArrowRight className="h-4 w-4" />;
+      case 'reinforcement':
+        return <RefreshCw className="h-4 w-4" />;
+      case 'prerequisite':
+        return <BookOpen className="h-4 w-4" />;
+      default:
+        return null;
+    }
+  };
+
+  const getProgressionLabel = (type?: string) => {
+    switch (type) {
+      case 'series_continuation':
+        return 'Next in Series';
+      case 'topic_advancement':
+        return 'Next Topic';
+      case 'reinforcement':
+        return 'Review & Practice';
+      case 'prerequisite':
+        return 'Foundation Building';
+      default:
+        return null;
+    }
+  };
+
+  const getProgressionColor = (type?: string) => {
+    switch (type) {
+      case 'series_continuation':
+        return 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300';
+      case 'topic_advancement':
+        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300';
+      case 'reinforcement':
+        return 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300';
+      case 'prerequisite':
+        return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300';
+      default:
+        return '';
+    }
+  };
+
   const handleStartNextCourse = () => {
     if (nextCourse) {
       console.log('📚 Navigating to next course:', {
         courseId: nextCourse.id,
         title: nextCourse.title,
         questionsGenerated: nextCourse.questionsGenerated,
+        progressionType: nextCourse.progression_type,
         nextCourse: nextCourse
       });
       
@@ -139,7 +187,18 @@ export default function NextCourseModal({
         {nextCourse ? (
           <div className="space-y-4 my-4">
             <div className="p-4 bg-muted rounded-lg">
-              <h3 className="font-semibold text-sm mb-1">Up Next:</h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-semibold text-sm">Up Next:</h3>
+                {nextCourse.progression_type && (
+                  <Badge 
+                    variant="secondary" 
+                    className={`text-xs flex items-center gap-1 ${getProgressionColor(nextCourse.progression_type)}`}
+                  >
+                    {getProgressionIcon(nextCourse.progression_type)}
+                    {getProgressionLabel(nextCourse.progression_type)}
+                  </Badge>
+                )}
+              </div>
               <h4 className="font-medium">{nextCourse.title}</h4>
               {/* Course Rating */}
               {courseRating > 0 && (

@@ -124,7 +124,8 @@ export function useNextCourse({
         // Log additional enhanced data if available
         reasons: firstTopic.reasons,
         difficulty_match: firstTopic.difficulty_match,
-        addresses_mistakes: firstTopic.addresses_mistakes
+        addresses_mistakes: firstTopic.addresses_mistakes,
+        progression_type: firstTopic.progression_type
       });
 
       // Step 2: Use analyze-video-smart for more robust processing

@@ -163,7 +163,7 @@ if (isVideoOverlayQuestion) → VideoOverlayQuestion/HotspotQuestion
 
 The visual quiz integration is **COMPLETE** and ready for testing:
 
-1. **Deploy Function**: `supabase functions deploy quiz-generation-v4`
+1. **Deploy Function**: `supabase functions deploy quiz-generation-v5`
 2. **Test Pipeline**: Use existing test scripts with visual questions enabled
 3. **Verify Frontend**: Check that visual questions render correctly
 4. **Monitor Logs**: Watch for successful visual question generation

@@ -3,25 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Play, BookOpen } from 'lucide-react';
 import VideoProgressBar from '@/components/VideoProgressBar';
-
-interface Question {
-  id: string;
-  question: string;
-  type: string;
-  options: string[];
-  correct: number;
-  correct_answer: number;
-  explanation: string;
-  timestamp: number;
-  visual_context?: string;
-  frame_timestamp?: number;
-  bounding_boxes?: any[];
-  detected_objects?: any[];
-  matching_pairs?: any[];
-  requires_video_overlay?: boolean;
-  video_overlay?: boolean;
-  bounding_box_count?: number;
-}
+import { Question } from '@/types/course';
 
 interface InteractiveVideoPlayerProps {
   videoId: string;
@@ -145,4 +127,17 @@ const InteractiveVideoPlayer: React.FC<InteractiveVideoPlayerProps> = ({
   );
 };
 
-export default InteractiveVideoPlayer; 
+// Memoize the component to prevent unnecessary re-renders
+export default React.memo(InteractiveVideoPlayer, (prevProps, nextProps) => {
+  // Only re-render if these key props change
+  return (
+    prevProps.videoId === nextProps.videoId &&
+    prevProps.isVideoReady === nextProps.isVideoReady &&
+    prevProps.currentTime === nextProps.currentTime &&
+    prevProps.duration === nextProps.duration &&
+    prevProps.questions === nextProps.questions &&
+    prevProps.answeredQuestions === nextProps.answeredQuestions &&
+    prevProps.isLoadingNextCourse === nextProps.isLoadingNextCourse &&
+    prevProps.nextCourse === nextProps.nextCourse
+  );
+}); 

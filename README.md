@@ -284,6 +284,22 @@ curl -X POST https://YOUR_PROJECT_ID.supabase.co/functions/v1/quiz-generation-v5
 
 ### January 2025 - Major Architecture Improvements
 
+#### Series Progression & Natural Learning Path (NEW)
+- **Intelligent Series Detection**: Automatically identifies video series (Part X, Episode Y, Chapter Z patterns)
+- **Performance-Based Progression**: 
+  - High performers (>80%) advance to next episode/advanced topics
+  - Medium performers (50-80%) get balanced progression + reinforcement
+  - Low performers (<50%) receive prerequisites and review content
+- **Natural Topic Flow**: Even non-series videos follow logical learning progressions
+- **Progression Types**: Each recommendation categorized as:
+  - `series_continuation`: Next in series
+  - `topic_advancement`: Natural next step
+  - `reinforcement`: Strengthen understanding
+  - `prerequisite`: Foundational content
+- **Smart Search Terms**: Generates series-specific searches with variations
+- **Adaptive Difficulty**: Content matches user's demonstrated ability
+- **See [SERIES_PROGRESSION_RECOMMENDATIONS.md](docs/SERIES_PROGRESSION_RECOMMENDATIONS.md) for details**
+
 #### Live Question Generation with Real-time Updates (NEW)
 - **Individual Question Processing**: Questions now generate and display individually as they complete
 - **Parallel Segment Planning**: Next segment planning begins as soon as previous segment's plan completes

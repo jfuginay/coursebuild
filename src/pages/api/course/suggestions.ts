@@ -48,7 +48,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             addresses_mistakes: rec.addresses_mistakes,
             thumbnail_url: rec.thumbnail_url,
             channel_name: rec.channel_name,
-            duration: rec.duration
+            duration: rec.duration,
+            progression_type: rec.progression_type
           }))
         });
       }

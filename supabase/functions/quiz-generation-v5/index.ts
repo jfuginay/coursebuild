@@ -40,6 +40,9 @@ import { createProgressTracker, ProgressTracker, withProgressTracking } from './
 import { createQuestionContext } from './utils/transcript-utils.ts';
 import type { VideoTranscript } from './types/interfaces.ts';
 
+// Import unified storage utilities
+import { transformQuestionForDatabase, extractBoundingBoxes, debugQuestionTransformation } from './utils/question-storage.ts';
+
 // =============================================================================
 // CORS Configuration
 // =============================================================================
@@ -367,91 +370,30 @@ const storeQuestionsWithQualityAndBoundingBoxes = async (
   const hasQualityResults = qualityResults.length > 0;
   console.log(`💾 Storing ${questions.length} questions ${hasQualityResults ? 'with quality metrics' : 'without quality verification'} and bounding boxes`);
   
-  // Prepare questions for database
+  // Prepare questions for database using unified storage utility
   const questionsToInsert = questions.map((q) => {
     const qualityResult = hasQualityResults ? qualityResults.find(qr => qr.question_id === q.question_id) : null;
     
-    let options = null;
-    let correctAnswer: number | boolean = 0;
-    let metadata: any = {};
-    
-    // Type-specific data preparation
-    switch (q.type) {
-      case 'multiple-choice':
-        options = JSON.stringify((q as any).options);
-        correctAnswer = (q as any).correct_answer;
-        if ((q as any).misconception_analysis) {
-          metadata.misconception_analysis = (q as any).misconception_analysis;
-        }
-        break;
-        
-      case 'true-false':
-        // Convert boolean to correct index for ['True', 'False'] options array
-        // true -> 0 (index of 'True'), false -> 1 (index of 'False')
-        correctAnswer = (q as any).correct_answer === true ? 0 : 1;
-        if ((q as any).concept_analysis) {
-          metadata.concept_analysis = (q as any).concept_analysis;
-        }
-        if ((q as any).misconception_addressed) {
-          metadata.misconception_addressed = (q as any).misconception_addressed;
-        }
-        break;
-        
-      case 'hotspot':
-        correctAnswer = 1; // Hotspot questions use special handling
-        metadata = {
-          target_objects: (q as any).target_objects,
-          frame_timestamp: (q as any).frame_timestamp,
-          question_context: (q as any).question_context,
-          visual_learning_objective: (q as any).visual_learning_objective,
-          distractor_guidance: (q as any).distractor_guidance,
-          video_overlay: true
-        };
-        
-        // Add bounding box metadata if available
-        if ((q as any).bounding_boxes) {
-          metadata.detected_elements = (q as any).bounding_boxes;
-          metadata.gemini_bounding_boxes = true;
-          metadata.video_dimensions = { width: 1000, height: 1000 };
-        }
-        break;
-        
-      case 'matching':
-        correctAnswer = 1; // Matching questions use special handling
-        metadata = {
-          matching_pairs: (q as any).matching_pairs,
-          relationship_analysis: (q as any).relationship_analysis,
-          relationship_type: (q as any).relationship_type,
-          video_overlay: true
-        };
-        break;
-        
-      case 'sequencing':
-        correctAnswer = 1; // Sequencing questions use special handling
-        metadata = {
-          sequence_items: (q as any).sequence_items,
-          sequence_analysis: (q as any).sequence_analysis,
-          sequence_type: (q as any).sequence_type,
-          video_overlay: true
-        };
-        break;
+    // Debug transformation for true/false questions
+    if (q.type === 'true-false' || (q.type as string) === 'true_false') {
+      debugQuestionTransformation(q, {}, 'Non-segmented before transform');
     }
     
-    return {
-      course_id: courseId,
-      timestamp: Math.round(q.timestamp), // Convert to integer
-      question: q.question,
-      type: q.type,
-      options: options,
-      correct_answer: correctAnswer,
-      explanation: q.explanation,
-      has_visual_asset: ['hotspot', 'matching', 'sequencing'].includes(q.type),
-      frame_timestamp: q.type === 'hotspot' ? Math.round((q as any).frame_timestamp) : null, // Convert to integer
-      metadata: Object.keys(metadata).length > 0 ? JSON.stringify(metadata) : null,
-      // Add quality metrics only if available
-      quality_score: qualityResult?.overall_score || null,
-      meets_threshold: qualityResult?.meets_quality_threshold || false
-    };
+    const transformed = transformQuestionForDatabase(
+      q,
+      {
+        courseId,
+        includeQualityMetrics: true
+      },
+      qualityResult
+    );
+    
+    // Debug after transformation
+    if (q.type === 'true-false' || (q.type as string) === 'true_false') {
+      debugQuestionTransformation(q, transformed, 'Non-segmented after transform');
+    }
+    
+    return transformed;
   });
   
   // Insert questions
@@ -469,41 +411,31 @@ const storeQuestionsWithQualityAndBoundingBoxes = async (
   // Store bounding boxes separately for questions with them
   let totalBoundingBoxes = 0;
   
-  for (const question of createdQuestions) {
-    if (question.metadata) {
-      try {
-        const metadata = JSON.parse(question.metadata);
-        const detectedElements = metadata.detected_elements || [];
+  // Create a map to match database questions with original questions
+  const dbToOriginalMap = new Map();
+  createdQuestions.forEach((dbQuestion: any, index: number) => {
+    dbToOriginalMap.set(dbQuestion.id, questions[index]);
+  });
+  
+  for (const dbQuestion of createdQuestions) {
+    const originalQuestion = dbToOriginalMap.get(dbQuestion.id);
+    if (originalQuestion) {
+      const boundingBoxes = extractBoundingBoxes(originalQuestion, dbQuestion.id);
+      
+      if (boundingBoxes && boundingBoxes.length > 0) {
+        console.log(`🎯 Creating ${boundingBoxes.length} bounding boxes for question ${dbQuestion.id}`);
+        
+        const { data: createdBoxes, error: boxError } = await supabaseClient
+          .from('bounding_boxes')
+          .insert(boundingBoxes)
+          .select();
 
-        if (detectedElements.length > 0) {
-          console.log(`🎯 Creating ${detectedElements.length} bounding boxes for question ${question.id}`);
-          
-          const boundingBoxesToInsert = detectedElements.map((element: any) => ({
-            question_id: question.id,
-            visual_asset_id: null, // No visual assets needed for video overlay
-            label: element.label || 'Unknown Object',
-            x: parseFloat(element.x.toFixed(4)),
-            y: parseFloat(element.y.toFixed(4)),
-            width: parseFloat(element.width.toFixed(4)),
-            height: parseFloat(element.height.toFixed(4)),
-            confidence_score: element.confidence_score || 0.8,
-            is_correct_answer: element.is_correct_answer || false
-          }));
-
-          const { data: createdBoxes, error: boxError } = await supabaseClient
-            .from('bounding_boxes')
-            .insert(boundingBoxesToInsert)
-            .select();
-
-          if (boxError) {
-            console.error(`❌ Error creating bounding boxes for question ${question.id}:`, boxError);
-          } else {
-            totalBoundingBoxes += createdBoxes.length;
-            console.log(`✅ Created ${createdBoxes.length} bounding boxes for question ${question.id}`);
-          }
+        if (boxError) {
+          console.error(`❌ Error creating bounding boxes for question ${dbQuestion.id}:`, boxError);
+        } else {
+          totalBoundingBoxes += createdBoxes.length;
+          console.log(`✅ Created ${createdBoxes.length} bounding boxes for question ${dbQuestion.id}`);
         }
-      } catch (parseError) {
-        console.error(`❌ Error parsing metadata for question ${question.id}:`, parseError);
       }
     }
   }

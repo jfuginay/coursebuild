@@ -42,6 +42,10 @@ export function useYouTubePlayer({
   const playerRef = useRef<YTPlayer | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   
+  // Add refs to store the latest time values independently of state
+  const currentTimeRef = useRef<number>(0);
+  const durationRef = useRef<number>(0);
+  
   const { trackEngagement } = useAnalytics();
 
   // Extract video ID when URL changes
@@ -106,14 +110,48 @@ export function useYouTubePlayer({
   const startTimeTracking = useCallback(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
     
+    let errorCount = 0;
+    
     intervalRef.current = setInterval(() => {
       if (playerRef.current) {
-        const time = playerRef.current.getCurrentTime();
-        const totalDuration = playerRef.current.getDuration();
-        setCurrentTime(time);
-        setDuration(totalDuration);
-        onTimeUpdate(time);
-        onDurationChange(totalDuration);
+        try {
+          const time = playerRef.current.getCurrentTime();
+          const totalDuration = playerRef.current.getDuration();
+          
+          // Update refs immediately
+          currentTimeRef.current = time;
+          durationRef.current = totalDuration;
+          
+          // Update state (might be delayed by re-renders)
+          setCurrentTime(time);
+          setDuration(totalDuration);
+          
+          // Call callbacks with latest values
+          onTimeUpdate(time);
+          onDurationChange(totalDuration);
+          
+          // Reset error count on success
+          errorCount = 0;
+        } catch (error) {
+          // Player might be in an invalid state during re-renders
+          errorCount++;
+          console.warn(`Error updating time (attempt ${errorCount}):`, error);
+          
+          // If we get too many errors, try to recover by restarting
+          if (errorCount > 10) {
+            console.log('🔄 Too many errors, attempting to restart time tracking...');
+            // Clear interval directly instead of using stopTimeTracking
+            if (intervalRef.current) {
+              clearInterval(intervalRef.current);
+              intervalRef.current = null;
+            }
+            setTimeout(() => {
+              if (playerRef.current) {
+                startTimeTracking();
+              }
+            }, 500);
+          }
+        }
       }
     }, 100); // Check every 100ms for smooth question timing
   }, [onTimeUpdate, onDurationChange]);
@@ -183,6 +221,17 @@ export function useYouTubePlayer({
             setPlayer(event.target);
             playerRef.current = event.target;
             setIsVideoReady(true);
+            
+            // Initialize time refs with current values
+            try {
+              const initialDuration = event.target.getDuration();
+              durationRef.current = initialDuration;
+              setDuration(initialDuration);
+              onDurationChange(initialDuration);
+            } catch (error) {
+              console.warn('Could not get initial duration:', error);
+            }
+            
             startTimeTracking();
           },
           onStateChange: async (event: any) => {
@@ -268,8 +317,8 @@ export function useYouTubePlayer({
     isVideoReady,
     isYTApiLoaded,
     videoId,
-    currentTime,
-    duration,
+    currentTime: currentTimeRef.current || currentTime, // Prefer ref value
+    duration: durationRef.current || duration, // Prefer ref value
     startTimeTracking,
     stopTimeTracking
   };

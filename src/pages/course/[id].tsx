@@ -21,7 +21,7 @@ import { useCourseData } from '@/hooks/useCourseData';
 import { useRealTimeUpdates } from '@/hooks/useRealTimeUpdates';
 import { useYouTubePlayer } from '@/hooks/useYouTubePlayer';
 import { useNextCourse } from '@/hooks/useNextCourse';
-import { useGuidedTour } from '@/hooks/useGuidedTour';
+import { useGuidedTour, hasTourBeenCompleted } from '@/hooks/useGuidedTour';
 import { learnerTourSteps } from '@/config/tours';
 import { supabase } from '@/lib/supabase';
 
@@ -73,7 +73,6 @@ export default function CoursePage() {
  
  // Guided tour state
  const [shouldRunTour, setShouldRunTour] = useState(false);
- const [hasCheckedOnboarding, setHasCheckedOnboarding] = useState(false);
 
  // Free questions limit
  const FREE_QUESTIONS_LIMIT = 2;
@@ -160,32 +159,21 @@ export default function CoursePage() {
  
  // Check if user has completed onboarding and show tour if needed
  useEffect(() => {
-   const checkOnboarding = async () => {
-     if (!user || hasCheckedOnboarding || !isVideoReady) return;
-     
-     try {
-       const response = await fetch(`/api/user/check-onboarding?user_id=${user.id}`);
-       const data = await response.json();
-       
-       if (!data.onboarding_completed) {
-         setShouldRunTour(true);
-       }
-       setHasCheckedOnboarding(true);
-     } catch (error) {
-       console.error('Error checking onboarding status:', error);
-       setHasCheckedOnboarding(true);
-     }
-   };
-   
-   checkOnboarding();
- }, [user, hasCheckedOnboarding, isVideoReady]);
+   // Only show the tour if:
+   // 1. User is logged in
+   // 2. Video is ready
+   // 3. Tour hasn't been completed before
+   if (user && isVideoReady && !hasTourBeenCompleted('learner')) {
+     setShouldRunTour(true);
+   }
+ }, [user, isVideoReady]);
  
  // Initialize guided tour for learner journey
  useGuidedTour('learner', learnerTourSteps, shouldRunTour, {
    delay: 2000, // Wait for video to load
    onComplete: async () => {
      setShouldRunTour(false);
-     // Update onboarding status in database
+     // Optionally update onboarding status in database if needed
      if (user) {
        try {
          await fetch('/api/user/update-onboarding', {

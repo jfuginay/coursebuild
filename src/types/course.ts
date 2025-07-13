@@ -23,6 +23,7 @@ export interface Course {
   thumbnail_url?: string;
   channel_name?: string;
   duration?: string;
+  progression_type?: 'series_continuation' | 'topic_advancement' | 'reinforcement' | 'prerequisite';
 }
 
 export interface Question {

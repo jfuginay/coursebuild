@@ -8,6 +8,7 @@ import VideoOverlayQuestion from '@/components/visual/VideoOverlayQuestion';
 import MatchingQuestion from '@/components/visual/MatchingQuestion';
 import SequencingQuestion from '@/components/visual/SequencingQuestion';
 import { useAuth } from '@/contexts/AuthContext';
+import { parseCorrectAnswer, isAnswerCorrect } from '@/utils/questionHelpers';
 
 interface Question {
   id?: string;
@@ -447,13 +448,10 @@ export default function QuestionOverlay({
       }
     }
 
-    // Handle both formats: correct as index or correct_answer as value
-    // Support legacy 'correct' field from feature branch
-    const correctIndex = question.correct !== undefined ? question.correct : 
-                        question.correct_answer !== undefined ? 
-                        (typeof question.correct_answer === 'number' ? 
-                          question.correct_answer : 
-                          parseInt(question.correct_answer as string)) : 0;
+    // Use the helper function to parse correct_answer properly
+    const correctIndex = question.correct !== undefined 
+      ? question.correct 
+      : parseCorrectAnswer(question.correct_answer, question.type);
 
     const correct = selectedAnswer === correctIndex;
     setIsCorrect(correct);
@@ -522,7 +520,9 @@ export default function QuestionOverlay({
     onContinue();
   };
 
-  const correctIndex = question.correct !== undefined ? question.correct : question.correct_answer;
+  const correctIndex = question.correct !== undefined 
+    ? question.correct 
+    : parseCorrectAnswer(question.correct_answer, question.type);
 
   const formatTimestamp = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
