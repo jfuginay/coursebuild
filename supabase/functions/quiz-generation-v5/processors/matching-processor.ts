@@ -237,7 +237,7 @@ Note: No transcript context available. Use the suggested timestamp of ${formatSe
 
 Based on this educational context, create a single, exceptional matching question that:
 1. Tests the specified learning objective at the ${plan.bloom_level} level
-2. Exactly 4 pairs that represent meaningful educational relationships
+2. Between 3-5 pairs that represent meaningful educational relationships
 3. Uses relationship analysis to explain why the matches matter
 4. Provides educational explanations that reinforce understanding
 

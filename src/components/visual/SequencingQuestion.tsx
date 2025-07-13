@@ -201,7 +201,7 @@ const SequencingQuestion: React.FC<SequencingQuestionProps> = ({
   };
 
   const getItemStyle = (item: SequencingItem, index: number): string => {
-    let baseClass = "p-4 border-2 rounded-lg transition-all duration-200 min-h-[60px] flex items-center justify-between bg-white relative select-none";
+    let baseClass = "p-4 border-2 rounded-lg transition-all duration-200 min-h-[60px] flex items-center justify-between bg-background relative select-none";
     
     if (disabled || isSubmitted) {
       baseClass += " cursor-default";
@@ -217,15 +217,18 @@ const SequencingQuestion: React.FC<SequencingQuestionProps> = ({
     // Add answer state styling
     if (showAnswer || isSubmitted) {
       const isCorrectPosition = item.originalIndex === index;
-      if (isCorrectPosition) {
-        baseClass += " border-green-500 bg-green-50 text-green-800";
-      } else {
-        baseClass += " border-red-500 bg-red-50 text-red-800";
-      }
+              if (isCorrectPosition) {
+          baseClass += " border-green-200 bg-green-50 text-green-800 dark:bg-green-950/20 dark:border-green-800 dark:text-green-200";
+        } else {
+          baseClass += " border-red-200 bg-red-50 text-red-800 dark:bg-red-950/20 dark:border-red-800 dark:text-red-200";
+        }
     } else {
       // Normal state styling when not being dragged
       if (draggedItem?.id !== item.id) {
-        baseClass += " border-gray-300 text-gray-800 hover:border-gray-400 hover:bg-gray-50";
+        baseClass += " bg-background border-border hover:bg-muted/50 hover:border-primary/50 cursor-pointer";
+      } else {
+        // Item being dragged - use primary color like selected state
+        baseClass += " border-primary bg-primary/10";
       }
     }
 
@@ -239,8 +242,8 @@ const SequencingQuestion: React.FC<SequencingQuestionProps> = ({
     const isCorrectPosition = item.originalIndex === index;
     
     return isCorrectPosition 
-      ? <CheckCircle className="w-4 h-4 text-green-600" />
-      : <XCircle className="w-4 h-4 text-red-600" />;
+      ? <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
+      : <XCircle className="w-4 h-4 text-red-600 dark:text-red-400" />;
   };
 
   const canSubmit = userOrder.length === items.length && !isSubmitted;
@@ -268,7 +271,7 @@ const SequencingQuestion: React.FC<SequencingQuestionProps> = ({
       
       <CardContent>
         <div className="space-y-3">
-          <h4 className="font-medium text-gray-700 mb-3 flex items-center gap-2">
+          <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
             <span>Arrange in Order</span>
             <Badge variant="secondary" className="text-xs">{userOrder.length} items</Badge>
           </h4>
@@ -292,10 +295,10 @@ const SequencingQuestion: React.FC<SequencingQuestionProps> = ({
               >
                 <div className="flex items-center gap-3 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm bg-gray-100 px-2 py-1 rounded">
+                    <span className="font-medium text-sm bg-muted px-2 py-1 rounded">
                       {index + 1}
                     </span>
-                    <ArrowUpDown className="w-4 h-4 text-gray-400" />
+                    <ArrowUpDown className="w-4 h-4 text-muted-foreground" />
                   </div>
                   <span className="flex-1">{item.content}</span>
                 </div>
@@ -345,33 +348,33 @@ const SequencingQuestion: React.FC<SequencingQuestionProps> = ({
 
         {/* Answer State */}
         {(showAnswer || isSubmitted) && (
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+          <div className="mt-6 p-4 bg-muted/50 rounded-lg border">
             <div className="flex items-start gap-3">
               <div className="flex-shrink-0 mt-0.5">
                 {userOrder.every((item, index) => item.originalIndex === index) ? (
-                  <CheckCircle className="w-5 h-5 text-green-600" />
-                ) : (
-                  <XCircle className="w-5 h-5 text-red-600" />
+                                      <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+                  ) : (
+                    <XCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
                 )}
               </div>
               <div>
-                <p className="font-medium text-sm mb-2 text-gray-900">
+                <p className="font-medium text-sm mb-2 text-gray-900 dark:text-gray-100">
                   {userOrder.every((item, index) => item.originalIndex === index)
                     ? 'Perfect sequence!' 
                     : 'Sequence needs adjustment'}
                 </p>
-                <p className="text-sm text-gray-800 mb-3">{explanation}</p>
+                                  <p className="text-sm text-gray-800 dark:text-gray-200 mb-3">{explanation}</p>
                 
                 {/* Show correct sequence */}
                 <div className="text-sm">
-                  <p className="font-medium text-gray-900 mb-2">Correct sequence:</p>
+                                      <p className="font-medium text-gray-900 dark:text-gray-100 mb-2">Correct sequence:</p>
                   <div className="space-y-1">
                     {items.map((item, index) => (
-                      <div key={index} className="flex items-center gap-2 text-xs text-gray-800">
-                        <span className="font-medium text-gray-900 bg-gray-100 px-2 py-1 rounded">
-                          {index + 1}
-                        </span>
-                        <span className="text-gray-800">{item}</span>
+                                              <div key={index} className="flex items-center gap-2 text-xs text-gray-800 dark:text-gray-200">
+                          <span className="font-medium bg-muted px-2 py-1 rounded">
+                            {index + 1}
+                          </span>
+                          <span className="text-gray-800 dark:text-gray-200">{item}</span>
                       </div>
                     ))}
                   </div>
@@ -383,14 +386,14 @@ const SequencingQuestion: React.FC<SequencingQuestionProps> = ({
 
         {/* Instructions */}
         {!isSubmitted && !showAnswer && (
-          <div className="mt-6 text-sm text-gray-700 bg-orange-50 p-3 rounded-lg border border-orange-200">
+          <div className="mt-6 text-sm text-gray-700 dark:text-gray-300 bg-orange-50 dark:bg-orange-950/20 p-3 rounded-lg border border-orange-200 dark:border-orange-800">
             <div className="flex items-center gap-2 mb-2">
-              <ArrowUpDown className="w-4 h-4 text-orange-600" />
-              <span className="font-medium text-gray-900">How to sequence:</span>
+                              <ArrowUpDown className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                <span className="font-medium text-gray-900 dark:text-gray-100">How to sequence:</span>
             </div>
-            <ul className="space-y-1 text-xs text-gray-800">
-              <li>• <strong className="text-gray-900">Drag & Drop:</strong> Touch and drag items on mobile or click and drag on desktop</li>
-              <li>• <strong className="text-gray-900">Arrow Buttons:</strong> Use ↑ ↓ buttons to move items up or down</li>
+                          <ul className="space-y-1 text-xs text-gray-800 dark:text-gray-200">
+                <li>• <strong className="text-gray-900 dark:text-gray-100">Drag & Drop:</strong> Touch and drag items on mobile or click and drag on desktop</li>
+                <li>• <strong className="text-gray-900 dark:text-gray-100">Arrow Buttons:</strong> Use ↑ ↓ buttons to move items up or down</li>
               <li>• Items rearrange instantly as you drag over different positions</li>
               <li>• Submit when the sequence is in correct chronological order</li>
             </ul>
@@ -408,10 +411,10 @@ const SequencingQuestion: React.FC<SequencingQuestionProps> = ({
             transform: 'translateX(-50%)'
           }}
         >
-          <div className="p-2 bg-blue-100 border-2 border-blue-500 rounded-lg shadow-lg max-w-xs">
+          <div className="p-2 bg-primary/10 border-2 border-primary rounded-lg shadow-lg max-w-xs">
             <div className="flex items-center gap-2">
-              <ArrowUpDown className="w-4 h-4 text-blue-600" />
-              <span className="text-sm font-medium text-blue-800 truncate">
+              <ArrowUpDown className="w-4 h-4 text-primary" />
+              <span className="text-sm font-medium text-primary truncate">
                 {draggedItem.content}
               </span>
             </div>

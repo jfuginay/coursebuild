@@ -343,10 +343,10 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
               key={course.id}
               className="rounded-[22px] bg-transparent"
               containerClassName="w-full h-full"
-              animate={hoveredCardId === course.id}
+              animate={hoveredCardId !== course.id}
             >
               <Card 
-                className="group hover:shadow-lg transition-all duration-300 cursor-pointer relative h-full flex flex-col bg-card shadow-md border-0 overflow-hidden rounded-[22px]"
+                className="group hover:shadow-sm transition-all duration-300 cursor-pointer relative h-full flex flex-col bg-card shadow-lg border-0 overflow-hidden rounded-[22px]"
                 onClick={() => handleCourseClick(course.id)}
                 onMouseEnter={() => setHoveredCardId(course.id)}
                 onMouseLeave={() => setHoveredCardId(null)}
@@ -449,15 +449,15 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
                         }}
                       />
                       {/* Gradient overlay */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-100 group-hover:opacity-0 transition-opacity" />
                     </>
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/5 to-secondary/5">
                       <Play className="h-8 w-8 text-muted-foreground" />
                     </div>
                   )}
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300 flex items-center justify-center">
-                    <div className="bg-white/90 rounded-full p-3 opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:scale-110 shadow-lg">
+                  <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors duration-300 flex items-center justify-center">
+                    <div className="bg-white/90 rounded-full p-3 opacity-100 group-hover:opacity-0 transition-all duration-300 transform scale-110 group-hover:scale-100 shadow-lg">
                       <Play className="h-5 w-5 text-black" />
                     </div>
                   </div>
@@ -480,8 +480,8 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
                     size="sm" 
                     className={`w-full border-0 transition-all mt-4 font-medium ${
                       hoveredCardId === course.id 
-                        ? 'bg-[#ef464a]/20 text-[#ef464a] hover:bg-[#ef464a]/30' 
-                        : 'bg-[#02cced]/10 hover:bg-[#02cced]/20 text-[#02cced]'
+                        ? 'bg-primary/10 text-primary hover:bg-primary/20' 
+                        : 'bg-primary/20 hover:bg-primary/30 text-primary'
                     }`}
                     onClick={(e) => {
                       e.stopPropagation();

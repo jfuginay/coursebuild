@@ -126,8 +126,8 @@ export default function CourseCurriculumCard({
                       ? 'bg-gray-50 border-gray-200 text-gray-900 dark:bg-gray-900/20 dark:border-gray-700 dark:text-gray-100'
                       : isAnswered 
                       ? isCorrect 
-                        ? 'bg-green-50 border-green-200 text-green-900' 
-                        : 'bg-red-50 border-red-200 text-red-900'
+                        ? 'bg-green-50 border-green-200 text-green-900 dark:bg-green-950/20 dark:border-green-800 dark:text-green-200' 
+                        : 'bg-red-50 border-red-200 text-red-900 dark:bg-red-950/20 dark:border-red-800 dark:text-red-200'
                       : isSegmentIncomplete
                       ? 'bg-blue-50/50 border-blue-200/50 dark:bg-blue-950/20 dark:border-blue-800/50'
                       : isLocked
@@ -141,9 +141,9 @@ export default function CourseCurriculumCard({
                         <SkipForward className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                       ) : isAnswered ? (
                         isCorrect ? (
-                          <CheckCircle className="h-5 w-5 text-green-600" />
+                          <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
                         ) : (
-                          <XCircle className="h-5 w-5 text-red-600" />
+                          <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
                         )
                       ) : isSegmentIncomplete ? (
                         <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
@@ -180,8 +180,8 @@ export default function CourseCurriculumCard({
                             variant="outline" 
                             className={`text-xs ${
                               isCorrect 
-                                ? 'bg-green-100 text-green-800 border-green-300' 
-                                : 'bg-red-100 text-red-800 border-red-300'
+                                ? 'bg-green-100 text-green-800 border-green-300 dark:bg-green-950/20 dark:text-green-200 dark:border-green-800' 
+                                : 'bg-red-100 text-red-800 border-red-300 dark:bg-red-950/20 dark:text-red-200 dark:border-red-800'
                             }`}
                           >
                             {isCorrect ? 'Correct' : 'Incorrect'}
@@ -208,8 +208,8 @@ export default function CourseCurriculumCard({
                           <>
                             <p className={`font-medium ${
                               isCorrect 
-                                ? 'text-green-900' 
-                                : 'text-red-900'
+                                ? 'text-green-900 dark:text-green-200' 
+                                : 'text-red-900 dark:text-red-200'
                             }`}>
                               {question.question}
                             </p>
@@ -234,13 +234,13 @@ export default function CourseCurriculumCard({
                             {isExpanded && (
                               <div className={`mt-2 p-3 rounded-md border ${
                                 isCorrect 
-                                  ? 'bg-green-50/70 border-green-200' 
-                                  : 'bg-red-50/70 border-red-200'
+                                  ? 'bg-green-50/70 border-green-200 dark:bg-green-950/20 dark:border-green-800' 
+                                  : 'bg-red-50/70 border-red-200 dark:bg-red-950/20 dark:border-red-800'
                               }`}>
                                 <p className={`text-sm ${
                                   isCorrect 
-                                    ? 'text-green-800' 
-                                    : 'text-red-800'
+                                    ? 'text-green-800 dark:text-green-200' 
+                                    : 'text-red-800 dark:text-red-200'
                                 }`}>
                                   {question.explanation}
                                 </p>

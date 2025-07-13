@@ -69,9 +69,9 @@ export const FactCheckMessage: React.FC<FactCheckMessageProps> = ({
   };
 
   return (
-    <Card className="bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800">
+    <div className="fact-check-message rounded-lg border shadow-sm p-0">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-purple-800 dark:text-purple-200">
+        <CardTitle className="flex items-center gap-2">
           {courseAnswerNeedsCorrection ? (
             <>
               <XCircle className="h-5 w-5 text-red-600" />
@@ -90,11 +90,11 @@ export const FactCheckMessage: React.FC<FactCheckMessageProps> = ({
       </CardHeader>
       <CardContent className="space-y-4">
         {videoContext && (
-          <div className="bg-white/50 dark:bg-gray-800/50 p-3 rounded-lg">
+          <div className="fact-check-video-context bg-white/50 dark:bg-gray-800/50 p-3 rounded-lg">
             <div className="flex items-start gap-2">
-              <BookOpen className="h-4 w-4 mt-0.5 text-purple-600" />
+              <BookOpen className="h-4 w-4 mt-0.5 text-muted-foreground" />
               <div>
-                <h5 className="text-sm font-semibold text-purple-800 dark:text-purple-200">
+                <h5 className="text-sm font-semibold">
                   Video Context
                 </h5>
                 <p className="text-xs text-muted-foreground mt-1">
@@ -137,11 +137,11 @@ export const FactCheckMessage: React.FC<FactCheckMessageProps> = ({
         )}
 
         {supposedAnswerEvaluation && (
-          <div className="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-lg">
-            <h4 className="font-semibold mb-1 text-purple-800 dark:text-purple-200">
+          <div className="bg-muted/50 p-3 rounded-lg">
+            <h4 className="font-semibold mb-1">
               Course Answer Assessment:
             </h4>
-            <p className="text-sm text-purple-700 dark:text-purple-300">{supposedAnswerEvaluation}</p>
+                          <p className="text-sm text-muted-foreground">{supposedAnswerEvaluation}</p>
           </div>
         )}
 
@@ -173,9 +173,9 @@ export const FactCheckMessage: React.FC<FactCheckMessageProps> = ({
             <h4 className="font-semibold mb-2">Verified Sources:</h4>
             <ul className="space-y-3">
               {citations.map((source, index) => (
-                <li key={index} className="border-l-2 border-purple-200 dark:border-purple-700 pl-3">
-                  <div className="flex items-start gap-2">
-                    <ExternalLink className="h-4 w-4 mt-0.5 flex-shrink-0 text-purple-600" />
+                              <li key={index} className="border-l-2 border-muted-foreground/30 pl-3">
+                <div className="flex items-start gap-2">
+                  <ExternalLink className="h-4 w-4 mt-0.5 flex-shrink-0 text-muted-foreground" />
                     <div className="flex-1 space-y-1">
                       <div className="flex items-center gap-2">
                         <a 
@@ -216,7 +216,29 @@ export const FactCheckMessage: React.FC<FactCheckMessageProps> = ({
             </p>
           </div>
         </div>
+
+        {/* Verdict Summary at Bottom */}
+        <div className="mt-4 pt-4 border-t">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {courseAnswerNeedsCorrection ? (
+                <>
+                  <XCircle className="h-5 w-5 text-red-600" />
+                  <span className="font-semibold text-red-700 dark:text-red-400">Answer Needs Correction</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  <span className="font-semibold text-green-700 dark:text-green-400">Answer Verified Online</span>
+                </>
+              )}
+            </div>
+                          <Badge variant="outline">
+              {Math.round(confidence * 100)}% Confidence
+            </Badge>
+          </div>
+        </div>
       </CardContent>
-    </Card>
+    </div>
   );
 }; 

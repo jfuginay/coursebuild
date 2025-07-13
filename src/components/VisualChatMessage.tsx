@@ -313,25 +313,25 @@ Error: ${error instanceof Error ? error.stack : error}
   return (
     <>
       <div className={`chat-message flex ${message.isUser ? 'justify-end' : 'justify-start'} mb-4`}>
-        <div className={`message-content max-w-3xl ${message.isUser ? 'bg-primary text-primary-foreground' : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm'} rounded-lg p-4`}>
-          <div className={`message-text mb-2 whitespace-pre-wrap ${message.isUser ? 'text-primary-foreground' : 'text-gray-900 dark:text-gray-100'}`}>{message.text}</div>
+        <div className={`message-content max-w-3xl ${message.isUser ? 'bg-primary text-primary-foreground' : 'bg-card dark:bg-card border border-border shadow-sm'} rounded-lg p-4`}>
+          <div className={`message-text mb-2 whitespace-pre-wrap ${message.isUser ? 'text-primary-foreground' : 'text-foreground'}`}>{message.text}</div>
           
           {message.visuals && message.visuals.length > 0 && (
             <div className="visuals-container mt-4 space-y-4">
               {message.visuals.map((visual, index) => (
-                <Card key={index} className="visual-card overflow-hidden bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
+                <Card key={index} className="visual-card overflow-hidden bg-background dark:bg-background border border-border">
                   <div className="p-4">
                     {visual.title && (
-                      <h4 className="text-lg font-semibold mb-2 text-gray-900 dark:text-gray-100">{visual.title}</h4>
+                      <h4 className="text-lg font-semibold mb-2 text-foreground">{visual.title}</h4>
                     )}
                     
                     {visual.description && (
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                      <p className="text-sm text-muted-foreground mb-3">
                         {visual.description}
                       </p>
                     )}
                     
-                    <div className="visual-content bg-white dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700 p-4 max-h-96 overflow-auto">
+                    <div className="visual-content bg-background dark:bg-background rounded border border-border p-4 max-h-96 overflow-auto">
                       {visual.type === 'mermaid' && (
                         <div 
                           ref={(el) => {
@@ -343,7 +343,7 @@ Error: ${error instanceof Error ? error.stack : error}
                     </div>
                     
                     {visual.interactionHints && visual.interactionHints.length > 0 && (
-                      <div className="interaction-hints mt-3 text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-3 rounded">
+                      <div className="interaction-hints mt-3 text-sm text-muted-foreground bg-muted/30 p-3 rounded">
                         {visual.interactionHints.map((hint, i) => (
                           <span key={i} className="block">💡 {hint}</span>
                         ))}
@@ -395,7 +395,7 @@ Error: ${error instanceof Error ? error.stack : error}
             </div>
           )}
           
-          <div className={`message-time text-xs opacity-70 mt-2 ${message.isUser ? 'text-primary-foreground' : 'text-gray-600 dark:text-gray-400'}`}>
+          <div className={`message-time text-xs opacity-70 mt-2 ${message.isUser ? 'text-primary-foreground' : 'text-muted-foreground'}`}>
             {new Date(message.timestamp).toLocaleTimeString()}
           </div>
         </div>
@@ -409,11 +409,11 @@ Error: ${error instanceof Error ? error.stack : error}
               {fullScreenVisual?.visual.title || 'Diagram View'}
             </DialogTitle>
           </DialogHeader>
-          <div className="p-6 h-[calc(100%-80px)] overflow-auto bg-white dark:bg-gray-900">
+          <div className="p-6 h-[calc(100%-80px)] overflow-auto bg-background dark:bg-background">
             {fullScreenVisual && (
               <>
                 {fullScreenVisual.visual.description && (
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  <p className="text-sm text-muted-foreground mb-4">
                     {fullScreenVisual.visual.description}
                   </p>
                 )}
@@ -423,19 +423,19 @@ Error: ${error instanceof Error ? error.stack : error}
                   <div className="flex items-center justify-center h-64 mb-4">
                     <div className="text-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
-                      <p className="text-sm text-gray-600">Loading diagram...</p>
+                      <p className="text-sm text-muted-foreground">Loading diagram...</p>
                     </div>
                   </div>
                 )}
                 
                 <div 
                   ref={fullScreenDiagramRef}
-                  className="mermaid-fullscreen-container flex justify-center items-center min-h-[400px] h-full w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded p-4"
+                                        className="mermaid-fullscreen-container flex justify-center items-center min-h-[400px] h-full w-full bg-background dark:bg-background border border-border rounded p-4"
                   style={{ minHeight: '400px' }}
                 />
                 
                 {fullScreenVisual.visual.interactionHints && fullScreenVisual.visual.interactionHints.length > 0 && (
-                  <div className="interaction-hints mt-4 text-sm text-gray-600 dark:text-gray-400 text-center">
+                  <div className="interaction-hints mt-4 text-sm text-muted-foreground text-center">
                     {fullScreenVisual.visual.interactionHints.map((hint, i) => (
                       <span key={i} className="block">💡 {hint}</span>
                     ))}

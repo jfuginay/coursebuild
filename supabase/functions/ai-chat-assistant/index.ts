@@ -225,7 +225,7 @@ function buildSystemPrompt(courseContext: EdgeFunctionContext['courseContext']):
   const { currentVideoTime, totalSegments, playedTranscriptSegments } = courseContext;
   const progressPercentage = totalSegments > 0 ? Math.round((playedTranscriptSegments.length / totalSegments) * 100) : 0;
   
-  return `You are CourseForge AI, an intelligent learning assistant helping students understand educational video content.
+  return `You are Curio, an intelligent personalized learning assistant helping students understand educational video content.
 
 CONTEXT:
 - The student is watching an educational video course
