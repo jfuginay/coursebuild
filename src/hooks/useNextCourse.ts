@@ -3,6 +3,8 @@ import { Course, Question } from '@/types/course';
 import { parseOptionsWithTrueFalse, extractVideoId } from '@/utils/courseHelpers';
 import { useAuth } from '@/contexts/AuthContext';
 import { SessionManager } from '@/utils/sessionManager';
+import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 
 interface UseNextCourseProps {
   currentCourseId: string | undefined;
@@ -19,6 +21,7 @@ interface UseNextCourseResult {
   showNextCourseModal: boolean;
   setShowNextCourseModal: (show: boolean) => void;
   fetchNextCourse: () => Promise<void>;
+  error: string | null;
 }
 
 export function useNextCourse({
@@ -36,6 +39,7 @@ export function useNextCourse({
   const [autoGenerationTriggered, setAutoGenerationTriggered] = useState(false);
   const [nextCourseApiCalled, setNextCourseApiCalled] = useState(false);
   const [nextCourseModalShown, setNextCourseModalShown] = useState(false);
+  const [error, setError] = useState<string | null>(null); // Added error state
 
   // Auto-generate next course when user reaches halfway point
   useEffect(() => {
@@ -77,6 +81,7 @@ export function useNextCourse({
     console.log('📚 Starting next course generation...');
     setIsLoadingNextCourse(true);
     setNextCourseApiCalled(true); // Mark API as called
+    setError(null); // Clear previous errors
     
     try {
       // Get session data for anonymous users
@@ -87,8 +92,19 @@ export function useNextCourse({
         console.log('📊 Anonymous session data:', {
           accuracy: sessionData.performance.accuracy,
           questionsAnswered: sessionData.performance.totalQuestionsAnswered,
-          wrongQuestions: sessionData.performance.wrongQuestions.length
+          wrongQuestions: sessionData.performance.wrongQuestions.length,
+          currentCourseId: sessionData.currentCourse?.id
         });
+        
+        // Log first few wrong questions to verify filtering
+        if (sessionData.performance.wrongQuestions.length > 0) {
+          console.log('📝 Sample wrong questions being sent:');
+          sessionData.performance.wrongQuestions.slice(0, 3).forEach((wq, idx) => {
+            console.log(`  ${idx + 1}. ${wq.type}: "${wq.question.substring(0, 50)}..."`);
+            console.log(`     User: ${wq.userAnswer} | Correct: ${wq.correctAnswer}`);
+            console.log(`     Course: ${wq.courseId}`);
+          });
+        }
       }
       
       // Get wrong answers from questionResults
@@ -142,7 +158,83 @@ export function useNextCourse({
         progression_type: firstTopic.progression_type
       });
 
-      // Step 2: Use analyze-video-smart for more robust processing
+      // Step 2: Check if a course already exists for this video
+      // Sanitize the URL to ensure consistent format
+      const videoId = extractVideoId(firstTopic.video);
+      if (!videoId) {
+        console.error('Invalid video URL:', firstTopic.video);
+        throw new Error('Invalid video URL in recommendation');
+      }
+      const sanitizedUrl = `https://www.youtube.com/watch?v=${videoId}`;
+      
+      console.log('🔍 Checking for existing course with URL:', sanitizedUrl);
+      
+      // Check if this video has already been processed
+      const { data: existingCourses, error: checkError } = await supabase
+        .from('courses')
+        .select('id, title, description, published, created_at')
+        .eq('youtube_url', sanitizedUrl)
+        .order('created_at', { ascending: false });
+
+      if (!checkError && existingCourses && existingCourses.length > 0) {
+        // Check each course for questions
+        for (const existingCourse of existingCourses) {
+          const { data: questions, error: questionsError } = await supabase
+            .from('questions')
+            .select('id')
+            .eq('course_id', existingCourse.id)
+            .limit(1);
+
+          if (!questionsError && questions && questions.length > 0) {
+            console.log('✅ Found existing course with questions:', existingCourse.id);
+            console.log('   📚 Title:', existingCourse.title);
+            console.log('   📊 Published:', existingCourse.published);
+            
+            // Show success message
+            toast.success('Found existing course! Loading from cache...');
+            
+            // Return the existing course
+            setNextCourse({
+              id: existingCourse.id,
+              title: existingCourse.title,
+              description: existingCourse.description,
+              youtube_url: sanitizedUrl,
+              created_at: existingCourse.created_at,
+              published: existingCourse.published,
+              topic: firstTopic.topic,
+              // Include enhanced recommendation data if available
+              reasons: firstTopic.reasons,
+              difficulty_match: firstTopic.difficulty_match,
+              addresses_mistakes: firstTopic.addresses_mistakes,
+              thumbnail_url: firstTopic.thumbnail_url,
+              channel_name: firstTopic.channel_name,
+              duration: firstTopic.duration,
+              progression_type: firstTopic.progression_type
+            });
+            
+            setShowNextCourseModal(true);
+            return;
+          }
+        }
+        
+        // Check if any course is currently being processed (unpublished and recent)
+        const processingCourse = existingCourses.find(course => {
+          const createdAt = new Date(course.created_at);
+          const minutesAgo = (Date.now() - createdAt.getTime()) / 1000 / 60;
+          return !course.published && minutesAgo < 30; // Consider courses created in last 30 minutes as potentially processing
+        });
+        
+        if (processingCourse) {
+          console.log('⏳ Course is currently being processed:', processingCourse.id);
+          toast.info('This video is currently being processed. Please try again in a few minutes.');
+          setError('This video is currently being processed. Please try again in a few minutes.');
+          return;
+        }
+        
+        console.log('⚠️ Found courses but none have questions, will create new course');
+      }
+
+      // Step 3: Use analyze-video-smart for more robust processing (only if no existing course found)
       const sessionId = `next-course-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       
       const smartAnalysisResponse = await fetch('/api/course/analyze-video-smart', {
@@ -196,7 +288,7 @@ export function useNextCourse({
         backgroundProcessing: smartAnalysisData.background_processing
       });
 
-      // Step 3: Fetch the generated course and questions
+      // Step 4: Fetch the generated course and questions
       try {
         // Fetch course data from database
         const courseResponse = await fetch(`/api/course/${smartAnalysisData.course_id}`);
@@ -311,6 +403,8 @@ export function useNextCourse({
       console.error('Error fetching next course:', err);
       // Reset API called state on error so it can be retried
       setNextCourseApiCalled(false);
+              toast.error('Failed to generate next course. Please try again.');
+        setError('Failed to generate next course. Please try again.');
     } finally {
       setIsLoadingNextCourse(false);
     }
@@ -321,6 +415,7 @@ export function useNextCourse({
     isLoadingNextCourse,
     showNextCourseModal,
     setShowNextCourseModal,
-    fetchNextCourse
+    fetchNextCourse,
+    error
   };
 } 

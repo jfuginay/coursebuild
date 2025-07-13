@@ -796,9 +796,6 @@ export default function CoursePreviewPage() {
                 <Play className="h-5 w-5" />
                 Interactive Video Course
               </CardTitle>
-              <CardDescription>
-                Watch the video and answer questions as they appear
-              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="aspect-video bg-muted rounded-lg overflow-hidden">

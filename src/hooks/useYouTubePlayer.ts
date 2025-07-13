@@ -85,22 +85,32 @@ export function useYouTubePlayer({
       setIsYTApiLoaded(true);
     };
 
-    // Fallback timeout in case API fails to load
-    const timeout = setTimeout(() => {
-      if (!isYTApiLoaded) {
-        console.warn('⏰ YouTube API timeout - attempting fallback');
-        // Check one more time if the API is actually available
-        if (window.YT && window.YT.Player) {
-          console.log('✅ YouTube API available after timeout check');
-          setIsYTApiLoaded(true);
-        } else {
-          console.error('❌ YouTube API failed to load within timeout');
-        }
+    // Faster retry logic with exponential backoff
+    let retryCount = 0;
+    const maxRetries = 5;
+    const checkAPILoaded = () => {
+      if (window.YT && window.YT.Player) {
+        console.log('✅ YouTube API available after retry');
+        setIsYTApiLoaded(true);
+      } else if (retryCount < maxRetries) {
+        retryCount++;
+        const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 5000); // Exponential backoff: 1s, 2s, 4s, 5s, 5s
+        console.log(`⏳ Retry ${retryCount}/${maxRetries} - checking again in ${delay}ms`);
+        setTimeout(checkAPILoaded, delay);
+      } else {
+        console.error('❌ YouTube API failed to load after all retries');
       }
-    }, 10000); // 10 second timeout
+    };
+
+    // Start checking after initial delay
+    const initialTimer = setTimeout(() => {
+      if (!isYTApiLoaded) {
+        checkAPILoaded();
+      }
+    }, 1000); // Start checking after 1 second
 
     return () => {
-      clearTimeout(timeout);
+      clearTimeout(initialTimer);
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
@@ -218,21 +228,46 @@ export function useYouTubePlayer({
         events: {
           onReady: (event: any) => {
             console.log('✅ YouTube player ready');
-            setPlayer(event.target);
-            playerRef.current = event.target;
-            setIsVideoReady(true);
+            const playerInstance = event.target;
             
-            // Initialize time refs with current values
+            // Validate player is truly ready
             try {
-              const initialDuration = event.target.getDuration();
-              durationRef.current = initialDuration;
-              setDuration(initialDuration);
-              onDurationChange(initialDuration);
+              // Test player methods to ensure it's fully initialized
+              playerInstance.getPlayerState();
+              playerInstance.getCurrentTime();
+              
+              setPlayer(playerInstance);
+              playerRef.current = playerInstance;
+              
+              // Get initial values with error handling
+              try {
+                const initialDuration = playerInstance.getDuration();
+                if (initialDuration && initialDuration > 0) {
+                  durationRef.current = initialDuration;
+                  setDuration(initialDuration);
+                  onDurationChange(initialDuration);
+                }
+              } catch (error) {
+                console.warn('Could not get initial duration:', error);
+              }
+              
+              // Delay setting video ready to ensure everything is initialized
+              setTimeout(() => {
+                setIsVideoReady(true);
+                startTimeTracking();
+                console.log('✅ Player fully initialized and ready');
+              }, 100);
+              
             } catch (error) {
-              console.warn('Could not get initial duration:', error);
+              console.error('❌ Player initialization validation failed:', error);
+              // Retry initialization
+              setTimeout(() => {
+                if (retryCount < 3) {
+                  console.log('🔄 Retrying player initialization...');
+                  initializePlayer(retryCount + 1);
+                }
+              }, 1000);
             }
-            
-            startTimeTracking();
           },
           onStateChange: async (event: any) => {
             console.log('🎬 Player state changed:', {
@@ -301,10 +336,26 @@ export function useYouTubePlayer({
       // Only initialize if we don't have a player
       if (!player) {
         console.log('🚀 Attempting to initialize player...');
-        // Add small delay to ensure DOM is ready
-        const timer = setTimeout(() => {
-          initializePlayer();
-        }, 200); // Increased delay for better DOM readiness
+        
+        // Retry logic for player initialization
+        let initRetries = 0;
+        const maxInitRetries = 3;
+        
+        const attemptInit = () => {
+          const element = document.getElementById('youtube-player');
+          if (element) {
+            console.log(`🎯 Initializing player (attempt ${initRetries + 1}/${maxInitRetries})`);
+            initializePlayer();
+          } else if (initRetries < maxInitRetries) {
+            initRetries++;
+            setTimeout(attemptInit, 500 * initRetries); // Increasing delay: 500ms, 1s, 1.5s
+          } else {
+            console.error('❌ Failed to find youtube-player element after retries');
+          }
+        };
+        
+        // Start initialization with delay
+        const timer = setTimeout(attemptInit, 300);
         
         return () => clearTimeout(timer);
       }
