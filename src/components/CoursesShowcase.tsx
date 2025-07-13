@@ -480,7 +480,7 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
                     size="sm" 
                     className={`w-full border-0 transition-all mt-4 font-medium ${
                       hoveredCardId === course.id 
-                        ? 'bg-[#c73a3e]/20 text-[#c73a3e] hover:bg-[#c73a3e]/30' 
+                        ? 'bg-[#ef464a]/20 text-[#ef464a] hover:bg-[#ef464a]/30' 
                         : 'bg-[#02cced]/10 hover:bg-[#02cced]/20 text-[#02cced]'
                     }`}
                     onClick={(e) => {

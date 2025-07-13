@@ -617,8 +617,8 @@ export default function Home() {
                   YouTube, 
                     <span className="text-[#02cced]"> meet Curio</span>
                   </h1>
-                  <p className="text-xl text-[#E1E1E1] max-w-2xl mx-auto">
-                    Curio uses AI to transform any YouTube video into an interactive learning experience with smart questions at just the right moments.
+                  <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                    Curio transforms any YouTube video into an interactive learning experience with smart questions at just the right moments.
                   </p>
                 </div>
 

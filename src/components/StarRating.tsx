@@ -101,8 +101,8 @@ export default function StarRating({
                 className={cn(
                   sizeClasses[size],
                   'transition-all duration-200 ease-out',
-                  isFilled ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300',
-                  !readonly && !isSubmitting && 'hover:text-yellow-300'
+                  isFilled ? 'text-[#fdd686] fill-[#fdd686]' : 'text-gray-300',
+                  !readonly && !isSubmitting && 'hover:text-[#fdd686]/80'
                 )}
               />
               
@@ -112,7 +112,7 @@ export default function StarRating({
                   <Star
                     className={cn(
                       sizeClasses[size],
-                      'text-yellow-400 fill-yellow-400 transition-all duration-200 ease-out'
+                      'text-[#fdd686] fill-[#fdd686] transition-all duration-200 ease-out'
                     )}
                   />
                 </div>
@@ -263,7 +263,7 @@ export function CompactStarRating({
             key={star}
             className={cn(
               sizeClasses[size],
-              star <= rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'
+              star <= rating ? 'text-[#fdd686] fill-[#fdd686]' : 'text-gray-300'
             )}
           />
         ))}
