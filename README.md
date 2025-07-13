@@ -993,4 +993,4 @@ Content-Type: application/json
 
 ---
 
-*CourseForge AI v5.0 - Advanced video-to-course transformation with full transcript generation, intelligent question timing, and enhanced educational context awareness.*
+*CourseBuild v5.0 - Advanced video-to-course transformation with full transcript generation, intelligent question timing, and enhanced educational context awareness.*

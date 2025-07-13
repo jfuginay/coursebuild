@@ -1,11 +1,121 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bot, MessageCircle, X, Send, Minus, HelpCircle, Video, Search } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { VisualChatMessage } from './VisualChatMessage';
-import { useAuth } from '@/contexts/AuthContext';
+
+// Fallback UI components in case shadcn/ui imports fail
+const Button = ({ children, onClick, disabled, className = '', size = 'default', variant = 'default', title, ...props }: any) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    title={title}
+    className={`inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background ${
+      variant === 'ghost' 
+        ? 'hover:bg-accent hover:text-accent-foreground' 
+        : 'bg-primary text-primary-foreground hover:bg-primary/90'
+    } ${
+      size === 'sm' ? 'h-9 px-3 rounded-md' : 
+      size === 'lg' ? 'h-11 px-8 rounded-md' : 
+      'h-10 py-2 px-4'
+    } ${className}`}
+    {...props}
+  >
+    {children}
+  </button>
+);
+
+const Input = ({ className = '', ...props }: any) => (
+  <input
+    className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+    {...props}
+  />
+);
+
+const Card = ({ children, className = '', ...props }: any) => (
+  <div className={`rounded-lg border bg-card text-card-foreground shadow-sm ${className}`} {...props}>
+    {children}
+  </div>
+);
+
+const CardContent = ({ children, className = '', ...props }: any) => (
+  <div className={`p-6 pt-0 ${className}`} {...props}>
+    {children}
+  </div>
+);
+
+const CardHeader = ({ children, className = '', ...props }: any) => (
+  <div className={`flex flex-col space-y-1.5 p-6 ${className}`} {...props}>
+    {children}
+  </div>
+);
+
+const Avatar = ({ children, className = '', ...props }: any) => (
+  <div className={`relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full ${className}`} {...props}>
+    {children}
+  </div>
+);
+
+const AvatarFallback = ({ children, className = '', ...props }: any) => (
+  <div className={`flex h-full w-full items-center justify-center rounded-full bg-muted ${className}`} {...props}>
+    {children}
+  </div>
+);
+
+// Import the VisualChatMessage component (you'll need to ensure this exists)
+// If it doesn't exist, create a simple fallback:
+const VisualChatMessage = ({ message, onVisualInteraction }: any) => {
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  return (
+    <div className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}>
+      <div className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
+        message.isUser 
+          ? 'bg-primary text-primary-foreground' 
+          : 'bg-muted'
+      }`}>
+        {message.factCheckResult ? (
+          <div className="space-y-2">
+            <div className="font-semibold text-purple-600">🔍 Fact Check Result</div>
+            <div><strong>Question:</strong> {message.factCheckResult.question}</div>
+            <div><strong>Your Answer:</strong> {message.factCheckResult.userAnswer}</div>
+            <div><strong>Correct Answer:</strong> {message.factCheckResult.supposedAnswer}</div>
+            {message.factCheckResult.explanation && (
+              <div><strong>Explanation:</strong> {message.factCheckResult.explanation}</div>
+            )}
+          </div>
+        ) : (
+          <>
+            <div>{message.text}</div>
+            {message.visuals && message.visuals.length > 0 && (
+              <div className="mt-2 space-y-2">
+                {message.visuals.map((visual: any, index: number) => (
+                  <div key={index} className="p-2 bg-background rounded border">
+                    <div className="text-xs font-semibold mb-1">{visual.title || `${visual.type} visualization`}</div>
+                    <div className="text-xs text-muted-foreground">{visual.description}</div>
+                    {visual.interactionHints && (
+                      <div className="text-xs mt-1 opacity-75">
+                        💡 {visual.interactionHints.join(', ')}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+        <div className="text-xs opacity-75 mt-1">{formatTime(message.timestamp)}</div>
+      </div>
+    </div>
+  );
+};
+
+// Mock useAuth hook if it doesn't exist
+const useAuth = () => {
+  return {
+    user: null,
+    session: { access_token: null }
+  };
+};
 
 interface VisualContent {
   type: 'mermaid' | 'chart' | 'table' | 'mindmap';
@@ -21,7 +131,7 @@ interface ChatMessage {
   isUser: boolean;
   timestamp: Date;
   visuals?: VisualContent[];
-  factCheckResult?: any; // For fact check messages
+  factCheckResult?: any;
 }
 
 interface ChatBubbleProps {
@@ -34,7 +144,6 @@ interface ChatBubbleProps {
     options: string[];
     correct_answer: string | number;
     explanation: string;
-    // Additional properties for different question types
     sequence_items?: string[];
     matching_pairs?: Array<{
       left?: string;
@@ -48,9 +157,9 @@ interface ChatBubbleProps {
     }>;
     target_objects?: string[];
   } | null;
-  isAnswerIncorrect?: boolean; // NEW: Track if user just answered incorrectly
-  userAnswer?: string; // NEW: The user's answer
-  hasJustAnswered?: boolean; // NEW: Track if user just answered (right or wrong)
+  isAnswerIncorrect?: boolean;
+  userAnswer?: string;
+  hasJustAnswered?: boolean;
 }
 
 export default function ChatBubble({ 
@@ -119,7 +228,6 @@ export default function ChatBubble({
         'Content-Type': 'application/json',
       };
       
-      // Add authorization header if user is authenticated
       if (session?.access_token) {
         headers['Authorization'] = `Bearer ${session.access_token}`;
       }
@@ -152,7 +260,7 @@ export default function ChatBubble({
         text: data.response,
         isUser: false,
         timestamp: new Date(),
-        visuals: data.visuals // Include any generated visuals
+        visuals: data.visuals
       };
 
       setMessages(prev => [...prev, aiMessage]);
@@ -190,12 +298,10 @@ export default function ChatBubble({
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
 
-    // Open chat if it's not already open
     if (!isOpen) {
       setIsOpen(true);
     }
     
-    // Unminimize if minimized
     if (isMinimized) {
       setIsMinimized(false);
     }
@@ -213,7 +319,6 @@ export default function ChatBubble({
         'Content-Type': 'application/json',
       };
       
-      // Add authorization header if user is authenticated
       if (session?.access_token) {
         headers['Authorization'] = `Bearer ${session.access_token}`;
       }
@@ -246,7 +351,7 @@ export default function ChatBubble({
         text: data.response,
         isUser: false,
         timestamp: new Date(),
-        visuals: data.visuals // Include any generated visuals
+        visuals: data.visuals
       };
 
       setMessages(prev => [...prev, aiMessage]);
@@ -290,7 +395,6 @@ Options: ${activeQuestion.options.join(', ')}`;
 
     const userDisplayMessage = "🔍 Fact check the answer";
     
-    // Add user message
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       text: userDisplayMessage,
@@ -301,25 +405,20 @@ Options: ${activeQuestion.options.join(', ')}`;
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
     
-    // Open chat if it's not already open
     if (!isOpen) {
       setIsOpen(true);
     }
     
-    // Unminimize if minimized
     if (isMinimized) {
       setIsMinimized(false);
     }
     
     try {
-      // Extract the correct answer based on question type
       let correctAnswerText = '';
       
       switch (activeQuestion.type) {
         case 'true-false':
         case 'true_false':
-          // For true/false, correct_answer is 0 (True) or 1 (False)
-          // Handle both string and number values
           const tfAnswer = typeof activeQuestion.correct_answer === 'number' 
             ? activeQuestion.correct_answer 
             : parseInt(String(activeQuestion.correct_answer), 10);
@@ -329,8 +428,6 @@ Options: ${activeQuestion.options.join(', ')}`;
           
         case 'multiple-choice':
         case 'multiple_choice':
-          // For multiple choice, correct_answer is an index into options array
-          // Handle both string and number values for correct_answer
           const correctIndex = typeof activeQuestion.correct_answer === 'number' 
             ? activeQuestion.correct_answer 
             : parseInt(String(activeQuestion.correct_answer), 10);
@@ -338,18 +435,15 @@ Options: ${activeQuestion.options.join(', ')}`;
           if (Array.isArray(activeQuestion.options) && !isNaN(correctIndex) && correctIndex >= 0 && correctIndex < activeQuestion.options.length) {
             correctAnswerText = activeQuestion.options[correctIndex];
           } else {
-            // Fallback if index is invalid
             correctAnswerText = `Option ${correctIndex + 1}`;
           }
           break;
           
         case 'sequencing':
         case 'sequence':
-          // For sequencing, the correct answer is the entire sequence in order
           if (activeQuestion.sequence_items && Array.isArray(activeQuestion.sequence_items)) {
             correctAnswerText = activeQuestion.sequence_items.join(' → ');
           } else if (Array.isArray(activeQuestion.options)) {
-            // Fallback if sequence_items isn't available
             correctAnswerText = activeQuestion.options.join(' → ');
           } else {
             correctAnswerText = 'Correct sequence not available';
@@ -357,7 +451,6 @@ Options: ${activeQuestion.options.join(', ')}`;
           break;
           
         case 'matching':
-          // For matching, show all correct pairs
           if (activeQuestion.matching_pairs && Array.isArray(activeQuestion.matching_pairs)) {
             const pairs = activeQuestion.matching_pairs.map((pair: any) => 
               `${pair.left || pair.left_item || 'Item'} ↔ ${pair.right || pair.right_item || 'Match'}`
@@ -369,7 +462,6 @@ Options: ${activeQuestion.options.join(', ')}`;
           break;
           
         case 'hotspot':
-          // For hotspot, identify the correct clickable areas
           if (activeQuestion.bounding_boxes && Array.isArray(activeQuestion.bounding_boxes)) {
             const correctBoxes = activeQuestion.bounding_boxes
               .filter((box: any) => box.isCorrectAnswer)
@@ -378,7 +470,6 @@ Options: ${activeQuestion.options.join(', ')}`;
               ? `Click on: ${correctBoxes.join(', ')}`
               : 'Correct hotspot area';
           } else if (activeQuestion.target_objects && Array.isArray(activeQuestion.target_objects)) {
-            // Fallback to target_objects if available
             correctAnswerText = `Click on: ${activeQuestion.target_objects.join(', ')}`;
           } else {
             correctAnswerText = 'Correct hotspot area';
@@ -386,7 +477,6 @@ Options: ${activeQuestion.options.join(', ')}`;
           break;
           
         default:
-          // Fallback for unknown types
           correctAnswerText = String(activeQuestion.correct_answer);
       }
 
@@ -415,12 +505,10 @@ Options: ${activeQuestion.options.join(', ')}`;
 
       const data = await response.json();
       
-      // The API returns the fact check result directly
       if (data) {
-        // Add fact check result as a special message
         const factCheckMessage: ChatMessage = {
           id: (Date.now() + 1).toString(),
-          text: '', // Empty text since we'll use a custom component
+          text: '',
           isUser: false,
           timestamp: new Date(),
           factCheckResult: {
@@ -445,10 +533,6 @@ Options: ${activeQuestion.options.join(', ')}`;
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   return (
@@ -548,18 +632,13 @@ Options: ${activeQuestion.options.join(', ')}`;
 
       {/* Action Buttons */}
       <div className="flex flex-col items-end space-y-2 mb-4">
-        {/* Single Context-Aware Action Button */}
         <Button
           onClick={() => {
-            // Determine which action to take based on context
             if (hasJustAnswered && activeQuestion) {
-              // User has answered a question (right or wrong) - show fact check
               handleFactCheck();
             } else if (activeQuestion) {
-              // Question is shown but not answered - show help
               handleHelpWithQuestion();
             } else {
-              // Just watching video - show video explanation
               handleExplainVideo();
             }
           }}
@@ -596,10 +675,10 @@ Options: ${activeQuestion.options.join(', ')}`;
         className="rounded-full w-40 h-40 shadow-lg hover:shadow-xl transition-all duration-300 bg-transparent hover:bg-transparent p-0 border-0 overflow-hidden"
         size="lg"
       >
-                  {isOpen ? (
-            <div className="w-full h-full flex items-center justify-center bg-primary rounded-full">
-              <X className="h-6 w-6 text-primary-foreground" />
-            </div>
+        {isOpen ? (
+          <div className="w-full h-full flex items-center justify-center bg-primary rounded-full">
+            <X className="h-6 w-6 text-primary-foreground" />
+          </div>
         ) : (
           <img 
             src="/Curio.gif" 
@@ -610,4 +689,4 @@ Options: ${activeQuestion.options.join(', ')}`;
       </Button>
     </div>
   );
-} 
+}
