@@ -32,6 +32,7 @@ interface SessionPerformanceData {
       timestamp?: number;
       concept?: string;
       explanation?: string;
+      courseId?: string;
     }>;
     questionsByType: {
       [type: string]: {
@@ -165,7 +166,8 @@ serve(async (req) => {
       wrongQuestions,
       currentCourseId: courseId,
       trigger,
-      requestedCount
+      requestedCount,
+      sessionData: sessionData // Pass sessionData
     });
 
     console.log('🔍 Generated search terms:', searchTerms);
@@ -333,7 +335,8 @@ async function generateSearchTermsWithLLM(context: any): Promise<string[]> {
     wrongQuestions,
     currentCourseId,
     trigger,
-    requestedCount
+    requestedCount,
+    sessionData // Add sessionData from context
   } = context;
 
   // Get current course details if available
@@ -400,7 +403,8 @@ async function generateSearchTermsWithLLM(context: any): Promise<string[]> {
     currentCourseId,
     currentCourseContext,
     trigger,
-    requestedCount
+    requestedCount,
+    sessionData // Pass sessionData
   );
 
   // Call OpenAI for search terms using LangSmith logger
@@ -434,7 +438,7 @@ async function generateSearchTermsWithLLM(context: any): Promise<string[]> {
 
   // Log series detection if found
   if (result.series_detected) {
-    console.log('📺 Series detected:', result.series_info);
+    console.log('�� Series detected:', result.series_info);
   }
 
   return result.search_terms || [];
@@ -641,7 +645,8 @@ function buildSearchTermPrompt(
   currentCourseId: string | undefined,
   currentCourseContext: any | null,
   trigger: string,
-  requestedCount: number
+  requestedCount: number,
+  sessionData?: SessionPerformanceData // Add optional sessionData parameter
 ): string {
   console.log('🔨 Building search term prompt with:', {
     hasProfile: !!userProfile,
@@ -659,7 +664,8 @@ function buildSearchTermPrompt(
     recentInsights,
     performanceData,
     courseHistory,
-    wrongQuestions
+    wrongQuestions,
+    sessionData // Pass sessionData
   );
 
   // Calculate performance on current course if available
@@ -798,7 +804,8 @@ function prepareUserDataAnalysis(
   recentInsights: any[],
   performanceData: any[],
   courseHistory: any[],
-  wrongQuestions: any[]
+  wrongQuestions: any[],
+  sessionData?: SessionPerformanceData // Add optional sessionData parameter
 ): string {
   let analysis = 'COMPREHENSIVE USER ANALYSIS:\n\n';
 
@@ -888,11 +895,19 @@ function prepareUserDataAnalysis(
         });
       } else if (q?.type === 'true-false') {
         const tfOptions = ['True', 'False'];
-        const correctIdx = q.correct_answer === 0 ? 0 : 1;
+        
+        // Handle correct answer - could be string or number
+        let correctAnswerText = 'Unknown';
+        if (typeof q.correct_answer === 'string') {
+          correctAnswerText = q.correct_answer;
+        } else if (typeof q.correct_answer === 'number') {
+          correctAnswerText = tfOptions[q.correct_answer === 0 ? 0 : 1];
+        }
+        
         // Use response_text if available, otherwise fall back to index
         const userAnswer = wq.response_text || tfOptions[wq.selected_answer] || 'Unknown';
         analysis += `   User answered: ${userAnswer}\n`;
-        analysis += `   Correct answer: ${tfOptions[correctIdx]}\n`;
+        analysis += `   Correct answer: ${correctAnswerText}\n`;
       } else if (q?.type === 'matching') {
         // For matching questions, parse the metadata to show the pairs
         analysis += `   Question Type: Matching pairs exercise\n`;
@@ -959,7 +974,7 @@ function prepareUserDataAnalysis(
         }
         
         if (wq.response_text) {
-          analysis += `   User's order: ${wq.response_text}\n`;
+          analysis += `   User's order: Sequence submitted\n`;
         }
       } else {
         // For other question types, show what we have
@@ -994,7 +1009,27 @@ function prepareUserDataAnalysis(
   }
 
   // Performance Summary
-  if (performanceData.length > 0) {
+  // Check if we have session data (anonymous user) or performance data (logged-in user)
+  if (sessionData && sessionData.performance) {
+    // For anonymous users, use session data directly
+    const perf = sessionData.performance;
+    analysis += `PERFORMANCE METRICS:\n`;
+    analysis += `- Overall Accuracy: ${perf.accuracy.toFixed(1)}% (${perf.totalQuestionsCorrect}/${perf.totalQuestionsAnswered})\n`;
+    
+    // Question type performance from session
+    if (perf.questionsByType && Object.keys(perf.questionsByType).length > 0) {
+      analysis += `- By Question Type:\n`;
+      Object.entries(perf.questionsByType).forEach(([type, stats]: any) => {
+        const typeAccuracy = stats.answered > 0 ? (stats.correct / stats.answered * 100).toFixed(0) : '0';
+        analysis += `  • ${type}: ${typeAccuracy}% (${stats.correct}/${stats.answered})\n`;
+      });
+    }
+    
+    // Recent trend is same as overall for anonymous users
+    analysis += `- Recent Trend: ${perf.accuracy.toFixed(0)}% in last ${perf.totalQuestionsAnswered} questions\n\n`;
+    
+  } else if (performanceData.length > 0) {
+    // For logged-in users, calculate from performance data
     const totalQuestions = performanceData.length;
     const correctCount = performanceData.filter(p => p.is_correct).length;
     const accuracy = (correctCount / totalQuestions * 100).toFixed(1);
@@ -1027,11 +1062,15 @@ function prepareUserDataAnalysis(
   if (courseHistory.length > 0) {
     analysis += `RECENT LEARNING HISTORY:\n`;
     courseHistory.slice(0, 5).forEach((enrollment: any) => {
-      const course = enrollment.courses;
-      if (course) {
-        analysis += `- "${course.title}": `;
-        analysis += `${enrollment.completion_percentage || 0}% complete, `;
-        analysis += `${enrollment.questions_answered || 0} questions answered\n`;
+      // Handle both logged-in format (with courses object) and anonymous format
+      const title = enrollment.courses?.title || enrollment.title;
+      const completionPercentage = enrollment.completion_percentage || enrollment.completionPercentage || 0;
+      const questionsAnswered = enrollment.questions_answered || enrollment.questionsAnswered || 0;
+      
+      if (title) {
+        analysis += `- "${title}": `;
+        analysis += `${completionPercentage}% complete, `;
+        analysis += `${questionsAnswered} questions answered\n`;
       }
     });
     analysis += '\n';
@@ -1101,7 +1140,7 @@ function buildFinalSelectionPrompt(
       if (typeof q.correct_answer === 'string') {
         correctAnswerText = q.correct_answer;
       } else if (typeof q.correct_answer === 'number') {
-      correctAnswerText = tfOptions[q.correct_answer === 0 ? 0 : 1];
+        correctAnswerText = tfOptions[q.correct_answer === 0 ? 0 : 1];
       } else {
         correctAnswerText = 'Unknown';
       }
@@ -1607,15 +1646,64 @@ function convertSessionPerformance(sessionData: SessionPerformanceData): any[] {
 }
 
 function convertSessionWrongQuestions(sessionData: SessionPerformanceData): any[] {
-  return sessionData.performance.wrongQuestions.map((wq, index) => ({
+  const currentCourseId = sessionData.currentCourse?.id;
+  console.log(`🔍 Converting wrong questions for course: ${currentCourseId}`);
+  console.log(`   Total wrong questions received: ${sessionData.performance.wrongQuestions.length}`);
+  
+  // Filter out questions where user actually answered correctly
+  const actuallyWrongQuestions = sessionData.performance.wrongQuestions.filter(wq => {
+    // For true/false questions, normalize the answers for comparison
+    if (wq.type === 'true-false') {
+      const normalizeAnswer = (answer: string) => {
+        if (typeof answer === 'string') {
+          return answer.toLowerCase() === 'true' || answer === '1' || answer === 'True';
+        }
+        return answer === 1 || answer === true;
+      };
+      
+      const userAnswerBool = normalizeAnswer(wq.userAnswer);
+      const correctAnswerBool = normalizeAnswer(wq.correctAnswer);
+      
+      // They're wrong if the boolean values don't match
+      return userAnswerBool !== correctAnswerBool;
+    }
+    
+    // For multiple choice, check if answers match (handling both text and index)
+    if (wq.type === 'multiple-choice') {
+      // If both are strings, compare directly
+      if (typeof wq.userAnswer === 'string' && typeof wq.correctAnswer === 'string') {
+        return wq.userAnswer.trim() !== wq.correctAnswer.trim();
+      }
+      // If one is an index and one is text, they're different
+      return wq.userAnswer !== wq.correctAnswer;
+    }
+    
+    // For other question types, simple comparison
+    return wq.userAnswer !== wq.correctAnswer;
+  });
+  
+  console.log(`📊 Filtered wrong questions: ${actuallyWrongQuestions.length} out of ${sessionData.performance.wrongQuestions.length}`);
+  
+  // Further filter by current course if available
+  let courseFilteredQuestions = actuallyWrongQuestions;
+  if (currentCourseId) {
+    courseFilteredQuestions = actuallyWrongQuestions.filter(wq => wq.courseId === currentCourseId);
+    console.log(`   After course filtering: ${courseFilteredQuestions.length} questions for course ${currentCourseId}`);
+  }
+  
+  // Limit to most recent 20 wrong questions
+  const limitedQuestions = courseFilteredQuestions.slice(-20);
+  console.log(`   Final count after limiting: ${limitedQuestions.length}`);
+  
+  return limitedQuestions.map((wq, index) => ({
     id: `session-wrong-${index}`,
     questions: {
       question: wq.question,
       type: wq.type,
       timestamp: wq.timestamp,
       options: [], // Options not stored in session data
-      correct_answer: wq.correctAnswer, // Add the correct answer from session
-      explanation: wq.explanation || wq.concept || '', // Use explanation or concept as fallback
+      correct_answer: wq.correctAnswer,
+      explanation: wq.explanation || wq.concept || '',
       metadata: {} // Empty metadata for anonymous users
     },
     selected_answer: wq.userAnswer,
