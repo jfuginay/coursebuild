@@ -646,7 +646,7 @@ export default function CoursePage() {
      <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
        <Header />
        <div className="container mx-auto px-4 py-8">
-         <div className="max-w-4xl mx-auto space-y-8">
+         <div className="max-w-6xl mx-auto space-y-8">
            <Button variant="ghost" className="mb-4">
              <ArrowLeft className="mr-2 h-4 w-4" />
              Back to Home
@@ -673,7 +673,7 @@ export default function CoursePage() {
      <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
        <Header />
        <div className="container mx-auto px-4 py-8">
-         <div className="max-w-4xl mx-auto space-y-8">
+         <div className="max-w-6xl mx-auto space-y-8">
            <Button variant="ghost" onClick={handleBackToHome} className="mb-4">
              <ArrowLeft className="mr-2 h-4 w-4" />
              Back to Home
@@ -693,7 +693,7 @@ export default function CoursePage() {
      <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
        <Header />
        <div className="container mx-auto px-4 py-8">
-         <div className="max-w-4xl mx-auto space-y-8">
+         <div className="max-w-6xl mx-auto space-y-8">
            <Button variant="ghost" onClick={handleBackToHome} className="mb-4">
              <ArrowLeft className="mr-2 h-4 w-4" />
              Back to Home
@@ -713,7 +713,7 @@ export default function CoursePage() {
      <Header />
      
      <div className="container mx-auto px-4 py-8">
-       <div className="max-w-4xl mx-auto space-y-8">
+       <div className="max-w-6xl mx-auto space-y-8">
          {/* Back Button */}
          <Button variant="ghost" onClick={handleBackToHome} className="mb-4">
            <ArrowLeft className="mr-2 h-4 w-4" />

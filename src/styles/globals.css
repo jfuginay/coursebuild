@@ -87,4 +87,32 @@
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 3;
   }
+  
+  /* Hide scrollbar */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* Infinite scroll animation */
+  @keyframes infinite-scroll {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-50%);
+    }
+  }
+  
+  .animate-infinite-scroll {
+    animation: infinite-scroll 25s linear infinite;
+  }
+  
+  .animate-infinite-scroll:hover {
+    animation-play-state: paused;
+  }
 }

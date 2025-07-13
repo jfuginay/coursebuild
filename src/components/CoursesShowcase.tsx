@@ -219,7 +219,7 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
 
   if (isLoading) {
     return (
-      <div className="w-full max-w-6xl mx-auto space-y-8">
+      <div className="w-full space-y-8">
         <div className="text-center space-y-4">
           <h2 className="text-3xl font-bold tracking-tight">
             Featured Courses
@@ -251,7 +251,7 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
 
   if (error) {
     return (
-      <div className="w-full max-w-6xl mx-auto space-y-8">
+      <div className="w-full space-y-8">
         <div className="text-center space-y-4">
           <h2 className="text-3xl font-bold tracking-tight">
             Featured Courses
@@ -266,7 +266,7 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
 
   if (allCourses.length === 0) {
     return (
-      <div className="w-full max-w-6xl mx-auto space-y-8">
+      <div className="w-full space-y-8">
         <div className="text-center space-y-4">
           <h2 className="text-3xl font-bold tracking-tight">
             Featured Courses
@@ -280,7 +280,7 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
   }
 
   return (
-    <div className="w-full max-w-6xl mx-auto space-y-8">
+    <div className="w-full space-y-8">
       <div className="text-center space-y-4">
         <h2 className="text-3xl font-bold tracking-tight">
           Featured Courses
