@@ -80,6 +80,16 @@ interface Course {
   questionCount?: number;
 }
 
+interface ConceptData {
+  concept: string;
+  count: number;
+  courses: Array<{
+    course_id: string;
+    course_title: string;
+    youtube_url: string;
+  }>;
+}
+
 export default function Home() {
   const router = useRouter();
   const { user } = useAuth();
@@ -90,6 +100,7 @@ export default function Home() {
   const [useCache, setUseCache] = useState(true);
   const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
+  const [concepts, setConcepts] = useState<ConceptData[]>([]);
   const [tips, setTips] = useState([
     {
       title: "Did you know?",
@@ -390,6 +401,23 @@ export default function Home() {
     fetchCourses();
   }, []);
 
+  // Fetch concepts for quick access buttons
+  useEffect(() => {
+    const fetchConcepts = async () => {
+      try {
+        const response = await fetch('/api/common-concepts');
+        const data = await response.json();
+        if (data.success && data.concepts) {
+          setConcepts(data.concepts);
+        }
+      } catch (error) {
+        console.error('Error fetching concepts:', error);
+      }
+    };
+    
+    fetchConcepts();
+  }, []);
+
   // Extract first 3 words from course title
   const getButtonTitle = (title: string) => {
     return title.split(' ').slice(0, 3).join(' ');
@@ -399,6 +427,14 @@ export default function Home() {
   const handleQuickCourseClick = async (course: Course) => {
     setValue('youtubeUrl', course.youtube_url);
     await generateCourse({ youtubeUrl: course.youtube_url }, true);
+  };
+
+  // Handle quick concept button click - navigate to the first course containing this concept
+  const handleQuickConceptClick = async (concept: ConceptData) => {
+    if (concept.courses && concept.courses.length > 0) {
+      const firstCourse = concept.courses[0];
+      router.push(`/course/${firstCourse.course_id}`);
+    }
   };
 
   return (
@@ -637,39 +673,43 @@ export default function Home() {
                       </Button>
                     </div>
 
-                    {/* Quick Access Course Buttons - Infinite Scroll */}
-                    <div className="relative overflow-hidden">
-                      <div className="flex gap-2 animate-infinite-scroll">
-                        {/* First set of buttons */}
-                        {courses.slice(0, 13).map((course) => (
-                          <Button
-                            key={`first-${course.id}`}
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={isLoading}
-                            onClick={() => handleQuickCourseClick(course)}
-                            className="whitespace-nowrap flex-shrink-0"
-                          >
-                            {getButtonTitle(course.title)}
-                          </Button>
-                        ))}
-                        {/* Duplicate set for seamless loop */}
-                        {courses.slice(0, 13).map((course) => (
-                          <Button
-                            key={`second-${course.id}`}
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={isLoading}
-                            onClick={() => handleQuickCourseClick(course)}
-                            className="whitespace-nowrap flex-shrink-0"
-                          >
-                            {getButtonTitle(course.title)}
-                          </Button>
-                        ))}
+                    {/* Quick Access Concept Buttons - Infinite Scroll */}
+                    {concepts.length > 0 && (
+                      <div className="relative overflow-hidden">
+                        <div className="flex gap-2 animate-infinite-scroll">
+                          {/* First set of buttons */}
+                          {concepts.map((conceptData) => (
+                            <Button
+                              key={`first-${conceptData.concept}`}
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={isLoading}
+                              onClick={() => handleQuickConceptClick(conceptData)}
+                              className="whitespace-nowrap flex-shrink-0"
+                              title={`${conceptData.count} courses with this concept`}
+                            >
+                              {conceptData.concept}
+                            </Button>
+                          ))}
+                          {/* Duplicate set for seamless loop */}
+                          {concepts.map((conceptData) => (
+                            <Button
+                              key={`second-${conceptData.concept}`}
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={isLoading}
+                              onClick={() => handleQuickConceptClick(conceptData)}
+                              className="whitespace-nowrap flex-shrink-0"
+                              title={`${conceptData.count} courses with this concept`}
+                            >
+                              {conceptData.concept}
+                            </Button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </form>
                 </CardContent>
               </Card>
