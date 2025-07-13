@@ -976,7 +976,7 @@ export default function CoursePage() {
   };
 
  // Convert questions to Canvas export format
- const getCanvasSegments = (): Segment[] => {
+ const getCanvasSegments = useMemo((): Segment[] => {
    if (!course || questions.length === 0) {
      return [];
    }
