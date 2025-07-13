@@ -6,7 +6,29 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { VisualChatMessage } from './VisualChatMessage';
 import { useAuth } from '@/contexts/AuthContext';
-import { BackgroundGradient } from '@/components/ui/background-gradient';
+
+// Fallback BackgroundGradient component if the original doesn't exist
+const BackgroundGradient = ({ 
+  children, 
+  className = '', 
+  containerClassName = '',
+  animate = false 
+}: {
+  children: React.ReactNode;
+  className?: string;
+  containerClassName?: string;
+  animate?: boolean;
+}) => {
+  return (
+    <div className={containerClassName}>
+      <div className={`relative ${className} ${animate ? 'animate-pulse' : ''}`}>
+        {children}
+        {/* Subtle gradient effect as fallback */}
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5 rounded-[22px] pointer-events-none" />
+      </div>
+    </div>
+  );
+};
 
 interface VisualContent {
   type: 'mermaid' | 'chart' | 'table' | 'mindmap';
@@ -49,9 +71,9 @@ interface ChatBubbleProps {
     }>;
     target_objects?: string[];
   } | null;
-  isAnswerIncorrect?: boolean; // NEW: Track if user just answered incorrectly
-  userAnswer?: string; // NEW: The user's answer
-  hasJustAnswered?: boolean; // NEW: Track if user just answered (right or wrong)
+  isAnswerIncorrect?: boolean; // Track if user just answered incorrectly
+  userAnswer?: string; // The user's answer
+  hasJustAnswered?: boolean; // Track if user just answered (right or wrong)
 }
 
 export default function ChatBubble({ 
@@ -67,6 +89,7 @@ export default function ChatBubble({
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [useModernStyle, setUseModernStyle] = useState(true); // Toggle between styles
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: '1',
@@ -453,10 +476,10 @@ Options: ${activeQuestion.options.join(', ')}`;
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  return (
-    <div className={`fixed bottom-4 right-4 z-50 ${className}`}>
-      {/* Chat Window */}
-      {isOpen && (
+  // Render the chat window based on style preference
+  const renderChatWindow = () => {
+    if (useModernStyle) {
+      return (
         <BackgroundGradient
           className="rounded-[22px] bg-transparent"
           containerClassName="mb-4"
@@ -489,6 +512,15 @@ Options: ${activeQuestion.options.join(', ')}`;
                 </div>
               </div>
               <div className="flex items-center space-x-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setUseModernStyle(!useModernStyle)}
+                  className="h-6 w-6 p-0 hover:bg-white/20 text-white transition-all duration-200"
+                  title="Toggle Style"
+                >
+                  <MessageCircle className="h-3 w-3" />
+                </Button>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -567,7 +599,112 @@ Options: ${activeQuestion.options.join(', ')}`;
             )}
           </Card>
         </BackgroundGradient>
-      )}
+      );
+    }
+
+    // Classic style (fallback/alternative)
+    return (
+      <Card className={`mb-4 w-[500px] shadow-lg transition-all duration-300 ${
+        isMinimized ? 'h-14' : 'h-[700px]'
+      }`}>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 py-3 bg-primary text-primary-foreground">
+          <div className="flex items-center space-x-2">
+            <Avatar className="h-6 w-6">
+              <AvatarFallback className="bg-primary-foreground text-primary text-xs">
+                <Bot className="h-3 w-3" />
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <h3 className="text-sm font-semibold">CourseBuild AI</h3>
+              <p className="text-xs opacity-90">Always here to help</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setUseModernStyle(!useModernStyle)}
+              className="h-6 w-6 p-0 hover:bg-primary-foreground/20"
+              title="Toggle Style"
+            >
+              <MessageCircle className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsMinimized(!isMinimized)}
+              className="h-6 w-6 p-0 hover:bg-primary-foreground/20"
+            >
+              <Minus className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsOpen(false)}
+              className="h-6 w-6 p-0 hover:bg-primary-foreground/20"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        </CardHeader>
+        
+        {!isMinimized && (
+          <CardContent className="p-0 flex flex-col h-[620px]">
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {messages.map((message) => (
+                <VisualChatMessage
+                  key={message.id}
+                  message={message}
+                  onVisualInteraction={handleVisualInteraction}
+                />
+              ))}
+              {isLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-muted rounded-lg px-3 py-2 text-sm">
+                    <div className="flex items-center space-x-1">
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-primary rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input */}
+            <div className="p-4 border-t">
+              <div className="flex items-center space-x-2">
+                <Input
+                  value={inputMessage}
+                  onChange={(e) => setInputMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Ask me anything..."
+                  className="flex-1"
+                  disabled={isLoading}
+                />
+                <Button
+                  onClick={handleSendMessage}
+                  disabled={!inputMessage.trim() || isLoading}
+                  size="sm"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        )}
+      </Card>
+    );
+  };
+
+  return (
+    <div className={`fixed bottom-4 right-4 z-50 ${className}`}>
+      {/* Chat Window */}
+      {isOpen && renderChatWindow()}
 
       {/* Action Buttons */}
       <div className="flex flex-col items-end space-y-2 mb-4">
@@ -613,13 +750,17 @@ Options: ${activeQuestion.options.join(', ')}`;
         </Button>
       </div>
 
-      {/* Main Chat Bubble Button - Hidden when chat is active */}
-      {!isOpen && (
-        <Button
-          onClick={() => setIsOpen(!isOpen)}
-          className="rounded-full w-40 h-40 shadow-xl hover:shadow-2xl transition-all duration-300 bg-transparent hover:bg-transparent p-0 border-0 overflow-hidden group"
-          size="lg"
-        >
+      {/* Main Chat Bubble Button */}
+      <Button
+        onClick={() => setIsOpen(!isOpen)}
+        className="rounded-full w-40 h-40 shadow-xl hover:shadow-2xl transition-all duration-300 bg-transparent hover:bg-transparent p-0 border-0 overflow-hidden group"
+        size="lg"
+      >
+        {isOpen ? (
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-r from-[#02cced] to-[#02cced]/90 rounded-full transition-all duration-300">
+            <X className="h-6 w-6 text-white" />
+          </div>
+        ) : (
           <div className="relative w-full h-full">
             {/* Glow effect behind image */}
             <div className="absolute inset-0 bg-gradient-to-r from-[#02cced]/20 via-[#02cced]/10 to-[#02cced]/20 blur-xl scale-110 opacity-60 group-hover:opacity-100 transition-opacity duration-300" />
@@ -635,8 +776,8 @@ Options: ${activeQuestion.options.join(', ')}`;
             <div className="absolute bottom-8 -left-1 w-2 h-2 bg-[#fdd686] rounded-full animate-pulse opacity-80" style={{ animationDelay: '0.5s' }} />
             <div className="absolute top-1/3 -left-2 w-2 h-2 bg-[#02cced] rounded-full animate-pulse opacity-60" style={{ animationDelay: '1s' }} />
           </div>
-        </Button>
-      )}
+        )}
+      </Button>
     </div>
   );
-} 
+}
