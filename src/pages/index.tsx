@@ -79,6 +79,15 @@ interface Course {
   totalRatings?: number;
   questionCount?: number;
 }
+interface ConceptData {
+  concept: string;
+  count: number;
+  courses: Array<{
+    course_id: string;
+    course_title: string;
+    youtube_url: string;
+  }>;
+}
 
 export default function Home() {
   const router = useRouter();
@@ -90,6 +99,7 @@ export default function Home() {
   const [useCache, setUseCache] = useState(true);
   const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
+  const [concepts, setConcepts] = useState<ConceptData[]>([]);
   const [tips, setTips] = useState([
     {
       title: "Did you know?",
@@ -389,6 +399,21 @@ export default function Home() {
     
     fetchCourses();
   }, []);
+  useEffect(() => {
+    const fetchConcepts = async () => {
+      try {
+        const response = await fetch('/api/common-concepts');
+        const data = await response.json();
+        if (data.success && data.concepts) {
+          setConcepts(data.concepts);
+        }
+      } catch (error) {
+        console.error('Error fetching concepts:', error);
+      }
+    };
+    
+    fetchConcepts();
+  }, []);
 
   // Extract first 3 words from course title
   const getButtonTitle = (title: string) => {
@@ -400,7 +425,12 @@ export default function Home() {
     setValue('youtubeUrl', course.youtube_url);
     await generateCourse({ youtubeUrl: course.youtube_url }, true);
   };
-
+  const handleQuickConceptClick = async (concept: ConceptData) => {
+    if (concept.courses && concept.courses.length > 0) {
+      const firstCourse = concept.courses[0];
+      router.push(`/course/${firstCourse.course_id}`);
+    }
+  };
   return (
     <>
       <Head>
@@ -566,118 +596,183 @@ export default function Home() {
         </div>
       ) : (
         /* Normal home page content */
-        <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+        <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 relative overflow-hidden">
+          {/* Network pattern background */}
+          <div className="absolute inset-0 network-pattern opacity-30" />
+          
           <Header />
           
-          <div className="container mx-auto px-4 py-8">
+          <div className="container mx-auto px-4 py-8 relative">
             <div className="max-w-6xl mx-auto space-y-8">
-              {/* Hero Section */}
-              <div className="text-center space-y-4">
-                <h1 id="main-headline" className="text-4xl font-bold tracking-tight lg:text-5xl">
-                  Transform YouTube Videos into 
-                  <span className="text-primary"> Interactive Courses</span>
-                </h1>
-                <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-                  Paste any YouTube URL and let AI generate an engaging, interactive course 
-                  with questions and segments automatically.
-                </p>
-              </div>
+              {/* Hero Section - Single Column */}
+              <div className="relative mb-12">
+                {/* Main Content */}
+                <div className="text-center space-y-6 mb-8">
+                  <h1 id="main-headline" className="text-4xl font-bold tracking-tight lg:text-5xl">
+                    Transform YouTube Videos into 
+                    <span className="gradient-text"> Interactive Courses</span>
+                  </h1>
+                  <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
+                    Harness the power of AI to create engaging, interactive learning experiences 
+                    from any YouTube video in seconds.
+                  </p>
+                </div>
 
-              {/* Course Generation Form */}
-              <Card className="w-full max-w-3xl mx-auto">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
-                      <Play className="h-5 w-5" />
-                      Generate Course from YouTube
-                    </CardTitle>
-                    <div className="flex items-center gap-2">
-                      <Zap className="h-4 w-4 text-blue-500" />
-                      <Switch
-                        id="use-cache"
-                        checked={useCache}
-                        onCheckedChange={setUseCache}
-                        disabled={isLoading}
-                      />
-                    </div>
+                {/* Course Generation Form */}
+                <Card className="relative overflow-hidden border-primary/20 cyan-glow max-w-3xl mx-auto">
+                  {/* Geometric pattern overlay */}
+                  <div className="absolute inset-0 opacity-5">
+                    <div className="absolute top-0 right-0 w-32 h-32 border-4 border-accent rounded-full -translate-y-1/2 translate-x-1/2" />
+                    <div className="absolute bottom-0 left-0 w-24 h-24 border-4 border-secondary rounded-full translate-y-1/2 -translate-x-1/2" />
                   </div>
-                  <CardDescription>
-                    Enter a YouTube URL to start creating your AI-powered course
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleSubmit(handleGenerateCourse)} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="youtubeUrl">YouTube URL</Label>
-                      <Input
-                        id="youtube-url-input"
-                        type="url"
-                        placeholder="https://www.youtube.com/watch?v=..."
-                        {...register('youtubeUrl')}
-                        disabled={isLoading}
-                      />
-                      {errors.youtubeUrl && (
-                        <p className="text-sm text-destructive">
-                          {errors.youtubeUrl.message}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex gap-3">
-                      <Button 
-                        id="generate-course-button"
-                        type="button"
-                        onClick={handleSubmit(handleGenerateCoursePro)}
-                        className="flex-1" 
-                        disabled={isLoading}
-                        size="lg"
-                      >
-                        <BookOpen className="mr-2 h-4 w-4" />
-                        Generate Course
-                      </Button>
-                    </div>
-
-                    {/* Quick Access Course Buttons - Infinite Scroll */}
-                    <div className="relative overflow-hidden">
-                      <div className="flex gap-2 animate-infinite-scroll">
-                        {/* First set of buttons */}
-                        {courses.slice(0, 13).map((course) => (
-                          <Button
-                            key={`first-${course.id}`}
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={isLoading}
-                            onClick={() => handleQuickCourseClick(course)}
-                            className="whitespace-nowrap flex-shrink-0"
-                          >
-                            {getButtonTitle(course.title)}
-                          </Button>
-                        ))}
-                        {/* Duplicate set for seamless loop */}
-                        {courses.slice(0, 13).map((course) => (
-                          <Button
-                            key={`second-${course.id}`}
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={isLoading}
-                            onClick={() => handleQuickCourseClick(course)}
-                            className="whitespace-nowrap flex-shrink-0"
-                          >
-                            {getButtonTitle(course.title)}
-                          </Button>
-                        ))}
+                  
+                  <CardHeader className="relative">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-2">
+                        <div className="p-2 bg-primary/10 rounded-lg">
+                          <Play className="h-5 w-5 text-primary" />
+                        </div>
+                        <span className="bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+                          Generate Course from YouTube
+                        </span>
+                      </CardTitle>
+                      <div className="flex items-center gap-2">
+                        <Zap className="h-4 w-4 text-secondary animate-pulse" />
+                        <Switch
+                          id="use-cache"
+                          checked={useCache}
+                          onCheckedChange={setUseCache}
+                          disabled={isLoading}
+                          className="data-[state=checked]:bg-secondary"
+                        />
                       </div>
                     </div>
-                  </form>
-                </CardContent>
-              </Card>
+                    <CardDescription className="text-muted-foreground/80">
+                      Transform any educational video into an interactive learning experience
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="relative">
+                    <form onSubmit={handleSubmit(handleGenerateCourse)} className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="youtubeUrl" className="text-foreground/90 font-medium">
+                          YouTube URL
+                        </Label>
+                        <div className="relative group">
+                          <Input
+                            id="youtube-url-input"
+                            type="url"
+                            placeholder="https://www.youtube.com/watch?v=..."
+                            {...register('youtubeUrl')}
+                            disabled={isLoading}
+                            className="border-border/50 focus:border-primary bg-background/50 backdrop-blur-sm transition-all focus:cyan-glow"
+                          />
+                          <div className="absolute inset-0 rounded-md bg-gradient-to-r from-primary/0 via-primary/5 to-primary/0 opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none" />
+                        </div>
+                        {errors.youtubeUrl && (
+                          <p className="text-sm text-destructive flex items-center gap-1">
+                            <span className="inline-block w-1 h-1 bg-destructive rounded-full" />
+                            {errors.youtubeUrl.message}
+                          </p>
+                        )}
+                      </div>
 
-              {/* Error Display */}
+                      <div className="flex gap-3">
+                        <Button 
+                          id="generate-course-button"
+                          type="button"
+                          onClick={handleSubmit(handleGenerateCoursePro)}
+                          className="flex-1 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground pulse-on-hover transition-all" 
+                          disabled={isLoading}
+                          size="lg"
+                        >
+                          <BookOpen className="mr-2 h-4 w-4" />
+                          Generate Interactive Course
+                        </Button>
+                      </div>
+
+                      {/* Quick Access Concept Buttons - Enhanced with gradients */}
+                      {concepts.length > 0 && (
+                        <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-transparent via-muted/20 to-transparent p-2">
+                          <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-card to-transparent z-10" />
+                          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-card to-transparent z-10" />
+                          <div className="flex gap-2 animate-infinite-scroll">
+                            {/* First set of buttons */}
+                            {concepts.map((conceptData) => (
+                              <Button
+                                key={`first-${conceptData.concept}`}
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={isLoading}
+                                onClick={() => handleQuickConceptClick(conceptData)}
+                                className="whitespace-nowrap flex-shrink-0 border-primary/20 hover:border-primary/40 hover:bg-primary/5 transition-all group"
+                                title={`${conceptData.count} courses with this concept`}
+                              >
+                                <span className="group-hover:text-primary transition-colors">
+                                  {conceptData.concept}
+                                </span>
+                              </Button>
+                            ))}
+                            {/* Duplicate set for seamless loop */}
+                            {concepts.map((conceptData) => (
+                              <Button
+                                key={`second-${conceptData.concept}`}
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={isLoading}
+                                onClick={() => handleQuickConceptClick(conceptData)}
+                                className="whitespace-nowrap flex-shrink-0 border-primary/20 hover:border-primary/40 hover:bg-primary/5 transition-all group"
+                                title={`${conceptData.count} courses with this concept`}
+                              >
+                                <span className="group-hover:text-primary transition-colors">
+                                  {conceptData.concept}
+                                </span>
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </form>
+                  </CardContent>
+                </Card>
+
+                {/* Curio Character - Positioned absolutely */}
+                <div className="hidden lg:block absolute -right-20 bottom-0 translate-y-8">
+                  <div className="relative">
+                    {/* Glow effect behind Curio */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-primary/20 via-secondary/20 to-accent/20 blur-2xl scale-110" />
+                    
+                    {/* Curio image - 30% smaller */}
+                    <img 
+                      src="/Curio.gif" 
+                      alt="Curio - Your AI Learning Companion" 
+                      className="relative z-10 w-64 h-auto drop-shadow-2xl"
+                    />
+                    
+                    {/* Floating elements around Curio */}
+                    <div className="absolute top-8 -right-2 w-6 h-6 bg-secondary rounded-full animate-pulse" />
+                    <div className="absolute bottom-20 -left-2 w-5 h-5 bg-primary rounded-full animate-pulse animation-delay-200" />
+                    <div className="absolute top-1/3 -left-4 w-3 h-3 bg-accent rounded-full animate-pulse animation-delay-400" />
+                    
+                    {/* Speech bubble - positioned above Curio */}
+                    <div className="absolute -top-16 left-8 bg-card/90 backdrop-blur-sm border border-primary/20 rounded-lg p-3 max-w-[200px] animate-bounce">
+                      <p className="text-xs text-foreground/80">
+                        "Let's turn any video into an interactive learning adventure!"
+                      </p>
+                      <div className="absolute -bottom-2 left-12 w-4 h-4 bg-card/90 border-r border-b border-primary/20 transform rotate-45" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Error Display with enhanced styling */}
               {error && (
-                <Alert variant="destructive" className="max-w-3xl mx-auto">
-                  <AlertDescription>{error}</AlertDescription>
+                <Alert variant="destructive" className="max-w-3xl mx-auto border-destructive/20 bg-destructive/5">
+                  <AlertDescription className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-destructive rounded-full animate-pulse" />
+                    {error}
+                  </AlertDescription>
                 </Alert>
               )}
 
