@@ -98,12 +98,12 @@ const InteractiveVideoPlayer: React.FC<InteractiveVideoPlayerProps> = ({
           />
         </div>
         
-        {/* Progress Bar */}
-        {isVideoReady && duration > 0 && (
+        {/* Progress Bar - Show even during processing if we have basic video info */}
+        {(isVideoReady || isYTApiLoaded) && (
           <div className="px-2">
             <VideoProgressBar
               currentTime={currentTime}
-              duration={duration}
+              duration={duration || 0} // Allow 0 duration to show progress bar structure
               onSeek={onVideoSeek}
               questions={questions.map((question, index) => ({
                 ...question,
@@ -115,6 +115,15 @@ const InteractiveVideoPlayer: React.FC<InteractiveVideoPlayerProps> = ({
               formatTimestamp={formatTime}
               className=""
             />
+            
+            {/* Show loading indicator when video is not fully ready */}
+            {!isVideoReady && isYTApiLoaded && (
+              <div className="mt-2 text-center">
+                <div className="text-xs text-muted-foreground">
+                  Video loading... Seek functionality will be available shortly.
+                </div>
+              </div>
+            )}
           </div>
         )}
 

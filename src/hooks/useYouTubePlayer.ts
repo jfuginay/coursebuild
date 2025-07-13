@@ -130,15 +130,23 @@ export function useYouTubePlayer({
           
           // Update refs immediately
           currentTimeRef.current = time;
-          durationRef.current = totalDuration;
+          
+          // Only update duration if we get a valid value, or if we don't have one yet
+          if (totalDuration && totalDuration > 0) {
+            durationRef.current = totalDuration;
+            setDuration(totalDuration);
+            onDurationChange(totalDuration);
+          } else if (!durationRef.current || durationRef.current <= 0) {
+            // Try to recover duration if we don't have one
+            durationRef.current = totalDuration || 0;
+            setDuration(totalDuration || 0);
+          }
           
           // Update state (might be delayed by re-renders)
           setCurrentTime(time);
-          setDuration(totalDuration);
           
           // Call callbacks with latest values
           onTimeUpdate(time);
-          onDurationChange(totalDuration);
           
           // Reset error count on success
           errorCount = 0;
@@ -239,17 +247,31 @@ export function useYouTubePlayer({
               setPlayer(playerInstance);
               playerRef.current = playerInstance;
               
-              // Get initial values with error handling
-              try {
-                const initialDuration = playerInstance.getDuration();
-                if (initialDuration && initialDuration > 0) {
-                  durationRef.current = initialDuration;
-                  setDuration(initialDuration);
-                  onDurationChange(initialDuration);
+              // Get initial values with error handling and retry logic
+              const getDurationWithRetry = (retryCount = 0) => {
+                try {
+                  const initialDuration = playerInstance.getDuration();
+                  if (initialDuration && initialDuration > 0) {
+                    durationRef.current = initialDuration;
+                    setDuration(initialDuration);
+                    onDurationChange(initialDuration);
+                    console.log('✅ Duration retrieved:', initialDuration);
+                  } else if (retryCount < 10) {
+                    // Retry getting duration - sometimes it takes time for YouTube to load metadata
+                    setTimeout(() => getDurationWithRetry(retryCount + 1), 500);
+                  } else {
+                    console.warn('⚠️ Could not get duration after retries');
+                  }
+                } catch (error) {
+                  if (retryCount < 10) {
+                    setTimeout(() => getDurationWithRetry(retryCount + 1), 500);
+                  } else {
+                    console.warn('Could not get initial duration after retries:', error);
+                  }
                 }
-              } catch (error) {
-                console.warn('Could not get initial duration:', error);
-              }
+              };
+              
+              getDurationWithRetry();
               
               // Delay setting video ready to ensure everything is initialized
               setTimeout(() => {

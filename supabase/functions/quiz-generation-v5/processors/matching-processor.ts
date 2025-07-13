@@ -46,9 +46,10 @@ You are an expert educational designer specializing in matching questions that t
 
 ### Right Column Design (Matches)
 - **Corresponding Category**: Items should logically correspond to left column category
-- **One-to-One Mapping**: Each right item should clearly match exactly one left item
+- **STRICT One-to-One Mapping**: Each right item should clearly match exactly one left item - NO DUPLICATES ALLOWED
+- **Complete Uniqueness**: ALL right column items MUST be completely unique - never repeat any right item
 - **Educational Value**: Correct matches should represent important learning connections
-- **Plausible Alternatives**: Include some items that could plausibly (but incorrectly) match multiple left items
+- **Distinct Options**: Each right item should be clearly distinguishable and have only ONE correct left match
 
 ### Explanation Excellence
 - **Relationship Focus**: Explain WHY the pairs connect, not just WHAT they are
@@ -85,13 +86,27 @@ Respond with a JSON object in this exact format:
 }
 \`\`\`
 
-## QUALITY STANDARDS
-- MAKE SURE THERE ARE NO DUPLICATE ENTRIES THAT APPEAR IN BOTH LEFT AND RIGHT COLUMNS
+## CRITICAL UNIQUENESS REQUIREMENTS (ESSENTIAL FOR VALIDATION)
+⚠️  **MUST FOLLOW OR QUESTION WILL BE REJECTED**: 
+- ALL left column items must be completely unique (no duplicates anywhere)
+- ALL right column items must be completely unique (no duplicates anywhere)
+- Each left item maps to exactly ONE unique right item
+- Each right item maps to exactly ONE unique left item
+
+## QUALITY STANDARDS  
 - Pairs represent meaningful educational relationships, not trivial associations
 - Left and right columns form coherent, parallel categories
 - Requires genuine understanding of WHY items connect
 - Explanation addresses relationship patterns and learning significance
 - 3-5 pairs for optimal cognitive engagement without overload
+
+## PRE-GENERATION VALIDATION CHECKLIST
+Before creating the JSON, verify:
+✅ Every left item is unique (no repeats)
+✅ Every right item is unique (no repeats)  
+✅ 3-5 pairs total
+✅ Each pair tests important relationships
+✅ Explanation explains WHY connections matter
 
 Create a single, exceptional matching question based on the provided question plan.
 `;
@@ -113,27 +128,54 @@ export const generateMatchingQuestion = async (
     
     const contextualPrompt = buildMatchingContextualPrompt(plan, transcriptContext);
     
-    // Use LLM service interface
+    // Use LLM service interface with retry logic for uniqueness validation
     const llmService = new LLMService();
-    const response = await llmService.generateQuestion(
-      'matching',
-      contextualPrompt,
-      {
-        temperature: 0.7,
-        maxOutputTokens: 2048,
-        topK: 40,
-        topP: 0.9
-      }
-    );
-
-    if (!response.content) {
-      throw new Error('No content in LLM response');
-    }
-
-    const questionData = response.content;
     
-    // Validate and ensure all required fields
-    validateMatchingStructure(questionData);
+    let questionData;
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount <= maxRetries) {
+      try {
+        const response = await llmService.generateQuestion(
+          'matching',
+          contextualPrompt,
+          {
+            temperature: 0.7 + (retryCount * 0.1), // Increase randomness on retries
+            maxOutputTokens: 2048,
+            topK: 40,
+            topP: 0.9
+          }
+        );
+
+        if (!response.content) {
+          throw new Error('No content in LLM response');
+        }
+
+        questionData = response.content;
+        
+        // Validate and ensure all required fields
+        validateMatchingStructure(questionData);
+        
+        // If validation passes, break out of retry loop
+        break;
+        
+      } catch (error) {
+        retryCount++;
+        
+        if (error instanceof Error && error.message.includes('must be unique')) {
+          console.warn(`⚠️ Matching uniqueness validation failed (attempt ${retryCount}/${maxRetries + 1}): ${error.message}`);
+          
+          if (retryCount <= maxRetries) {
+            console.log(`🔄 Retrying matching question generation with higher temperature...`);
+            continue;
+          }
+        }
+        
+        // Re-throw error if not uniqueness-related or max retries exceeded
+        throw error;
+      }
+    }
     
     // Use the timestamp from LLM if provided, otherwise use plan timestamp
     const finalTimestamp = questionData.optimal_timestamp || plan.timestamp;
@@ -279,11 +321,13 @@ const validateMatchingStructure = (data: any): void => {
   const uniqueRightItems = new Set(rightItems);
   
   if (uniqueLeftItems.size !== leftItems.length) {
-    throw new Error('All left column items must be unique');
+    const duplicateLeftItems = leftItems.filter((item, index) => leftItems.indexOf(item) !== index);
+    throw new Error(`All left column items must be unique. Found duplicates: ${duplicateLeftItems.join(', ')}. Generated items: [${leftItems.join(', ')}]`);
   }
   
   if (uniqueRightItems.size !== rightItems.length) {
-    throw new Error('All right column items must be unique');
+    const duplicateRightItems = rightItems.filter((item, index) => rightItems.indexOf(item) !== index);
+    throw new Error(`All right column items must be unique. Found duplicates: ${duplicateRightItems.join(', ')}. Generated items: [${rightItems.join(', ')}]`);
   }
   
   // Check for educational quality indicators
