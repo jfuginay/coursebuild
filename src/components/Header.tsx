@@ -1,5 +1,5 @@
 import { useRouter } from 'next/router';
-import { Info, LogOut, User, BarChart3, Film } from 'lucide-react';
+import { Info, LogOut, User, BarChart3, Film, CreditCard } from 'lucide-react';
 import Logo from '@/components/Logo';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
@@ -25,11 +25,11 @@ const Header = () => {
           <Button 
             variant="outline" 
             size="icon"
-            onClick={() => router.push("/animation")}
-            className="h-9 w-9 relative z-10 border-cyan-500/20 hover:border-cyan-500/40 hover:bg-cyan-500/5"
+            onClick={() => router.push("/pricing")}
+            className="h-9 w-9 relative z-10 border-[#fdd686]/30 hover:border-[#fdd686]/60 hover:bg-[#fdd686]/10"
           >
-            <Film className="h-[1.2rem] w-[1.2rem]" />
-            <span className="sr-only">Animation Studio</span>
+            <CreditCard className="h-[1.2rem] w-[1.2rem] text-[#fdd686]" />
+            <span className="sr-only">Pricing</span>
           </Button>
           <Button 
             variant="outline" 
