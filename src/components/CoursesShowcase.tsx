@@ -293,35 +293,35 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
           {/* Rating Filter with enhanced styling */}
           <div className="flex items-center gap-2 w-auto bg-muted/20 backdrop-blur-sm rounded-lg p-1">
             <div className="p-2">
-              <Filter className="h-4 w-4 text-cyan-500 flex-shrink-0" />
+              <Filter className="h-4 w-4 text-[#02cced] flex-shrink-0" />
             </div>
             <Select value={ratingFilter} onValueChange={handleRatingFilterChange}>
-              <SelectTrigger className="w-40 text-sm border-0 bg-transparent focus:ring-cyan-500/50">
+              <SelectTrigger className="w-40 text-sm border-0 bg-transparent focus:ring-[#02cced]/50">
                 <SelectValue placeholder="Filter by rating" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Courses</SelectItem>
                 <SelectItem value="5">
                   <div className="flex items-center gap-2">
-                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                    <Star className="h-3 w-3 fill-[#fdd686] text-[#fdd686]" />
                     <span>5 Stars</span>
                   </div>
                 </SelectItem>
                 <SelectItem value="4+">
                   <div className="flex items-center gap-2">
-                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                    <Star className="h-3 w-3 fill-[#fdd686] text-[#fdd686]" />
                     <span>4+ Stars</span>
                   </div>
                 </SelectItem>
                 <SelectItem value="3+">
                   <div className="flex items-center gap-2">
-                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                    <Star className="h-3 w-3 fill-[#fdd686] text-[#fdd686]" />
                     <span>3+ Stars</span>
                   </div>
                 </SelectItem>
                 <SelectItem value="2+">
                   <div className="flex items-center gap-2">
-                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                    <Star className="h-3 w-3 fill-[#fdd686] text-[#fdd686]" />
                     <span>2+ Stars</span>
                   </div>
                 </SelectItem>
@@ -358,7 +358,8 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
               <div className="absolute top-0 right-0 w-16 h-16 opacity-5 group-hover:opacity-10 transition-opacity">
                 <div className="absolute top-2 right-2 w-12 h-12 border-2 border-muted rounded-full" />
               </div>
-              {/* Delete button with enhanced styling */}
+              {/* Delete button with enhanced styling - Hidden but preserved for future use */}
+              {/* 
               <div className="absolute top-3 right-3 z-10">
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -395,26 +396,14 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
                   </AlertDialogContent>
                 </AlertDialog>
               </div>
+              */}
 
               <CardHeader className="pb-4 flex-shrink-0 relative">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 pr-8">
-                    <CardTitle className="text-lg line-clamp-2 text-foreground/90 group-hover:text-foreground transition-colors min-h-[3.5rem] flex items-start">
-                      {course.title}
-                    </CardTitle>
-                    {/* Rating Display with enhanced styling - only show if rating > 0 */}
-                    {course.averageRating && course.averageRating > 0 && (
-                      <div className="mt-3">
-                        <CompactStarRating 
-                          rating={course.averageRating} 
-                          totalRatings={course.totalRatings || 0}
-                          showRatingText={true}
-                          size="sm"
-                          className="text-muted-foreground"
-                        />
-                      </div>
-                    )}
-                  </div>
+                <div className="w-full text-center">
+                  <CardTitle className="text-lg line-clamp-2 text-foreground/90 group-hover:text-foreground transition-colors min-h-[3.5rem] flex items-center justify-center">
+                    {course.title}
+                  </CardTitle>
+                  {/* Rating Display with enhanced styling - only show if rating > 0 AND totalRatings > 0 */}
                 </div>
               </CardHeader>
               
@@ -484,16 +473,15 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
                     <Badge variant="secondary" className="text-xs bg-muted/50 text-muted-foreground border-0 pointer-events-none">
                       {course.questionCount || 0} Questions
                     </Badge>
-                  </div>
-
+                  </div>    
                   {/* Call to Action with gradient effect */}
                   <Button 
                     variant="secondary" 
                     size="sm" 
                     className={`w-full border-0 transition-all mt-4 font-medium ${
                       hoveredCardId === course.id 
-                        ? 'bg-orange-500/20 text-orange-600 hover:bg-orange-500/30' 
-                        : 'bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-600'
+                        ? 'bg-[#c73a3e]/20 text-[#c73a3e] hover:bg-[#c73a3e]/30' 
+                        : 'bg-[#02cced]/10 hover:bg-[#02cced]/20 text-[#02cced]'
                     }`}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -519,9 +507,9 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
             variant="outline" 
             size="lg" 
             onClick={handleShowMore}
-            className="border-cyan-500/20 hover:border-cyan-500/40 hover:bg-cyan-500/5 transition-all group"
+            className="border-[#02cced]/20 hover:border-[#02cced]/40 hover:bg-[#02cced]/5 transition-all group"
           >
-            <span className="group-hover:text-cyan-500 transition-colors flex items-center">
+            <span className="group-hover:text-[#02cced] transition-colors flex items-center">
               Show More Courses
               <ExternalLink className="ml-2 h-4 w-4 group-hover:translate-y-0.5 transition-transform" />
             </span>
