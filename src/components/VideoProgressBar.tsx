@@ -16,7 +16,7 @@ interface VideoProgressBarProps {
   className?: string;
 }
 
-export default function VideoProgressBar({
+function VideoProgressBar({
   currentTime,
   duration,
   onSeek,
@@ -187,3 +187,15 @@ export default function VideoProgressBar({
     </div>
   );
 }
+
+// Memoize the component to prevent unnecessary re-renders
+export default React.memo(VideoProgressBar, (prevProps, nextProps) => {
+  // Custom comparison function - only re-render if these props actually change
+  return (
+    prevProps.currentTime === nextProps.currentTime &&
+    prevProps.duration === nextProps.duration &&
+    prevProps.questions === nextProps.questions &&
+    prevProps.answeredQuestions === nextProps.answeredQuestions &&
+    prevProps.className === nextProps.className
+  );
+});

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Lock, CheckCircle, XCircle } from 'lucide-react';
+import { Lock, CheckCircle, XCircle, SkipForward, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -30,6 +30,7 @@ interface Segment {
   timestampSeconds: number;
   concepts: string[];
   questions: Question[];
+  isComplete?: boolean;
 }
 
 interface CourseData {
@@ -44,22 +45,28 @@ interface CourseCurriculumCardProps {
   courseData: CourseData;
   answeredQuestions: Set<string>;
   questionResults: Record<string, boolean>;
+  skippedQuestions?: Set<string>;
   expandedExplanations: Set<string>;
   setExpandedExplanations: React.Dispatch<React.SetStateAction<Set<string>>>;
   setShowLoginModal: React.Dispatch<React.SetStateAction<boolean>>;
   freeQuestionsLimit: number;
   formatTimestamp: (seconds: number) => string;
+  isProcessing?: boolean;
+  isSegmented?: boolean;
 }
 
 export default function CourseCurriculumCard({
   courseData,
   answeredQuestions,
   questionResults,
+  skippedQuestions = new Set<string>(),
   expandedExplanations,
   setExpandedExplanations,
   setShowLoginModal,
   freeQuestionsLimit,
   formatTimestamp,
+  isProcessing = false,
+  isSegmented = false,
 }: CourseCurriculumCardProps) {
   const { user } = useAuth();
   
@@ -95,10 +102,13 @@ export default function CourseCurriculumCard({
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
-          {courseData.segments.flatMap((segment, segmentIndex) => 
-            segment.questions.map((question, questionIndex) => {
+          {courseData.segments.flatMap((segment, segmentIndex) => {
+            const isSegmentIncomplete = isProcessing && isSegmented && segment.isComplete === false;
+            
+            return segment.questions.map((question, questionIndex) => {
               const questionId = `${segmentIndex}-${questionIndex}`;
               const isAnswered = answeredQuestions.has(questionId);
+              const isSkipped = skippedQuestions.has(questionId);
               const isCorrect = questionResults[questionId];
               const isExpanded = expandedExplanations.has(questionId);
               const globalQuestionIndex = courseData.segments
@@ -112,10 +122,14 @@ export default function CourseCurriculumCard({
                 <div
                   key={questionId}
                   className={`relative p-4 rounded-lg border transition-all ${
-                    isAnswered 
+                    isSkipped
+                      ? 'bg-gray-50 border-gray-200 text-gray-900 dark:bg-gray-900/20 dark:border-gray-700 dark:text-gray-100'
+                      : isAnswered 
                       ? isCorrect 
                         ? 'bg-green-50 border-green-200 text-green-900' 
                         : 'bg-red-50 border-red-200 text-red-900'
+                      : isSegmentIncomplete
+                      ? 'bg-blue-50/50 border-blue-200/50 dark:bg-blue-950/20 dark:border-blue-800/50'
                       : isLocked
                       ? 'bg-muted/30 border-muted'
                       : 'bg-background border-border'
@@ -123,12 +137,16 @@ export default function CourseCurriculumCard({
                 >
                   <div className="flex items-start gap-3">
                     <div className="flex-shrink-0 mt-0.5">
-                      {isAnswered ? (
+                      {isSkipped ? (
+                        <SkipForward className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                      ) : isAnswered ? (
                         isCorrect ? (
                           <CheckCircle className="h-5 w-5 text-green-600" />
                         ) : (
                           <XCircle className="h-5 w-5 text-red-600" />
                         )
+                      ) : isSegmentIncomplete ? (
+                        <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
                       ) : isLocked ? (
                         <Lock className="h-5 w-5 text-muted-foreground" />
                       ) : (
@@ -141,7 +159,23 @@ export default function CourseCurriculumCard({
                         <span className="text-xs text-muted-foreground">
                           {formatTimestamp(question.timestamp)}
                         </span>
-                        {isAnswered && (
+                        {isSegmentIncomplete && !isAnswered && (
+                          <Badge 
+                            variant="outline" 
+                            className="text-xs bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-800 dark:text-blue-200 dark:border-blue-600"
+                          >
+                            Processing
+                          </Badge>
+                        )}
+                        {isSkipped && (
+                          <Badge 
+                            variant="outline" 
+                            className="text-xs bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600"
+                          >
+                            Skipped
+                          </Badge>
+                        )}
+                        {isAnswered && !isSkipped && (
                           <Badge 
                             variant="outline" 
                             className={`text-xs ${
@@ -160,8 +194,17 @@ export default function CourseCurriculumCard({
                         )}
                       </div>
                       
-                      <div className={`text-sm ${isLocked && !isAnswered ? 'relative' : ''}`}>
-                        {isAnswered ? (
+                      <div className={`text-sm ${isLocked && !isAnswered && !isSkipped ? 'relative' : ''}`}>
+                        {isSkipped ? (
+                          <>
+                            <p className="font-medium text-gray-900 dark:text-gray-100">
+                              {question.question}
+                            </p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                              This question was skipped
+                            </p>
+                          </>
+                        ) : isAnswered ? (
                           <>
                             <p className={`font-medium ${
                               isCorrect 
@@ -204,6 +247,10 @@ export default function CourseCurriculumCard({
                               </div>
                             )}
                           </>
+                        ) : isSegmentIncomplete ? (
+                          <p className="font-medium text-blue-900 dark:text-blue-100">
+                            {question.question}
+                          </p>
                         ) : isLocked ? (
                           <>
                             <p className="font-medium blur-sm select-none">
@@ -229,8 +276,8 @@ export default function CourseCurriculumCard({
                   </div>
                 </div>
               );
-            })
-          )}
+            });
+          })}
         </div>
         
         {!user && allQuestions.length > freeQuestionsLimit && (

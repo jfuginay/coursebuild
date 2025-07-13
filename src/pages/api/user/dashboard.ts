@@ -53,6 +53,7 @@ export default async function handler(
       created_at: profile.created_at,
       courses_enrolled: profile.total_courses_taken || 0,
       courses_completed: 0, // Will calculate below
+      courses_created: 0, // Will calculate below
       total_correct_answers: profile.total_questions_correct || 0,
       total_questions_attempted: profile.total_questions_answered || 0,
       total_points: 0, // Will calculate from responses
@@ -127,7 +128,7 @@ export default async function handler(
     // 4. Calculate points and achievements from actual responses
     let totalPoints = 0;
     let totalAchievements = 0;
-    let recentAchievements = [];
+    let recentAchievements: any[] = [];
     
     // Calculate total points from user responses
     try {
@@ -189,7 +190,7 @@ export default async function handler(
       console.log('Streak calculation failed, using profile defaults');
     }
 
-    // 6. Calculate completion for each enrollment
+    // 6. Calculate completion for each enrollment with detailed question progress
     const courseProgressDetails = [];
     let completedCourses = 0;
     
@@ -198,9 +199,45 @@ export default async function handler(
         if (enrollment.is_completed) {
           completedCourses++;
         }
+
+        // Get detailed question responses for this enrollment
+        let questionResponses = [];
+        try {
+          const { data: responseData, error: responseError } = await supabase
+            .from('user_question_responses')
+            .select(`
+              *,
+              questions (
+                id,
+                question,
+                type,
+                timestamp,
+                explanation,
+                options
+              )
+            `)
+            .eq('user_id', user.id)
+            .eq('enrollment_id', enrollment.id)
+            .order('attempted_at', { ascending: false });
+
+          if (!responseError && responseData) {
+            questionResponses = responseData;
+          }
+        } catch (error) {
+          console.log('Failed to fetch question responses for enrollment:', enrollment.id);
+        }
+
         courseProgressDetails.push({
           ...enrollment,
-          segmentProgress: [] // No segment progress table exists yet
+          questionResponses,
+          detailedStats: {
+            totalQuestions: questionResponses.length,
+            correctAnswers: questionResponses.filter(r => r.is_correct).length,
+            incorrectAnswers: questionResponses.filter(r => !r.is_correct).length,
+            accuracy: questionResponses.length > 0 
+              ? Math.round((questionResponses.filter(r => r.is_correct).length / questionResponses.length) * 100)
+              : 0
+          }
         });
       }
     }
@@ -208,18 +245,85 @@ export default async function handler(
     // Update completed courses count
     dashboardStats.courses_completed = completedCourses;
 
+    // 7. Get courses created by the user with enrollment statistics
+    let createdCourses = [];
+    try {
+      const { data: createdCoursesData, error: createdCoursesError } = await supabase
+        .from('user_course_creations')
+        .select(`
+          *,
+          courses (
+            id,
+            title,
+            description,
+            youtube_url,
+            created_at,
+            published
+          )
+        `)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (!createdCoursesError && createdCoursesData) {
+        // Get enrollment statistics for each course
+        for (const creation of createdCoursesData) {
+          const courseId = creation.courses.id;
+          
+          // Get enrollment count
+          const { data: enrollmentStats, error: enrollmentError } = await supabase
+            .from('user_course_enrollments')
+            .select('id, user_id, total_questions_answered, total_questions_correct')
+            .eq('course_id', courseId);
+
+          // Get total questions answered across all students
+          const { data: questionStats, error: questionError } = await supabase
+            .from('user_question_responses')
+            .select('is_correct, user_id')
+            .in('question_id', 
+              await supabase
+                .from('questions')
+                .select('id')
+                .eq('course_id', courseId)
+                .then(result => result.data?.map(q => q.id) || [])
+            );
+
+          const enrollmentCount = enrollmentStats?.length || 0;
+          const totalQuestionsAnswered = questionStats?.length || 0;
+          const totalCorrectAnswers = questionStats?.filter(q => q.is_correct).length || 0;
+
+          createdCourses.push({
+            ...creation,
+            enrollmentStats: {
+              totalEnrolled: enrollmentCount,
+              totalQuestionsAnswered,
+              totalCorrectAnswers,
+              averageAccuracy: totalQuestionsAnswered > 0 
+                ? Math.round((totalCorrectAnswers / totalQuestionsAnswered) * 100)
+                : 0
+            }
+          });
+        }
+      }
+    } catch (error) {
+      console.log('Failed to fetch created courses:', error);
+      createdCourses = [];
+    }
+
+    // Update created courses count
+    dashboardStats.courses_created = createdCourses.length;
+
     console.log('✅ Dashboard data fetched successfully');
 
     return res.status(200).json({
       success: true,
       user: {
         id: user.id,
-        email: user.email,
         ...dashboardStats
       },
       stats: {
         coursesEnrolled: dashboardStats?.courses_enrolled || 0,
         coursesCompleted: dashboardStats?.courses_completed || 0,
+        coursesCreated: dashboardStats?.courses_created || 0,
         totalCorrectAnswers: dashboardStats?.total_correct_answers || 0,
         totalQuestionsAttempted: dashboardStats?.total_questions_attempted || 0,
         totalPoints: dashboardStats?.total_points || 0,
@@ -232,6 +336,7 @@ export default async function handler(
           : 0
       },
       enrollments: courseProgressDetails,
+      createdCourses,
       recentActivity: {
         attempts: recentAttempts || [],
         achievements: recentAchievements || []

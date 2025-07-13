@@ -139,11 +139,10 @@ export const generateContextPrompt = (
       !previousContext.segmentSummary) {
     return `
 ## SEGMENT INFORMATION:
-This is the FIRST segment of a ${currentSegmentInfo.totalSegments}-part video.
+This is segment number ${currentSegmentInfo.index + 1} of a ${currentSegmentInfo.totalSegments}-part video.
 Time range: ${formatTime(currentSegmentInfo.startTime)} to ${formatTime(currentSegmentInfo.endTime)}
 
 ## INSTRUCTIONS:
-- This is the beginning of the course, so introduce concepts clearly
 - Don't assume prior knowledge beyond general prerequisites
 - Generate questions that establish foundational understanding
 `;

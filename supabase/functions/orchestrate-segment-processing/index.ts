@@ -85,6 +85,18 @@ serve(async (req: Request) => {
     if (allCompleted) {
       console.log('✅ All segments completed!');
       
+      // Verify questions exist before declaring completion
+      const { count: questionCount, error: countError } = await supabase
+        .from('questions')
+        .select('*', { count: 'exact', head: true })
+        .eq('course_id', course_id);
+      
+      if (countError) {
+        console.error('Failed to count questions:', countError);
+      }
+      
+      console.log(`📊 Total questions for course: ${questionCount || 0}`);
+      
       // NOTE: Course publishing is now handled by the last segment processor
       // after all database operations are complete. This prevents race conditions
       // where the course page sees published=true before questions are inserted.
@@ -139,7 +151,9 @@ serve(async (req: Request) => {
           success: true,
           status: 'completed',
           segments_total: segments.length,
-          segments_completed: segments.length
+          segments_completed: segments.length,
+          questions_total: questionCount || 0,
+          course_published: course.published
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -168,11 +182,11 @@ serve(async (req: Request) => {
       // Skip completed segments
       if (segment.status === 'completed') continue;
       
-      // Check if previous segment is completed (for segments after the first)
+      // Check if previous segment has at least completed planning (for segments after the first)
       if (segment.segment_index > 0) {
         const previousSegment = segments.find(s => s.segment_index === segment.segment_index - 1);
-        if (!previousSegment || previousSegment.status !== 'completed') {
-          console.log(`⏸️ Segment ${segment.segment_index} waiting for previous segment to complete`);
+        if (!previousSegment || (previousSegment.status !== 'completed' && previousSegment.planning_status !== 'completed')) {
+          console.log(`⏸️ Segment ${segment.segment_index} waiting for previous segment to complete planning`);
           continue;
         }
       }

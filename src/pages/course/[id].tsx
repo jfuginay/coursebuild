@@ -23,1258 +23,957 @@ import { learnerTourSteps } from '@/config/tours';
 import ChatBubble from '@/components/ChatBubble';
 import { CanvasExportDialog } from '@/components/CanvasExportDialog';
 
+// Fallback UI components (in case shadcn/ui imports fail)
+const Card = ({ children, className = '', ...props }: any) => (
+  <div className={`rounded-lg border bg-card text-card-foreground shadow-sm ${className}`} {...props}>
+    {children}
+  </div>
+);
+
+const CardContent = ({ children, className = '', ...props }: any) => (
+  <div className={`p-6 pt-0 ${className}`} {...props}>
+    {children}
+  </div>
+);
+
+const Button = ({ children, onClick, disabled, className = '', variant = 'default', ...props }: any) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    className={`inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background ${
+      variant === 'ghost' 
+        ? 'hover:bg-accent hover:text-accent-foreground' 
+        : variant === 'outline'
+        ? 'border border-input hover:bg-accent hover:text-accent-foreground'
+        : 'bg-primary text-primary-foreground hover:bg-primary/90'
+    } h-10 py-2 px-4 ${className}`}
+    {...props}
+  >
+    {children}
+  </button>
+);
+
+const Alert = ({ children, className = '', variant = 'default', ...props }: any) => (
+  <div className={`relative w-full rounded-lg border p-4 ${
+    variant === 'destructive' 
+      ? 'border-destructive/50 text-destructive dark:border-destructive' 
+      : 'border-border'
+  } ${className}`} {...props}>
+    {children}
+  </div>
+);
+
+const AlertDescription = ({ children, className = '', ...props }: any) => (
+  <div className={`text-sm [&_p]:leading-relaxed ${className}`} {...props}>
+    {children}
+  </div>
+);
+
+const Skeleton = ({ className = '', ...props }: any) => (
+  <div className={`animate-pulse rounded-md bg-muted ${className}`} {...props} />
+);
+
+// Fallback component imports (replace with your actual components)
+const Header = () => <header className="border-b p-4">Header Component</header>;
+const QuestionOverlay = (props: any) => <div>Question Overlay Component</div>;
+const CourseCurriculumCard = (props: any) => <div>Course Curriculum Card Component</div>;
+const TranscriptDisplay = (props: any) => <div>Transcript Display Component</div>;
+const InteractiveVideoPlayer = (props: any) => <div>Interactive Video Player Component</div>;
+const ChatBubble = (props: any) => <div>Chat Bubble Component</div>;
+const ProcessingIndicator = (props: any) => <div>Processing Indicator Component</div>;
+const LoginModal = (props: any) => null;
+const NextCourseModal = (props: any) => null;
+const RatingModalWrapper = (props: any) => null;
+const CanvasExportDialog = (props: any) => null;
+
+// Mock hooks (replace with your actual hooks)
+const useAuth = () => ({ user: null, session: null });
+const useAnalytics = () => ({
+  trackRating: () => {},
+  trackCourse: () => {},
+  trackRatingModalShown: () => {},
+  trackRatingModalDismissed: () => {},
+  trackEngagement: () => {},
+  getPlatform: () => 'web'
+});
+const useCourseData = ({ courseId }: { courseId: string | undefined }) => ({
+  course: null,
+  setCourse: () => {},
+  questions: [],
+  setQuestions: () => {},
+  isLoading: false,
+  error: null,
+  isProcessing: false,
+  setIsProcessing: () => {},
+  isSegmented: false,
+  totalSegments: 0,
+  completedSegments: 0,
+  segmentQuestionCounts: {},
+  setSegmentQuestionCounts: () => {},
+  fetchQuestions: () => {},
+  fetchSegmentQuestions: () => {}
+});
+const useRealTimeUpdates = (props: any) => {};
+const useYouTubePlayer = (props: any) => ({
+  player: null,
+  playerRef: { current: null },
+  isVideoReady: false,
+  isYTApiLoaded: false,
+  videoId: '',
+  currentTime: 0,
+  duration: 0
+});
+const useNextCourse = (props: any) => ({
+  nextCourse: null,
+  isLoadingNextCourse: false,
+  showNextCourseModal: false,
+  setShowNextCourseModal: () => {},
+  fetchNextCourse: () => {}
+});
+const useGuidedTour = () => {};
+const hasTourBeenCompleted = () => false;
+const learnerTourSteps = [];
+
+// Types
 interface Course {
- id: string;
- title: string;
- description: string;
- youtube_url: string;
- created_at: string;
- published: boolean;
- courseId?: string;
- questionsGenerated?: boolean;
- questions?: Question[];
- videoId?: string;
- averageRating?: number;
- totalRatings?: number;
- topic?: string;
+  id: string;
+  title: string;
+  description: string;
+  youtube_url: string;
+  created_at: string;
+  published: boolean;
+  courseId?: string;
+  questionsGenerated?: boolean;
+  questions?: Question[];
+  videoId?: string;
+  averageRating?: number;
+  totalRatings?: number;
+  topic?: string;
 }
 
 interface Question {
- id: string;
- question: string;
- type: string;
- options: string[]; // Always an array of strings
- correct: number; // Index for multiple choice, 1/0 for true/false (alias for correct_answer)
- correct_answer: number; // Index for multiple choice, 1/0 for true/false
- explanation: string;
- timestamp: number;
- visual_context?: string;
- frame_timestamp?: number; // For video overlay timing
- bounding_boxes?: any[];
- detected_objects?: any[];
- matching_pairs?: any[];
- requires_video_overlay?: boolean;
- video_overlay?: boolean;
- bounding_box_count?: number;
+  id: string;
+  question: string;
+  type: string;
+  options: string[];
+  correct: number;
+  correct_answer: number;
+  explanation: string;
+  timestamp: number;
+  visual_context?: string;
+  frame_timestamp?: number;
+  bounding_boxes?: any[];
+  detected_objects?: any[];
+  matching_pairs?: any[];
+  requires_video_overlay?: boolean;
+  video_overlay?: boolean;
+  bounding_box_count?: number;
+  segment_index?: number;
 }
 
 interface Segment {
- title: string;
- timestamp: string;
- timestampSeconds: number;
- concepts: string[];
- questions: Question[];
+  title: string;
+  timestamp: string;
+  timestampSeconds: number;
+  concepts: string[];
+  questions: Question[];
+  isComplete?: boolean;
 }
 
 interface CourseData {
- title: string;
- description: string;
- duration: string;
- videoId: string;
- segments: Segment[];
+  title: string;
+  description: string;
+  duration: string;
+  videoId: string;
+  segments: Segment[];
 }
 
-interface YTPlayer {
- playVideo: () => void;
- pauseVideo: () => void;
- getCurrentTime: () => number;
- getDuration: () => number;
- getPlayerState: () => number;
- seekTo: (seconds: number) => void;
-}
+// Utility functions
+const formatTime = (seconds: number): string => {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+};
 
-declare global {
- interface Window {
-   YT: {
-     Player: new (elementId: string, config: any) => YTPlayer;
-     PlayerState: {
-       PLAYING: number;
-       PAUSED: number;
-       ENDED: number;
-     };
-   };
-   onYouTubeIframeAPIReady: () => void;
- }
-}
+const adjustEndOfVideoQuestions = (questions: Question[], duration: number): Question[] => {
+  return questions.map(q => {
+    if (q.timestamp > duration - 5) {
+      return { ...q, timestamp: Math.max(0, duration - 10) };
+    }
+    return q;
+  });
+};
+
+const parseOptions = (options: string[] | string): string[] => {
+  if (Array.isArray(options)) {
+    return options;
+  }
+  
+  if (typeof options === 'string') {
+    try {
+      const parsed = JSON.parse(options);
+      return Array.isArray(parsed) ? parsed : [options];
+    } catch (e) {
+      return [options];
+    }
+  }
+  
+  return [];
+};
+
+const formatUserAnswer = (answer: string, question: Question): string => {
+  return answer;
+};
+
+const formatCorrectAnswer = (question: Question): string => {
+  if (question.type === 'true-false' || question.type === 'true_false') {
+    return question.correct_answer === 0 ? 'True' : 'False';
+  }
+  if (Array.isArray(question.options) && question.correct_answer < question.options.length) {
+    return question.options[question.correct_answer];
+  }
+  return String(question.correct_answer);
+};
+
+// Mock SessionManager
+const SessionManager = {
+  setCurrentCourse: () => {},
+  updateViewingProgress: () => {},
+  completeCourse: () => {},
+  trackQuestionResult: () => {}
+};
 
 export default function CoursePage() {
- const router = useRouter();
- const { id } = router.query;
- const { user, session } = useAuth();
- const { trackRating, trackCourse, trackRatingModalShown, trackRatingModalDismissed, trackEngagement, getPlatform } = useAnalytics();
- const [course, setCourse] = useState<Course | null>(null);
- const [questions, setQuestions] = useState<Question[]>([]);
- const [isLoading, setIsLoading] = useState(true);
- const [error, setError] = useState<string | null>(null);
- const [videoId, setVideoId] = useState<string>('');
- const [player, setPlayer] = useState<YTPlayer | null>(null);
- const [currentTime, setCurrentTime] = useState(0);
- const [duration, setDuration] = useState(0);
- const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
- const [showQuestion, setShowQuestion] = useState(false);
- const [answeredQuestions, setAnsweredQuestions] = useState<Set<number>>(new Set());
- const [skippedQuestions, setSkippedQuestions] = useState<Set<number>>(new Set());
- const [correctAnswers, setCorrectAnswers] = useState(0);
- const [isVideoReady, setIsVideoReady] = useState(false);
- const [isYTApiLoaded, setIsYTApiLoaded] = useState(false);
- const [questionResults, setQuestionResults] = useState<Record<string, boolean>>({});
- const [expandedExplanations, setExpandedExplanations] = useState<Set<string>>(new Set());
- const [showLoginModal, setShowLoginModal] = useState(false);
- const [nextCourse, setNextCourse] = useState<Course | null>(null);
- const [showNextCourseModal, setShowNextCourseModal] = useState(false);
- const [isLoadingNextCourse, setIsLoadingNextCourse] = useState(false);
- const [nextCourseApiCalled, setNextCourseApiCalled] = useState(false); // Track if API was called
- const [isEnrolled, setIsEnrolled] = useState(false); // Track enrollment status
- const [autoGenerationTriggered, setAutoGenerationTriggered] = useState(false); // Track if auto-generation was triggered
- const [nextCourseModalShown, setNextCourseModalShown] = useState(false); // Track if modal has been shown
- const [isProcessing, setIsProcessing] = useState(false); // Track if course is still processing
- 
- // Rating state
- const [showRatingModal, setShowRatingModal] = useState(false);
- const [hasRated, setHasRated] = useState(false);
- const [engagementScore, setEngagementScore] = useState(0);
- const [courseStartTime] = useState(Date.now());
- 
- // Guided tour state
- const [shouldRunTour, setShouldRunTour] = useState(false);
- const [hasCheckedOnboarding, setHasCheckedOnboarding] = useState(false);
+  const router = useRouter();
+  const { id } = router.query;
+  const { user, session } = useAuth();
+  const { trackRating, trackCourse, trackRatingModalShown, trackRatingModalDismissed, trackEngagement, getPlatform } = useAnalytics();
+  
+  // Course data management
+  const {
+    course,
+    setCourse,
+    questions,
+    setQuestions,
+    isLoading,
+    error,
+    isProcessing,
+    setIsProcessing,
+    isSegmented,
+    totalSegments,
+    completedSegments,
+    segmentQuestionCounts,
+    setSegmentQuestionCounts,
+    fetchQuestions,
+    fetchSegmentQuestions
+  } = useCourseData({ courseId: id as string | undefined });
 
- // Canvas export state
- const [showCanvasExport, setShowCanvasExport] = useState(false);
+  // Question state
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [showQuestion, setShowQuestion] = useState(false);
+  const [answeredQuestions, setAnsweredQuestions] = useState<Set<number>>(new Set());
+  const [skippedQuestions, setSkippedQuestions] = useState<Set<number>>(new Set());
+  const [correctAnswers, setCorrectAnswers] = useState(0);
+  const [questionResults, setQuestionResults] = useState<Record<string, boolean>>({});
+  const [expandedExplanations, setExpandedExplanations] = useState<Set<string>>(new Set());
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [isEnrolled, setIsEnrolled] = useState(false);
+  const [isAnswerIncorrect, setIsAnswerIncorrect] = useState(false);
+  const [lastUserAnswer, setLastUserAnswer] = useState<string>('');
+  const [hasJustAnswered, setHasJustAnswered] = useState(false);
+  
+  // Rating state
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [hasRated, setHasRated] = useState(false);
+  const [engagementScore, setEngagementScore] = useState(0);
+  const [courseStartTime] = useState(Date.now());
+  
+  // Guided tour state
+  const [shouldRunTour, setShouldRunTour] = useState(false);
 
- // Free questions limit
- const FREE_QUESTIONS_LIMIT = 2;
+  // Canvas export state
+  const [showCanvasExport, setShowCanvasExport] = useState(false);
 
- const playerRef = useRef<YTPlayer | null>(null);
- const intervalRef = useRef<NodeJS.Timeout | null>(null);
- const questionStartTime = useRef<number | null>(null); // Track when question was shown
+  // Free questions limit
+  const FREE_QUESTIONS_LIMIT = 2;
+  const questionStartTime = useRef<number | null>(null);
 
- useEffect(() => {
-   if (id) {
-     fetchCourse();
-   }
- }, [id]);
- 
- // Check if user has completed onboarding and show tour if needed
- useEffect(() => {
-   const checkOnboarding = async () => {
-     if (!user || hasCheckedOnboarding || !isVideoReady) return;
-     
-     try {
-       const response = await fetch(`/api/user/check-onboarding?user_id=${user.id}`);
-       const data = await response.json();
-       
-       if (!data.onboarding_completed) {
-         setShouldRunTour(true);
-       }
-       setHasCheckedOnboarding(true);
-     } catch (error) {
-       console.error('Error checking onboarding status:', error);
-       setHasCheckedOnboarding(true);
-     }
-   };
-   
-   checkOnboarding();
- }, [user, hasCheckedOnboarding, isVideoReady]);
- 
- // Initialize guided tour for learner journey
- useGuidedTour('learner', learnerTourSteps, shouldRunTour, {
-   delay: 2000, // Wait for video to load
-   onComplete: async () => {
-     setShouldRunTour(false);
-     // Update onboarding status in database
-     if (user) {
-       try {
-         await fetch('/api/user/update-onboarding', {
-           method: 'POST',
-           headers: {
-             'Content-Type': 'application/json',
-           },
-           body: JSON.stringify({
-             user_id: user.id,
-             onboarding_completed: true
-           }),
-         });
-       } catch (error) {
-         console.error('Error updating onboarding status:', error);
-       }
-     }
-   }
- });
+  // Video player callbacks
+  const handlePlayerStateChange = (state: number) => {
+    // Handle state changes if needed
+  };
 
- useEffect(() => {
-   // Only fetch questions if course is loaded and published
-   if (course && course.published && id) {
-     fetchQuestions();
-   }
- }, [course, id]);
-
- useEffect(() => {
-   console.log('🔍 Checking YouTube API availability...');
-   
-   // Check if YT API is already loaded
-   if (window.YT && window.YT.Player) {
-     console.log('✅ YouTube API already loaded');
-     setIsYTApiLoaded(true);
-     return;
-   }
-
-   // Load YouTube iframe API if not already loaded
-   if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
-     console.log('📥 Loading YouTube iframe API...');
-   const script = document.createElement('script');
-   script.src = 'https://www.youtube.com/iframe_api';
-   script.async = true;
-   document.body.appendChild(script);
-   } else {
-     console.log('📜 YouTube API script already exists');
-   }
-
-   // Set up the callback for when API is ready
-   window.onYouTubeIframeAPIReady = () => {
-     console.log('✅ YouTube API loaded and ready');
-     setIsYTApiLoaded(true);
-   };
-
-   // Fallback timeout in case API fails to load
-   const timeout = setTimeout(() => {
-     if (!isYTApiLoaded) {
-       console.warn('⏰ YouTube API timeout - attempting fallback');
-       // Check one more time if the API is actually available
-       if (window.YT && window.YT.Player) {
-         console.log('✅ YouTube API available after timeout check');
-         setIsYTApiLoaded(true);
-       } else {
-         console.error('❌ YouTube API failed to load within timeout');
-         setError('YouTube video player failed to load. Please try refreshing the page.');
-       }
-     }
-   }, 10000); // 10 second timeout
-
-   return () => {
-     clearTimeout(timeout);
-     if (intervalRef.current) {
-       clearInterval(intervalRef.current);
-     }
-   };
- }, [isYTApiLoaded]);
-
- useEffect(() => {
-   console.log('🎯 Player initialization check:', {
-     videoId: videoId,
-     isYTApiLoaded: isYTApiLoaded,
-     hasWindowYT: !!(window.YT && window.YT.Player),
-     hasPlayer: !!player
-   });
-   
-   if (videoId && isYTApiLoaded && window.YT && window.YT.Player && !player) {
-     console.log('🚀 Attempting to initialize player...');
-     // Add small delay to ensure DOM is ready
-     const timer = setTimeout(() => {
-     initializePlayer();
-     }, 100);
-     
-     return () => clearTimeout(timer);
-   }
- }, [videoId, isYTApiLoaded, player]);
-
- useEffect(() => {
-   if (player && questions.length > 0) {
-     checkForQuestions();
-   }
- }, [currentTime, questions, currentQuestionIndex, answeredQuestions]);
-
- // Adjust question timestamps when video duration becomes available
- useEffect(() => {
-   if (questions.length > 0 && duration > 0 && isVideoReady) {
-     // Check if any questions need adjustment
-     const hasEndOfVideoQuestions = questions.some(question => question.timestamp > duration - 5);
-     
-     if (hasEndOfVideoQuestions) {
-       console.log(`🎬 Video duration: ${duration}s - checking for end-of-video questions...`);
-       const adjustedQuestions = adjustEndOfVideoQuestions(questions, duration);
-       
-       // Only update if adjustments were made
-       const questionsAdjusted = JSON.stringify(adjustedQuestions) !== JSON.stringify(questions);
-       if (questionsAdjusted) {
-         console.log('⏰ Applied timestamp adjustments for end-of-video questions');
-         setQuestions(adjustedQuestions);
-       }
-     }
-   }
- }, [questions, duration, isVideoReady]);
-
- // Auto-generate next course when user reaches halfway point
- useEffect(() => {
-   if (
-     duration > 0 && 
-     currentTime >= duration / 2 && 
-     !autoGenerationTriggered &&
-     !nextCourse && 
-     !isLoadingNextCourse && 
-     !nextCourseApiCalled
-   ) {
-     console.log('🚀 Auto-triggering next course generation at halfway point');
-     setAutoGenerationTriggered(true);
-     fetchNextCourse();
-   }
- }, [currentTime, duration, autoGenerationTriggered, nextCourse, isLoadingNextCourse, nextCourseApiCalled]);
-
- // Show next course modal 3 seconds before video ends
- useEffect(() => {
-   if (
-     duration > 0 && 
-     currentTime >= duration - 3 && 
-     !nextCourseModalShown &&
-     !showNextCourseModal
-   ) {
-     console.log('⏰ Showing next course modal 3 seconds before video ends');
-     setNextCourseModalShown(true);
-     setShowNextCourseModal(true);
-   }
- }, [currentTime, duration, nextCourseModalShown, showNextCourseModal]);
-
- const fetchCourse = async () => {
-   try {
-     const response = await fetch(`/api/course/${id}`);
-     const data = await response.json();
-
-     if (data.success) {
-       setCourse(data.course);
-       
-       // Check if course is processing
-       if (data.course && !data.course.published) {
-         console.log('Course is still processing');
-         setIsProcessing(true);
-         
-         // Check if the course has a generic description that needs updating
-         const hasGenericDescription = data.course.description && (
-           data.course.description.includes('Interactive course from') ||
-           data.course.description.includes('AI-powered interactive course') ||
-           data.course.description.includes('AI Generated Course')
-         );
-         
-         if (hasGenericDescription) {
-           // Try to update the description with AI-generated summary
-           try {
-             const updateResponse = await fetch('/api/course/update-summary', {
-               method: 'POST',
-               headers: { 'Content-Type': 'application/json' },
-               body: JSON.stringify({ course_id: data.course.id })
-             });
-             
-             if (updateResponse.ok) {
-               const updateResult = await updateResponse.json();
-               if (updateResult.success && updateResult.description) {
-                 // Update local state with the new description
-                 setCourse(prev => prev ? { ...prev, description: updateResult.description } : null);
-                 console.log('✅ Course description updated with AI-generated summary');
-               }
-             }
-           } catch (error) {
-             console.log('Could not update course description:', error);
-           }
-         }
-         
-         // Set up progress tracking
-         if (typeof window !== 'undefined') {
-           // Set up polling to check for completion
-           let checkCounter = 0;
-           const pollInterval = setInterval(async () => {
-             const pollResponse = await fetch(`/api/course/${id}`);
-             const pollData = await pollResponse.json();
-             
-             if (pollData.success && pollData.course.published) {
-               console.log('✅ Course processing complete!');
-               setCourse(pollData.course);
-               setIsProcessing(false);
-               clearInterval(pollInterval);
-               // Fetch questions now that course is published
-               fetchQuestions();
-             } else if (checkCounter % 6 === 0) { // Only check segments every 30 seconds (6 * 5s)
-               // Check segments less frequently to avoid overwhelming the orchestrator
-               try {
-                 const checkResponse = await fetch('/api/course/check-segment-processing', {
-                   method: 'POST',
-                   headers: {
-                     'Content-Type': 'application/json',
-                   },
-                   body: JSON.stringify({ course_id: id })
-                 });
-                 
-                 if (checkResponse.ok) {
-                   const checkData = await checkResponse.json();
-                   console.log('🔄 Periodic segment check result:', checkData);
-                 }
-               } catch (error) {
-                 console.error('Failed to check segments:', error);
-               }
-             }
-             checkCounter++;
-           }, 5000); // Poll course status every 5 seconds
-           
-           // Clean up interval on unmount
-           return () => clearInterval(pollInterval);
-         }
-       }
-       
-       // Enhance course data with rating information
-      let courseWithRating = { ...data.course };
-      
+  const handleVideoEnd = () => {
+    // Track course completion
+    if (id && typeof id === 'string') {
       try {
-        // Fetch rating data for this course
-        const ratingResponse = await fetch(`/api/courses/${id}/rating`);
-        if (ratingResponse.ok) {
-          const ratingData = await ratingResponse.json();
-          if (ratingData.success && ratingData.stats) {
-            courseWithRating.averageRating = ratingData.stats.average_rating || 0;
-            courseWithRating.totalRatings = ratingData.stats.total_ratings || 0;
-            console.log('⭐ Rating data loaded:', {
-              averageRating: courseWithRating.averageRating,
-              totalRatings: courseWithRating.totalRatings
-            });
-          }
-        }
-      } catch (ratingError) {
-        console.warn('Failed to fetch rating data:', ratingError);
-        // Continue without rating data
+        trackCourse({
+          courseId: id,
+          action: 'complete',
+          duration: Math.round(duration),
+          questionsAnswered: answeredQuestions.size,
+          completionPercentage: 100
+        });
+      } catch (error) {
+        console.warn('Failed to track course completion:', error);
       }
       
-      setCourse(courseWithRating);
-       const extractedVideoId = extractVideoId(data.course.youtube_url);
-       console.log('🎬 Course loaded:', {
-         title: data.course.title,
-         youtubeUrl: data.course.youtube_url,
-         extractedVideoId: extractedVideoId,
-         published: data.course.published,
-         hasRatings: courseWithRating.totalRatings > 0,
-         averageRating: courseWithRating.averageRating
-       });
-       setVideoId(extractedVideoId);
-     } else {
-       setError(data.error || 'Failed to fetch course');
-     }
-   } catch (err) {
-     setError('Error loading course');
-     console.error('Error fetching course:', err);
-   } finally {
-     setIsLoading(false);
-   }
- };
+      // Track completion for anonymous users
+      if (!user) {
+        const questionsAnswered = answeredQuestions.size;
+        const questionsCorrect = Array.from(answeredQuestions)
+          .filter(idx => questionResults[`0-${idx}`])
+          .length;
+        
+        SessionManager.completeCourse(questionsAnswered, questionsCorrect);
+      }
+      
+      // Trigger rating modal on completion
+      triggerRatingModal();
+    }
+  };
 
- // Parse options - handle both array and JSON string formats
- const parseOptions = (options: string[] | string): string[] => {
-   if (Array.isArray(options)) {
-     return options;
-   }
-   
-   if (typeof options === 'string') {
-     try {
-       const parsed = JSON.parse(options);
-       return Array.isArray(parsed) ? parsed : [options];
-     } catch (e) {
-       // If parsing fails, treat as a single option
-       return [options];
-     }
-   }
-   
-   return [];
- };
+  // YouTube player setup
+  const {
+    player,
+    playerRef,
+    isVideoReady,
+    isYTApiLoaded,
+    videoId,
+    currentTime,
+    duration
+  } = useYouTubePlayer({
+    courseId: id as string | undefined,
+    youtubeUrl: course?.youtube_url || '',
+    onTimeUpdate: (time: number) => {
+      // Time update handled internally
+    },
+    onDurationChange: (duration: number) => {
+      // Duration update handled internally
+    },
+    onPlayerStateChange: handlePlayerStateChange,
+    onVideoEnd: handleVideoEnd
+  });
 
- // Enhanced parseOptions function that handles true/false questions
- const parseOptionsWithTrueFalse = (options: string[] | string, questionType: string): string[] => {
-   const parsedOptions = parseOptions(options);
-   
-   // For true/false questions, ensure we have the correct options
-   if (parsedOptions.length === 0 && (questionType === 'true-false' || questionType === 'true_false')) {
-     return ['True', 'False'];
-   }
-   
-   return parsedOptions;
- };
+  // Track course start for anonymous users
+  useEffect(() => {
+    if (!user && course && id) {
+      SessionManager.setCurrentCourse(
+        id as string,
+        course.title,
+        course.youtube_url
+      );
+    }
+  }, [user, course, id]);
 
- const fetchQuestions = async () => {
-   try {
-     const response = await fetch(`/api/course/${id}/questions`);
-     const data = await response.json();
+  // Update viewing progress for anonymous users
+  useEffect(() => {
+    if (!user && duration > 0 && id) {
+      const percentage = (currentTime / duration) * 100;
+      SessionManager.updateViewingProgress(id as string, percentage);
+    }
+  }, [user, currentTime, duration, id]);
 
-     if (data.success) {
-       // Parse options for each question to ensure they're arrays and correct_answer is a number
-       const parsedQuestions = data.questions.map((q: any) => ({
-         ...q,
-         options: parseOptionsWithTrueFalse(q.options || [], q.type),
-         correct: parseInt(q.correct_answer) || 0,
-         correct_answer: parseInt(q.correct_answer) || 0
-       }));
-       
-       console.log('📊 Questions fetched for course:', data.questions.length);
-       console.log('🎯 Debug info:', data.debug);
-       console.log('📝 Sample question data:', data.questions[0]);
-       
-       // Log visual questions specifically
-       const visualQuestions = parsedQuestions.filter((q: Question) => q.type === 'hotspot' || q.type === 'matching' || q.requires_video_overlay);
-       console.log('👁️ Visual questions found:', visualQuestions.length);
-       if (visualQuestions.length > 0) {
-         console.log('🖼️ First visual q:', visualQuestions[0]);
-       }
-       
-       setQuestions(parsedQuestions);
-     } else {
-       console.error('Failed to fetch questions:', data.error);
-     }
-   } catch (err) {
-     console.error('Error fetching questions:', err);
-   } finally {
-     setIsLoading(false);
-   }
- };
+  // Next course management
+  const {
+    nextCourse,
+    isLoadingNextCourse,
+    showNextCourseModal,
+    setShowNextCourseModal,
+    fetchNextCourse
+  } = useNextCourse({
+    currentCourseId: id as string | undefined,
+    currentCourse: course,
+    questions,
+    questionResults,
+    currentTime,
+    duration
+  });
 
- // Helper function to track course enrollment for logged-in users
- const trackCourseEnrollment = async (courseId: string): Promise<boolean> => {
-   if (!user || isEnrolled) return isEnrolled; // Only track for logged-in users and if not already enrolled
-   
-   try {
-     const response = await fetch('/api/user-course-enrollments', {
-       method: 'POST',
-       headers: {
-         'Content-Type': 'application/json',
-       },
-       body: JSON.stringify({
-         user_id: user.id,
-         course_id: courseId,
-       }),
-     });
+  // Real-time updates
+  useRealTimeUpdates({
+    courseId: id as string | undefined,
+    isProcessing,
+    coursePublished: course?.published,
+    questionCount: questions.length,
+    isSegmented,
+    totalSegments,
+    fetchSegmentQuestions,
+    fetchQuestions,
+    setQuestions,
+    setSegmentQuestionCounts,
+    setCourse,
+    setIsProcessing
+  });
 
-     if (!response.ok) {
-       console.error('Failed to track course enrollment:', await response.text());
-       return false;
-     } else {
-       const result = await response.json();
-       console.log('Course enrollment tracked successfully:', result);
-       setIsEnrolled(true);
-       return true;
-     }
-   } catch (error) {
-     console.error('Error tracking course enrollment:', error);
-     return false;
-   }
- };
+  // Check if user has completed onboarding and show tour if needed
+  useEffect(() => {
+    // Only show the tour if:
+    // 1. User is logged in
+    // 2. Video is ready
+    // 3. Tour hasn't been completed before
+    if (user && isVideoReady && !hasTourBeenCompleted('learner')) {
+      setShouldRunTour(true);
+    }
+  }, [user, isVideoReady]);
 
- // Helper function to track question responses for logged-in users
- const trackQuestionResponse = async (questionId: string, selectedAnswer: string, isCorrect: boolean, questionType: string, responseTimeMs?: number) => {
-   if (!user || !session || !id) return; // Only track for logged-in users with valid session
-   
-   try {
-     // Ensure enrollment exists before tracking response
-     const enrollmentSuccess = await trackCourseEnrollment(id as string);
-     if (!enrollmentSuccess) {
-       console.error('Failed to create/verify enrollment, skipping question response tracking');
-       return;
-     }
+  // Initialize guided tour for learner journey
+  useGuidedTour('learner', learnerTourSteps, shouldRunTour, {
+    delay: 2000, // Wait for video to load
+    onComplete: async () => {
+      setShouldRunTour(false);
+      // Optionally update onboarding status in database if needed
+      if (user) {
+        try {
+          await fetch('/api/user/update-onboarding', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              user_id: user.id,
+              onboarding_completed: true
+            }),
+          });
+        } catch (error) {
+          console.error('Error updating onboarding status:', error);
+        }
+      }
+    }
+  });
 
-     const response = await fetch('/api/user-question-responses', {
-       method: 'POST',
-       headers: {
-         'Content-Type': 'application/json',
-         'Authorization': `Bearer ${session.access_token}`,
-       },
-       body: JSON.stringify({
-         question_id: questionId,
-         course_id: id,
-         selected_answer: selectedAnswer,
-         is_correct: isCorrect,
-         response_time_ms: responseTimeMs,
-         question_type: questionType,
-         timestamp: currentTime,
-       }),
-     });
+  // Check for questions when video time updates
+  useEffect(() => {
+    if (player && questions.length > 0) {
+      checkForQuestions();
+    }
+  }, [currentTime, questions, currentQuestionIndex, answeredQuestions]);
 
-     if (!response.ok) {
-       const errorText = await response.text();
-       console.error('Failed to track question response:', errorText);
-     } else {
-       const result = await response.json();
-       console.log('Question response tracked successfully:', result);
-     }
-   } catch (error) {
-     console.error('Error tracking question response:', error);
-   }
- };
+  // Adjust question timestamps when video duration becomes available
+  useEffect(() => {
+    if (questions.length > 0 && duration > 0 && isVideoReady) {
+      // Check if any questions need adjustment
+      const hasEndOfVideoQuestions = questions.some(question => question.timestamp > duration - 5);
+      
+      if (hasEndOfVideoQuestions) {
+        console.log(`🎬 Video duration: ${duration}s - checking for end-of-video questions...`);
+        const adjustedQuestions = adjustEndOfVideoQuestions(questions, duration);
+        
+        // Only update if adjustments were made
+        const questionsAdjusted = JSON.stringify(adjustedQuestions) !== JSON.stringify(questions);
+        if (questionsAdjusted) {
+          console.log('⏰ Applied timestamp adjustments for end-of-video questions');
+          setQuestions(adjustedQuestions);
+        }
+      }
+    }
+  }, [questions, duration, isVideoReady]);
 
- const fetchNextCourse = async () => {
-   // Prevent multiple API calls - check if already loaded, loading, or already called
-   if (nextCourse || isLoadingNextCourse || nextCourseApiCalled) {
-     console.log('📚 Next course already loaded, loading, or API already called, skipping fetch');
-     return;
-   }
-   
-   console.log('📚 Starting next course generation...');
-   setIsLoadingNextCourse(true);
-   setNextCourseApiCalled(true); // Mark API as called
-   
-   try {
-     // Get wrong answers from questionResults
-     const wrongAnswers = Object.entries(questionResults)
-       .filter(([questionId, isCorrect]) => !isCorrect)
-       .map(([questionId, isCorrect]) => {
-         const questionIndex = parseInt(questionId.split('-')[1]);
-         return questions[questionIndex];
-       })
-       .filter(question => question); // Filter out any undefined questions
+  const checkForQuestions = () => {
+    if (showQuestion || questions.length === 0) return;
 
-     console.log('📊 Sending wrong answers to next course API:', wrongAnswers);
+    const nextQuestion = questions.find((q, index) => {
+      return !answeredQuestions.has(index) && currentTime >= q.timestamp;
+    });
 
-     // Step 1: Get course suggestions
-     const suggestionsResponse = await fetch('/api/course/suggestions', {
-       method: 'POST',
-       headers: {
-         'Content-Type': 'application/json',
-       },
-       body: JSON.stringify({
-         videoUrl: course?.youtube_url
-       })
-     });
-     
-     if (!suggestionsResponse.ok) {
-       throw new Error('Failed to get course suggestions');
-     }
-     
-     const suggestionsData = await suggestionsResponse.json();
-     
-     if (!suggestionsData.topics || !Array.isArray(suggestionsData.topics) || suggestionsData.topics.length === 0) {
-       throw new Error('No course suggestions found');
-     }
-     
-     const firstTopic = suggestionsData.topics[0];
-     if (!firstTopic || !firstTopic.video) {
-       throw new Error('Invalid course suggestion');
-     }
-     
-     console.log('🎯 Got course suggestion:', {
-       topic: firstTopic.topic,
-       video: firstTopic.video
-     });
+    if (nextQuestion) {
+      const questionIndex = questions.indexOf(nextQuestion);
+      setCurrentQuestionIndex(questionIndex);
+      setShowQuestion(true);
+      questionStartTime.current = Date.now(); // Track when question was shown
+      playerRef.current?.pauseVideo(); // Auto-pause video when question appears
+      
+      // Track enrollment when user first interacts with a question (fire and forget)
+      if (id && typeof id === 'string') {
+        trackCourseEnrollment(id).catch(error => {
+          console.error('Error tracking enrollment in checkForQuestions:', error);
+        });
+      }
+    }
+  };
 
-     // Step 2: Use analyze-video-smart for more robust processing
-     const sessionId = `next-course-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-     
-     const smartAnalysisResponse = await fetch('/api/course/analyze-video-smart', {
-       method: 'POST',
-       headers: {
-         'Content-Type': 'application/json',
-       },
-       body: JSON.stringify({
-         youtube_url: firstTopic.video,
-         session_id: sessionId,
-         max_questions: 5,
-         enable_quality_verification: true,
-         segment_duration: 300, // 5 minutes
-         useCache: true,
-         useEnhanced: true
-       })
-     });
-     
-     if (!smartAnalysisResponse.ok) {
-       const errorText = await smartAnalysisResponse.text();
-       console.error('Smart analysis failed:', errorText);
-       throw new Error(`Smart analysis failed: ${errorText}`);
-     }
-     
-     const smartAnalysisData = await smartAnalysisResponse.json();
-     
-     if (!smartAnalysisData.success) {
-       throw new Error(smartAnalysisData.error || 'Smart analysis failed');
-     }
-     
-     console.log('✅ Smart analysis completed:', {
-       courseId: smartAnalysisData.course_id,
-       segmented: smartAnalysisData.segmented,
-       cached: smartAnalysisData.cached,
-       backgroundProcessing: smartAnalysisData.background_processing
-     });
+  // Helper function to track course enrollment for logged-in users
+  const trackCourseEnrollment = async (courseId: string): Promise<boolean> => {
+    if (!user || isEnrolled) return isEnrolled; // Only track for logged-in users and if not already enrolled
+    
+    try {
+      const response = await fetch('/api/user-course-enrollments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: user.id,
+          course_id: courseId,
+        }),
+      });
 
-     // Step 3: Fetch the generated course and questions
-     try {
-       // Fetch course data from database
-       const courseResponse = await fetch(`/api/course/${smartAnalysisData.course_id}`);
-       const courseData = await courseResponse.json();
-       
-       if (courseData.success) {
-         // Fetch questions for the course
-         const questionsResponse = await fetch(`/api/course/${smartAnalysisData.course_id}/questions`);
-         const questionsData = await questionsResponse.json();
-         
-         if (questionsData.success) {
-           // Parse questions like in the main fetchQuestions function
-           const parsedQuestions = questionsData.questions.map((q: any) => ({
-             ...q,
-             options: parseOptionsWithTrueFalse(q.options || [], q.type),
-             correct: parseInt(q.correct_answer) || 0,
-             correct_answer: parseInt(q.correct_answer) || 0
-           }));
-           
-           // Store the next course with database-fetched data
-           setNextCourse({
-             ...courseData.course,
-             courseId: smartAnalysisData.course_id,
-             questionsGenerated: true,
-             questions: parsedQuestions,
-             videoId: extractVideoId(courseData.course.youtube_url),
-             topic: firstTopic.topic
-           });
-           
-           console.log('✅ Next course data fetched from database:', {
-             courseId: smartAnalysisData.course_id,
-             title: courseData.course.title,
-             questionsCount: parsedQuestions.length,
-             topic: firstTopic.topic
-           });
-         } else {
-           console.error('Failed to fetch questions for next course:', questionsData.error);
-           // Still set course without questions
-           setNextCourse({
-             ...courseData.course,
-             courseId: smartAnalysisData.course_id,
-             questionsGenerated: false,
-             questions: [],
-             videoId: extractVideoId(courseData.course.youtube_url),
-             topic: firstTopic.topic
-           });
-         }
-       } else {
-         console.error('Failed to fetch next course from database:', courseData.error);
-         // Fallback to basic course data
-         setNextCourse({
-           id: smartAnalysisData.course_id,
-           title: firstTopic.topic,
-           description: `AI Generated Course about ${firstTopic.topic}`,
-           youtube_url: firstTopic.video,
-           created_at: new Date().toISOString(),
-           published: true,
-           courseId: smartAnalysisData.course_id,
-           questionsGenerated: smartAnalysisData.segmented || smartAnalysisData.cached || !smartAnalysisData.background_processing,
-           questions: [],
-           videoId: extractVideoId(firstTopic.video),
-           topic: firstTopic.topic
-         });
-       }
-     } catch (fetchError) {
-       console.error('Error fetching next course from database:', fetchError);
-       // Fallback to basic course data
-       setNextCourse({
-         id: smartAnalysisData.course_id,
-         title: firstTopic.topic,
-         description: `AI Generated Course about ${firstTopic.topic}`,
-         youtube_url: firstTopic.video,
-         created_at: new Date().toISOString(),
-         published: true,
-         courseId: smartAnalysisData.course_id,
-         questionsGenerated: smartAnalysisData.segmented || smartAnalysisData.cached || !smartAnalysisData.background_processing,
-         questions: [],
-         videoId: extractVideoId(firstTopic.video),
-         topic: firstTopic.topic
-       });
-     }
-   } catch (err) {
-     console.error('Error fetching next course:', err);
-     // Reset API called state on error so it can be retried
-     setNextCourseApiCalled(false);
-   } finally {
-     setIsLoadingNextCourse(false);
-   }
- };
+      if (!response.ok) {
+        console.error('Failed to track course enrollment:', await response.text());
+        return false;
+      } else {
+        const result = await response.json();
+        console.log('Course enrollment tracked successfully:', result);
+        setIsEnrolled(true);
+        return true;
+      }
+    } catch (error) {
+      console.error('Error tracking course enrollment:', error);
+      return false;
+    }
+  };
 
- // Helper function for debugging player state
- const getPlayerStateName = (state: number) => {
-   const states: Record<number, string> = {
-     [-1]: 'UNSTARTED',
-     [0]: 'ENDED',
-     [1]: 'PLAYING',
-     [2]: 'PAUSED',
-     [3]: 'BUFFERING',
-     [5]: 'CUED'
-   };
-   return states[state] || `UNKNOWN(${state})`;
- };
+  // Helper function to track question responses for logged-in users
+  const trackQuestionResponse = async (questionId: string, selectedAnswer: string, isCorrect: boolean, questionType: string, responseTimeMs?: number) => {
+    if (!user || !session || !id) return; // Only track for logged-in users with valid session
+    
+    try {
+      // Ensure enrollment exists before tracking response
+      const enrollmentSuccess = await trackCourseEnrollment(id as string);
+      if (!enrollmentSuccess) {
+        console.error('Failed to create/verify enrollment, skipping question response tracking');
+        return;
+      }
 
- const initializePlayer = (retryCount = 0) => {
-   console.log(`🎯 initializePlayer called (attempt ${retryCount + 1})`, {
-     hasYT: !!window.YT,
-     hasPlayer: !!(window.YT && window.YT.Player),
-     videoId: videoId,
-     domReady: document.readyState,
-     elementExists: !!document.getElementById('youtube-player')
-   });
+      const response = await fetch('/api/user-question-responses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          question_id: questionId,
+          course_id: id,
+          selected_answer: selectedAnswer,
+          is_correct: isCorrect,
+          response_time_ms: responseTimeMs,
+          question_type: questionType,
+          timestamp: currentTime,
+        }),
+      });
 
-   if (!window.YT || !window.YT.Player || !videoId) {
-     console.warn('⚠️ YouTube API not ready or no video ID:', {
-       hasYT: !!window.YT,
-       hasPlayer: !!(window.YT && window.YT.Player),
-       videoId: videoId
-     });
-     return;
-   }
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Failed to track question response:', errorText);
+      } else {
+        const result = await response.json();
+        console.log('Question response tracked successfully:', result);
+      }
+    } catch (error) {
+      console.error('Error tracking question response:', error);
+    }
+  };
 
-   // Check if the target element exists
-   const targetElement = document.getElementById('youtube-player');
-   if (!targetElement) {
-     console.warn(`⚠️ YouTube player target element not found (attempt ${retryCount + 1})`);
-     console.log('🔍 DOM elements check:', {
-       bodyChildren: document.body.children.length,
-       hasYouTubePlayer: !!document.getElementById('youtube-player'),
-       allElementsWithId: Array.from(document.querySelectorAll('[id]')).map(el => el.id)
-     });
-     
-     // Retry up to 5 times with increasing delays
-     if (retryCount < 5) {
-       setTimeout(() => {
-         initializePlayer(retryCount + 1);
-       }, 200 * (retryCount + 1)); // 200ms, 400ms, 600ms, 800ms, 1000ms
-       return;
-     } else {
-       console.error('❌ YouTube player target element not found after 5 attempts');
-       setError('Video player container not found after multiple attempts');
-       return;
-     }
-   }
+  const handleAnswer = (correct: boolean, selectedAnswer?: string) => {
+    setIsAnswerIncorrect(!correct); // Track if answer was incorrect
+    setLastUserAnswer(selectedAnswer || ''); // Track the user's answer
+    setHasJustAnswered(true); // User just answered
+    
+    if (correct) {
+      setCorrectAnswers(prev => prev + 1);
+      
+      // Track engagement score but don't trigger rating modal during course
+      setEngagementScore(prev => prev + 10);
+    }
+    
+    // Track question answered engagement with error handling
+    if (id && typeof id === 'string') {
+      try {
+        trackEngagement(id, { type: 'question_answered', value: correct ? 1 : 0 });
+      } catch (error) {
+        console.warn('Failed to track question engagement:', error);
+      }
+    }
+    
+    // Track question results for curriculum card
+    const questionId = `0-${currentQuestionIndex}`; // Using segment 0 since we're flattening
+    setQuestionResults(prev => ({ ...prev, [questionId]: correct }));
+    
+    // Track question response for logged-in users
+    if (questions[currentQuestionIndex] && id && typeof id === 'string') {
+      const question = questions[currentQuestionIndex];
+      const responseTimeMs = questionStartTime.current ? Date.now() - questionStartTime.current : undefined;
+      const answer = selectedAnswer || (correct ? 'correct' : 'incorrect'); // Fallback if selectedAnswer not provided
+      
+      if (user) {
+        // Existing tracking for logged-in users
+        trackQuestionResponse(
+          question.id,
+          answer,
+          correct,
+          question.type,
+          responseTimeMs
+        );
+      } else {
+        // Track for anonymous users
+        const userAnswer = formatUserAnswer(answer, question);
+        const correctAnswer = formatCorrectAnswer(question);
+        
+        SessionManager.trackQuestionResult(
+          question.question,
+          userAnswer,
+          correctAnswer,
+          correct,
+          question.type,
+          question.timestamp,
+          question.explanation // Pass explanation instead of undefined
+        );
+      }
+    }
+  };
 
-   try {
-     console.log('🚀 Initializing YouTube player for video:', videoId);
-     console.log('🎯 Target element found:', {
-       id: targetElement.id,
-       className: targetElement.className,
-       clientWidth: targetElement.clientWidth,
-       clientHeight: targetElement.clientHeight,
-       style: targetElement.getAttribute('style')
-     });
+  const handleContinueVideo = () => {
+    setAnsweredQuestions(prev => new Set(prev).add(currentQuestionIndex));
+    setShowQuestion(false);
+    setIsAnswerIncorrect(false); // Reset when continuing
+    setLastUserAnswer(''); // Reset user answer
+    setHasJustAnswered(false); // Reset answered state
+    
+    // For hotspot questions, seek back to the original question timestamp
+    const currentQuestion = questions[currentQuestionIndex];
+    if (currentQuestion && currentQuestion.type === 'hotspot' && currentQuestion.frame_timestamp && playerRef.current) {
+      // The video is currently at frame_timestamp, need to go back to the original timestamp
+      console.log('🎯 Returning to question timestamp from frame timestamp:', {
+        originalTimestamp: currentQuestion.timestamp,
+        frameTimestamp: currentQuestion.frame_timestamp
+      });
+      playerRef.current.seekTo(currentQuestion.timestamp);
+    }
+    
+    playerRef.current?.playVideo(); // Resume video when continuing
+  };
 
-   const newPlayer = new window.YT.Player('youtube-player', {
-     videoId: videoId,
-       width: '100%',
-       height: '100%',
-     playerVars: {
-       autoplay: 0,
-       controls: 0,
-       disablekb: 0,
-       enablejsapi: 1,
-       modestbranding: 1,
-       playsinline: 1,
-       rel: 0,
-         origin: window.location.origin
-     },
-     events: {
-       onReady: (event: any) => {
-           console.log('✅ YouTube player ready');
-         setPlayer(event.target);
-         playerRef.current = event.target;
-         setIsVideoReady(true);
-         startTimeTracking();
-       },
-       onStateChange: async (event: any) => {
-         console.log('🎬 Player state changed:', {
-           stateCode: event.data,
-           stateName: getPlayerStateName(event.data),
-           YT_ENDED: window.YT?.PlayerState?.ENDED,
-           nextCourse: !!nextCourse,
-           isLoadingNextCourse: isLoadingNextCourse,
-           showNextCourseModal: showNextCourseModal
-         });
-         
-         if (event.data === window.YT.PlayerState.PLAYING) {
-           startTimeTracking();
-         } else if (event.data === window.YT.PlayerState.PAUSED) {
-           stopTimeTracking();
-           // Track pause engagement with error handling
-           try {
-             trackEngagement(id as string, { type: 'video_paused' });
-           } catch (error) {
-             console.warn('Failed to track pause engagement:', error);
-           }
-         } else if (event.data === window.YT.PlayerState.ENDED || event.data === 0) {
-           console.log('🏁 Video ended - stopping time tracking');
-           stopTimeTracking();
-           
-           // Track course completion with error handling
-           if (id && typeof id === 'string') {
-             try {
-               trackCourse({
-                 courseId: id,
-                 action: 'complete',
-                 duration: Math.round(duration),
-                 questionsAnswered: answeredQuestions.size,
-                 completionPercentage: 100
-               });
-             } catch (error) {
-               console.warn('Failed to track course completion:', error);
-             }
-             
-             // Trigger rating modal on completion
-             triggerRatingModal();
-           }
-           
-           // Modal should already be shown 3 seconds before the end
-           // This is just a fallback in case the modal wasn't shown for some reason
-           if (!nextCourseModalShown) {
-             console.log('⚠️ Fallback: Showing next course modal at video end');
-             setNextCourseModalShown(true);
-             setShowNextCourseModal(true);
-           }
-         }
-       },
-         onError: (event: any) => {
-           console.error('❌ YouTube player error:', event.data);
-           const errorMessages = {
-             2: 'Invalid video ID',
-             5: 'HTML5 player error',
-             100: 'Video not found or private',
-             101: 'Video not allowed to be embedded',
-             150: 'Video not allowed to be embedded'
-           };
-           const errorMessage = errorMessages[event.data as keyof typeof errorMessages] || 'Unknown video error';
-           setError(`Video error: ${errorMessage}`);
-         }
-     },
-   });
-   } catch (error) {
-     console.error('❌ Error initializing YouTube player:', error);
-     setError('Failed to initialize video player');
-   }
- };
+  // Rating trigger logic
+  const triggerRatingModal = () => {
+    if (hasRated || showRatingModal) return;
+    
+    console.log(`⭐ Triggering rating modal on course completion`);
+    setShowRatingModal(true);
+    
+    if (id && typeof id === 'string') {
+      try {
+        trackRatingModalShown(id, 'completion');
+      } catch (error) {
+        console.warn('Failed to track rating modal shown:', error);
+      }
+    }
+  };
 
- const startTimeTracking = () => {
-   if (intervalRef.current) clearInterval(intervalRef.current);
-   
-   intervalRef.current = setInterval(() => {
-     if (playerRef.current) {
-       const time = playerRef.current.getCurrentTime();
-       const totalDuration = playerRef.current.getDuration();
-       setCurrentTime(time);
-       setDuration(totalDuration);
-     }
-   }, 100); // Check every 100ms for smooth question timing
- };
+  const handleRatingSubmit = async (rating: number) => {
+    if (!id || typeof id !== 'string') return;
+    
+    const timeSpentMinutes = Math.round((Date.now() - courseStartTime) / 60000);
+    const completionPercentage = duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0;
+    
+    try {
+      const response = await fetch(`/api/courses/${id}/rating`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token && { 'Authorization': `Bearer ${session.access_token}` })
+        },
+        body: JSON.stringify({
+          rating,
+          context: 'completion', // Always completion since modal only shows at end
+          engagementData: {
+            timeSpentMinutes,
+            questionsAnswered: answeredQuestions.size,
+            completionPercentage
+          }
+        })
+      });
 
- const stopTimeTracking = () => {
-   if (intervalRef.current) {
-     clearInterval(intervalRef.current);
-     intervalRef.current = null;
-   }
- };
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Rating submitted:', data);
+        
+        // Track rating analytics with error handling
+        try {
+          trackRating({
+            courseId: id,
+            rating,
+            context: 'completion', // Always completion since modal only shows at end
+            timeToRate: Date.now() - courseStartTime,
+            engagementScore,
+            platform: getPlatform()
+          });
+        } catch (error) {
+          console.warn('Failed to track rating analytics:', error);
+        }
+        
+        setHasRated(true);
+        setShowRatingModal(false);
+      } else {
+        console.error('Failed to submit rating');
+      }
+    } catch (error) {
+      console.error('Error submitting rating:', error);
+    }
+  };
 
- const checkForQuestions = () => {
-   if (showQuestion || questions.length === 0) return;
+  const handleRatingClose = () => {
+    setShowRatingModal(false);
+    
+    if (id && typeof id === 'string') {
+      try {
+        trackRatingModalDismissed(id, 'manual');
+      } catch (error) {
+        console.warn('Failed to track rating modal dismissed:', error);
+      }
+    }
+  };
 
-   const nextQuestion = questions.find((q, index) => {
-     return !answeredQuestions.has(index) && currentTime >= q.timestamp;
-   });
+  const handleVideoSeek = async (seekTime: number) => {
+    if (!playerRef.current || !questions) return;
+    
+    // Track video seek engagement with error handling
+    if (id && typeof id === 'string') {
+      try {
+        trackEngagement(id, { type: 'video_seeked', value: seekTime });
+      } catch (error) {
+        console.warn('Failed to track video seek engagement:', error);
+      }
+    }
 
-   if (nextQuestion) {
-     const questionIndex = questions.indexOf(nextQuestion);
-     setCurrentQuestionIndex(questionIndex);
-     setShowQuestion(true);
-     questionStartTime.current = Date.now(); // Track when question was shown
-     playerRef.current?.pauseVideo(); // Auto-pause video when question appears
-     
-     // Track enrollment when user first interacts with a question (fire and forget)
-     if (id && typeof id === 'string') {
-       trackCourseEnrollment(id).catch(error => {
-         console.error('Error tracking enrollment in checkForQuestions:', error);
-       });
-     }
-   }
- };
+    // Find all questions between current time and seek time
+    const questionsInRange = questions
+      .map((question, index) => ({ ...question, index }))
+      .filter(q => {
+        if (seekTime > currentTime) {
+          // Seeking forward - find unanswered questions we're skipping
+          return q.timestamp > currentTime && q.timestamp <= seekTime && !answeredQuestions.has(q.index);
+        } else {
+          // Seeking backward - no need to mark questions
+          return false;
+        }
+      });
 
- const handleAnswer = (correct: boolean, selectedAnswer?: string) => {
-   if (correct) {
-     setCorrectAnswers(prev => prev + 1);
-     
-     // Track engagement score but don't trigger rating modal during course
-     setEngagementScore(prev => prev + 10);
-   }
-   
-   // Track question answered engagement with error handling
-   if (id && typeof id === 'string') {
-     try {
-       trackEngagement(id, { type: 'question_answered', value: correct ? 1 : 0 });
-     } catch (error) {
-       console.warn('Failed to track question engagement:', error);
-     }
-   }
-   
-   // Track question results for curriculum card
-   const questionId = `0-${currentQuestionIndex}`; // Using segment 0 since we're flattening
-   setQuestionResults(prev => ({ ...prev, [questionId]: correct }));
-   
-   // Track question response for logged-in users
-   if (questions[currentQuestionIndex] && id && typeof id === 'string') {
-     const question = questions[currentQuestionIndex];
-     const responseTimeMs = questionStartTime.current ? Date.now() - questionStartTime.current : undefined;
-     const answer = selectedAnswer || (correct ? 'correct' : 'incorrect'); // Fallback if selectedAnswer not provided
-     
-     trackQuestionResponse(
-       question.id,
-       answer,
-       correct,
-       question.type,
-       responseTimeMs
-     );
-   }
- };
+    // Mark skipped questions
+    if (questionsInRange.length > 0) {
+      console.log(`⏩ Skipping ${questionsInRange.length} questions`);
+      
+      const newSkippedQuestions = new Set(skippedQuestions);
+      for (const question of questionsInRange) {
+        newSkippedQuestions.add(question.index);
+        
+        // Track as incorrect for progress if user is authenticated
+        if (user) {
+          try {
+            const response = await fetch('/api/user/progress', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session?.access_token}`
+              },
+              body: JSON.stringify({
+                courseId: id,
+                segmentIndex: 0, // In this simpler structure, we don't have segments
+                segmentTitle: 'Main',
+                questionId: question.id,
+                selectedAnswer: -1, // Indicate skipped
+                isCorrect: false,
+                timeSpent: 0,
+                explanationViewed: false
+              })
+            });
+          } catch (error) {
+            console.error('Failed to track skipped question:', error);
+          }
+        }
+      }
+      setSkippedQuestions(newSkippedQuestions);
+    }
 
- const handleContinueVideo = () => {
-   setAnsweredQuestions(prev => new Set(prev).add(currentQuestionIndex));
-   setShowQuestion(false);
-   
-   // For hotspot questions, seek back to the original question timestamp
-   const currentQuestion = questions[currentQuestionIndex];
-   if (currentQuestion && currentQuestion.type === 'hotspot' && currentQuestion.frame_timestamp && playerRef.current) {
-     // The video is currently at frame_timestamp, need to go back to the original timestamp
-     console.log('🎯 Returning to question timestamp from frame timestamp:', {
-       originalTimestamp: currentQuestion.timestamp,
-       frameTimestamp: currentQuestion.frame_timestamp
-     });
-     playerRef.current.seekTo(currentQuestion.timestamp);
-   }
-   
-   playerRef.current?.playVideo(); // Resume video when continuing
- };
+    // Seek the video
+    playerRef.current.seekTo(seekTime);
+  };
 
- // Rating trigger logic
- const triggerRatingModal = () => {
-   if (hasRated || showRatingModal) return;
-   
-   console.log(`⭐ Triggering rating modal on course completion`);
-   setShowRatingModal(true);
-   
-   if (id && typeof id === 'string') {
-     try {
-       trackRatingModalShown(id, 'completion');
-     } catch (error) {
-       console.warn('Failed to track rating modal shown:', error);
-     }
-   }
- };
+  const handleBackToHome = () => {
+    router.push('/');
+  };
 
- const handleRatingSubmit = async (rating: number) => {
-   if (!id || typeof id !== 'string') return;
-   
-   const timeSpentMinutes = Math.round((Date.now() - courseStartTime) / 60000);
-   const completionPercentage = duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0;
-   
-   try {
-     const response = await fetch(`/api/courses/${id}/rating`, {
-       method: 'POST',
-       headers: {
-         'Content-Type': 'application/json',
-         ...(session?.access_token && { 'Authorization': `Bearer ${session.access_token}` })
-       },
-       body: JSON.stringify({
-         rating,
-         context: 'completion', // Always completion since modal only shows at end
-         engagementData: {
-           timeSpentMinutes,
-           questionsAnswered: answeredQuestions.size,
-           completionPercentage
-         }
-       })
-     });
+  // Convert questions to courseData format for curriculum card
+  const getCourseData = (): CourseData => {
+    if (!course || questions.length === 0) {
+      return {
+        title: course?.title || '',
+        description: course?.description || '',
+        duration: duration > 0 ? formatTime(duration) : 'Variable',
+        videoId: videoId,
+        segments: []
+      };
+    }
 
-     if (response.ok) {
-       const data = await response.json();
-       console.log('✅ Rating submitted:', data);
-       
-       // Track rating analytics with error handling
-       try {
-         trackRating({
-           courseId: id,
-           rating,
-           context: 'completion', // Always completion since modal only shows at end
-           timeToRate: Date.now() - courseStartTime,
-           engagementScore,
-           platform: getPlatform()
-         });
-       } catch (error) {
-         console.warn('Failed to track rating analytics:', error);
-       }
-       
-       setHasRated(true);
-       setShowRatingModal(false);
-     } else {
-       console.error('Failed to submit rating');
-     }
-   } catch (error) {
-     console.error('Error submitting rating:', error);
-   }
- };
+    // For segmented courses, group questions by segment
+    if (isSegmented) {
+      const segmentMap = new Map<number, Question[]>();
+      
+      questions.forEach(q => {
+        const segmentId = q.segment_index || 0;
+        if (!segmentMap.has(segmentId)) {
+          segmentMap.set(segmentId, []);
+        }
+        segmentMap.get(segmentId)!.push(q);
+      });
 
- const handleRatingClose = () => {
-   setShowRatingModal(false);
-   
-   if (id && typeof id === 'string') {
-     try {
-       trackRatingModalDismissed(id, 'manual');
-     } catch (error) {
-       console.warn('Failed to track rating modal dismissed:', error);
-     }
-   }
- };
+      const segments: Segment[] = Array.from(segmentMap.entries())
+        .sort(([a], [b]) => a - b)
+        .map(([segmentId, segmentQuestions]) => ({
+          title: `Segment ${segmentId + 1}`,
+          timestamp: formatTime(segmentQuestions[0]?.timestamp || 0),
+          timestampSeconds: segmentQuestions[0]?.timestamp || 0,
+          concepts: [],
+          questions: segmentQuestions,
+          isComplete: segmentId < completedSegments
+        }));
 
- const handleVideoSeek = async (seekTime: number) => {
-   if (!playerRef.current || !questions) return;
-   
-   // Track video seek engagement with error handling
-   if (id && typeof id === 'string') {
-     try {
-       trackEngagement(id, { type: 'video_seeked', value: seekTime });
-     } catch (error) {
-       console.warn('Failed to track video seek engagement:', error);
-     }
-   }
+      return {
+        title: course.title,
+        description: course.description,
+        duration: duration > 0 ? formatTime(duration) : 'Variable',
+        videoId: videoId,
+        segments
+      };
+    }
 
-   // Find all questions between current time and seek time
-   const questionsInRange = questions
-     .map((question, index) => ({ ...question, index }))
-     .filter(q => {
-       if (seekTime > currentTime) {
-         // Seeking forward - find unanswered questions we're skipping
-         return q.timestamp > currentTime && q.timestamp <= seekTime && !answeredQuestions.has(q.index);
-       } else {
-         // Seeking backward - no need to mark questions
-         return false;
-       }
-     });
+    // For non-segmented courses, group all questions into a single segment
+    const segment: Segment = {
+      title: "Course Content",
+      timestamp: "00:00",
+      timestampSeconds: 0,
+      concepts: [],
+      questions: questions,
+      isComplete: true
+    };
 
-   // Mark skipped questions
-   if (questionsInRange.length > 0) {
-     console.log(`⏩ Skipping ${questionsInRange.length} questions`);
-     
-     const newSkippedQuestions = new Set(skippedQuestions);
-     for (const question of questionsInRange) {
-       newSkippedQuestions.add(question.index);
-       
-       // Track as incorrect for progress if user is authenticated
-       if (user && supabase) {
-         try {
-           const { data: { session } } = await supabase.auth.getSession();
-           if (session) {
-             await fetch('/api/user/progress', {
-               method: 'POST',
-               headers: {
-                 'Content-Type': 'application/json',
-                 'Authorization': `Bearer ${session.access_token}`
-               },
-               body: JSON.stringify({
-                 courseId: id,
-                 segmentIndex: 0, // In this simpler structure, we don't have segments
-                 segmentTitle: 'Main',
-                 questionId: question.id,
-                 selectedAnswer: -1, // Indicate skipped
-                 isCorrect: false,
-                 timeSpent: 0,
-                 explanationViewed: false
-               })
-             });
-           }
-         } catch (error) {
-           console.error('Failed to track skipped question:', error);
-         }
-       }
-     }
-     setSkippedQuestions(newSkippedQuestions);
-   }
+    return {
+      title: course.title,
+      description: course.description,
+      duration: duration > 0 ? formatTime(duration) : 'Variable',
+      videoId: videoId,
+      segments: [segment]
+    };
+  };
 
-   // Seek the video
-   playerRef.current.seekTo(seekTime);
-   setCurrentTime(seekTime);
- };
+  // Convert questions to Canvas export format
+  const getCanvasSegments = (): Segment[] => {
+    if (!course || questions.length === 0) {
+      return [];
+    }
 
- const extractVideoId = (url: string): string => {
-   const patterns = [
-     /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-     /youtube\.com\/watch\?.*v=([^&\n?#]+)/
-   ];
-   
-   for (const pattern of patterns) {
-     const match = url.match(pattern);
-     if (match) {
-       return match[1];
-     }
-   }
-   return '';
- };
+    // Group questions by timestamp if they have them, otherwise create a single segment
+    const questionsWithTimestamps = questions.filter(q => q.timestamp && q.timestamp > 0);
+    
+    if (questionsWithTimestamps.length > 0) {
+      // Create segments based on question timestamps
+      const segments: Segment[] = [];
+      const sortedQuestions = [...questionsWithTimestamps].sort((a, b) => a.timestamp - b.timestamp);
+      
+      // Group questions into segments (every 5 questions or significant timestamp gap)
+      let currentSegment: Segment = {
+        title: "Introduction",
+        timestamp: formatTime(sortedQuestions[0]?.timestamp || 0),
+        timestampSeconds: sortedQuestions[0]?.timestamp || 0,
+        concepts: [],
+        questions: []
+      };
+      
+      for (let i = 0; i < sortedQuestions.length; i++) {
+        const question = sortedQuestions[i];
+        
+        // Start new segment if timestamp gap > 5 minutes or every 5 questions
+        if (i > 0 && (
+          question.timestamp - currentSegment.timestampSeconds > 300 || 
+          currentSegment.questions.length >= 5
+        )) {
+          if (currentSegment.questions.length > 0) {
+            segments.push(currentSegment);
+          }
+          
+          currentSegment = {
+            title: `Segment ${segments.length + 1}`,
+            timestamp: formatTime(question.timestamp),
+            timestampSeconds: question.timestamp,
+            concepts: [],
+            questions: []
+          };
+        }
+        
+        currentSegment.questions.push(question);
+        
+        // Extract concepts from question text (simple approach)
+        if (question.visual_context) {
+          const concept = question.visual_context.substring(0, 50);
+          if (!currentSegment.concepts.includes(concept)) {
+            currentSegment.concepts.push(concept);
+          }
+        }
+      }
+      
+      // Add the last segment
+      if (currentSegment.questions.length > 0) {
+        segments.push(currentSegment);
+      }
+      
+      return segments;
+    } else {
+      // Create a single segment with all questions
+      return [{
+        title: "Course Content",
+        timestamp: "00:00",
+        timestampSeconds: 0,
+        concepts: questions.map(q => q.question.substring(0, 50)).slice(0, 5),
+        questions: questions
+      }];
+    }
+  };
 
- // Adjust question timestamps that are too close to the video end
- const adjustEndOfVideoQuestions = (questions: Question[], videoDuration: number): Question[] => {
-   const END_BUFFER_SECONDS = 5; // Move questions this many seconds before the end
-   
-   return questions.map(question => {
-     // Check if question is within the last 5 seconds of the video
-     if (question.timestamp > videoDuration - END_BUFFER_SECONDS) {
-       const originalTimestamp = question.timestamp;
-       const adjustedTimestamp = Math.max(
-         videoDuration - END_BUFFER_SECONDS,
-         question.timestamp - END_BUFFER_SECONDS
-       );
-       
-       console.log(`⏰ Adjusting end-of-video question: ${originalTimestamp}s → ${adjustedTimestamp}s (video ends at ${videoDuration}s)`);
-       
-       return {
-         ...question,
-         timestamp: adjustedTimestamp,
-         frame_timestamp: question.frame_timestamp && question.frame_timestamp > videoDuration - END_BUFFER_SECONDS 
-           ? adjustedTimestamp - 2 
-           : question.frame_timestamp
-       };
-     }
-     return question;
-   });
- };
+  // Get active question data for chat bubble
+  const getActiveQuestion = () => {
+    if (!showQuestion || !questions[currentQuestionIndex]) {
+      return null;
+    }
 
- const handleBackToHome = () => {
-   router.push('/');
- };
+    const question = questions[currentQuestionIndex];
 
- const formatTime = (seconds: number) => {
-   const minutes = Math.floor(seconds / 60);
-   const remainingSeconds = Math.floor(seconds % 60);
-   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
- };
+    const parsedOptions = parseOptions(question.options || []);
+    const finalOptions = parsedOptions.length === 0 && (question.type === 'true-false' || question.type === 'true_false') 
+      ? ['True', 'False'] 
+      : parsedOptions;
 
- const formatTimestamp = (seconds: number): string => {
-   const minutes = Math.floor(seconds / 60);
-   const secs = Math.floor(seconds % 60);
-   return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
- };
+    // Cast to any to access all possible properties
+    const questionAny = question as any;
 
- // Convert questions to courseData format for curriculum card
- const getCourseData = (): CourseData => {
-   if (!course || questions.length === 0) {
-     return {
-       title: course?.title || '',
-       description: course?.description || '',
-       duration: duration > 0 ? formatTime(duration) : 'Variable',
-       videoId: videoId,
-       segments: []
-     };
-   }
+    return {
+      question: question.question,
+      type: question.type,
+      options: finalOptions,
+      correct_answer: question.correct_answer,
+      explanation: question.explanation,
+      // Include all properties needed for different question types
+      sequence_items: questionAny.sequence_items,
+      matching_pairs: questionAny.matching_pairs,
+      bounding_boxes: questionAny.bounding_boxes,
+      target_objects: questionAny.target_objects
+    };
+  };
 
-   // Group questions into a single segment for simplicity
-   const segment: Segment = {
-     title: "Course Content",
-     timestamp: "00:00",
-     timestampSeconds: 0,
-     concepts: [],
-     questions: questions // Questions are already properly formatted from fetchQuestions
-   };
+  // Convert answeredQuestions Set<number> to Set<string> format expected by curriculum card
+  const getAnsweredQuestionsForCurriculum = (): Set<string> => {
+    return new Set(Array.from(answeredQuestions).map(index => `0-${index}`));
+  };
 
-   return {
-     title: course.title,
-     description: course.description,
-     duration: duration > 0 ? formatTime(duration) : 'Variable',
-     videoId: videoId,
-     segments: [segment]
-   };
- };
+  const handleLoginRedirect = () => {
+    // Save progress before redirecting
+    localStorage.setItem('courseProgress', JSON.stringify({
+      courseId: id,
+      currentTime,
+      answeredQuestions: Array.from(answeredQuestions),
+      correctAnswers
+    }));
+    
+    router.push(`/login?returnUrl=/course/${id}`);
+  };
 
  // Convert questions to Canvas export format
  const getCanvasSegments = (): Segment[] => {
@@ -1354,199 +1053,207 @@ export default function CoursePage() {
    if (!showQuestion || !questions[currentQuestionIndex]) {
      return null;
    }
-
-   const question = questions[currentQuestionIndex];
    
-   // Parse options - handle both array and JSON string formats
-   const parseOptions = (options: string[] | string): string[] => {
-     if (Array.isArray(options)) {
-       return options;
-     }
-     
-     if (typeof options === 'string') {
-       try {
-         const parsed = JSON.parse(options);
-         return Array.isArray(parsed) ? parsed : [options];
-       } catch (e) {
-         return [options];
-       }
-     }
-     
-     return [];
-   };
-
-   const parsedOptions = parseOptions(question.options || []);
-   const finalOptions = parsedOptions.length === 0 && (question.type === 'true-false' || question.type === 'true_false') 
-     ? ['True', 'False'] 
-     : parsedOptions;
-
-   return {
-     question: question.question,
-     type: question.type,
-     options: finalOptions
-   };
+   return questions[currentQuestionIndex];
  };
 
- // Convert answeredQuestions Set<number> to Set<string> format expected by curriculum card
- const getAnsweredQuestionsForCurriculum = (): Set<string> => {
-   return new Set(Array.from(answeredQuestions).map(index => `0-${index}`));
- };
+  const handleStartNextCourse = () => {
+    if (nextCourse) {
+      console.log('📚 Navigating to next course:', {
+        courseId: nextCourse.id,
+        title: nextCourse.title,
+        questionsGenerated: nextCourse.questionsGenerated,
+        nextCourse: nextCourse
+      });
+      
+      // Close modal before navigation
+      setShowNextCourseModal(false);
+      
+      // Force full page reload to ensure fresh state
+      window.location.href = `/course/${nextCourse.id}`;
+    }
+  };
 
- const handleLoginRedirect = () => {
-   // Save progress before redirecting
-   localStorage.setItem('courseProgress', JSON.stringify({
-     courseId: id,
-     currentTime,
-     answeredQuestions: Array.from(answeredQuestions),
-     correctAnswers
-   }));
-   
-   router.push(`/login?returnUrl=/course/${id}`);
- };
+  const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
 
- const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+        <Header />
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-6xl mx-auto space-y-8">
+            <Button variant="ghost" className="mb-4">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Home
+            </Button>
+            
+            <div className="text-center space-y-4">
+              <Skeleton className="h-12 w-3/4 mx-auto" />
+              <Skeleton className="h-6 w-1/2 mx-auto" />
+            </div>
+            
+            <Card>
+              <CardContent className="p-6">
+                <Skeleton className="aspect-video w-full" />
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
- if (isLoading) {
-   return (
-     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
-       <Header />
-       <div className="container mx-auto px-4 py-8">
-         <div className="max-w-4xl mx-auto space-y-8">
-           <Button variant="ghost" className="mb-4">
-             <ArrowLeft className="mr-2 h-4 w-4" />
-             Back to Home
-           </Button>
-           
-           <div className="text-center space-y-4">
-             <Skeleton className="h-12 w-3/4 mx-auto" />
-             <Skeleton className="h-6 w-1/2 mx-auto" />
-           </div>
-           
-           <Card>
-             <CardContent className="p-6">
-               <Skeleton className="aspect-video w-full" />
-             </CardContent>
-           </Card>
-         </div>
-       </div>
-     </div>
-   );
- }
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+        <Header />
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-6xl mx-auto space-y-8">
+            <Button variant="ghost" onClick={handleBackToHome} className="mb-4">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Home
+            </Button>
+            
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
- if (isProcessing) {
-   return (
-     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
-       <Header />
-       <div className="container mx-auto px-4 py-8">
-         <div className="max-w-4xl mx-auto space-y-8">
-           <Button variant="ghost" onClick={handleBackToHome} className="mb-4">
-             <ArrowLeft className="mr-2 h-4 w-4" />
-             Back to Home
-           </Button>
-           
-           <div className="text-center space-y-4">
-             <h1 className="text-3xl font-bold tracking-tight lg:text-4xl">
-               {course?.title || 'Processing Course'}
-             </h1>
-             <p className="text-lg text-muted-foreground">
-               Your course is being generated. This may take a few minutes.
-             </p>
-           </div>
-           
-           <Card>
-             <CardContent className="p-6">
-               <div className="aspect-video w-full bg-muted flex items-center justify-center">
-                 <div className="text-center space-y-4">
-                   <div className="flex justify-center">
-                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-                   </div>
-                   <p className="text-muted-foreground">
-                     Analyzing video and generating interactive questions...
-                   </p>
-                   <p className="text-sm text-muted-foreground">
-                     The page will refresh automatically when ready.
-                   </p>
-                 </div>
-               </div>
-             </CardContent>
-           </Card>
-           
-           {course?.youtube_url && (
-             <Card>
-               <CardHeader>
-                 <CardTitle>Video Preview</CardTitle>
-               </CardHeader>
-               <CardContent>
-                 <div className="aspect-video">
-                   <iframe
-                     src={`https://www.youtube.com/embed/${extractVideoId(course.youtube_url)}`}
-                     title="YouTube video player"
-                     frameBorder="0"
-                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                     allowFullScreen
-                     className="w-full h-full rounded-lg"
-                   />
-                 </div>
-               </CardContent>
-             </Card>
-           )}
-         </div>
-       </div>
-     </div>
-   );
- }
+  if (!course) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+        <Header />
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-6xl mx-auto space-y-8">
+            <Button variant="ghost" onClick={handleBackToHome} className="mb-4">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Home
+            </Button>
+            
+            <Alert>
+              <AlertDescription>Course not found or not available.</AlertDescription>
+            </Alert>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
- if (error) {
-   return (
-     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
-       <Header />
-       <div className="container mx-auto px-4 py-8">
-         <div className="max-w-4xl mx-auto space-y-8">
-           <Button variant="ghost" onClick={handleBackToHome} className="mb-4">
-             <ArrowLeft className="mr-2 h-4 w-4" />
-             Back to Home
-           </Button>
-           
-           <Alert variant="destructive">
-             <AlertDescription>{error}</AlertDescription>
-           </Alert>
-         </div>
-       </div>
-     </div>
-   );
- }
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+      <Header />
+      
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-6xl mx-auto space-y-8">
+          {/* Back Button */}
+          <Button variant="ghost" onClick={handleBackToHome} className="mb-4">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Home
+          </Button>
 
- if (!course) {
-   return (
-     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
-       <Header />
-       <div className="container mx-auto px-4 py-8">
-         <div className="max-w-4xl mx-auto space-y-8">
-           <Button variant="ghost" onClick={handleBackToHome} className="mb-4">
-             <ArrowLeft className="mr-2 h-4 w-4" />
-             Back to Home
-           </Button>
-           
-           <Alert>
-             <AlertDescription>Course not found or not available.</AlertDescription>
-           </Alert>
-         </div>
-       </div>
-     </div>
-   );
- }
+          {/* Course Header */}
+          <div className="text-center space-y-4">
+            <h1 className="text-3xl font-bold tracking-tight lg:text-4xl">
+              {course.title}
+            </h1>
+            
+            {/* Canvas Export Button */}
+            {user && course && questions.length > 0 && (
+              <div className="flex justify-center">
+                <Button 
+                  onClick={() => setShowCanvasExport(true)}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Export to Canvas LMS
+                </Button>
+              </div>
+            )}
 
- return (
-   <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
-     <Header />
-     
-     <div className="container mx-auto px-4 py-8">
-       <div className="max-w-4xl mx-auto space-y-8">
-         {/* Back Button */}
-         <Button variant="ghost" onClick={handleBackToHome} className="mb-4">
-           <ArrowLeft className="mr-2 h-4 w-4" />
-           Back to Home
-         </Button>
+            {/* Processing Indicator */}
+            {isProcessing && (
+              <ProcessingIndicator
+                isSegmented={isSegmented}
+                totalSegments={totalSegments}
+                completedSegments={completedSegments}
+                questionCount={questions.length}
+                segmentQuestionCounts={segmentQuestionCounts}
+              />
+            )}
+          </div>
+
+          {/* Video Player */}
+          <InteractiveVideoPlayer
+            key={`video-player-${videoId}`}
+            videoId={videoId}
+            youtubeUrl={course.youtube_url}
+            isYTApiLoaded={isYTApiLoaded}
+            error={null}
+            isVideoReady={isVideoReady}
+            currentTime={currentTime}
+            duration={duration}
+            questions={questions}
+            answeredQuestions={answeredQuestions}
+            onVideoSeek={handleVideoSeek}
+            formatTime={formatTime}
+            onFetchNextCourse={fetchNextCourse}
+            isLoadingNextCourse={isLoadingNextCourse}
+            nextCourse={nextCourse}
+            nextCourseApiCalled={false}
+          />
+
+          {/* Question or Transcript Display */}
+          {(!isProcessing || (isProcessing && questions.length > 0)) && (
+            showQuestion && questions[currentQuestionIndex] ? (
+              <QuestionOverlay
+                question={questions[currentQuestionIndex]}
+                onAnswer={handleAnswer}
+                onContinue={handleContinueVideo}
+                isVisible={showQuestion}
+                player={player}
+                courseId={id as string}
+                segmentIndex={0}
+                isInline={true}
+              />
+            ) : (
+              <TranscriptDisplay
+                courseId={id as string}
+                currentTime={currentTime}
+                onSeek={handleVideoSeek}
+                formatTimestamp={formatTime}
+              />
+            )
+          )}
+
+          {/* Course Curriculum Card */}
+          {questions.length > 0 && (
+            <CourseCurriculumCard
+              courseData={getCourseData()}
+              answeredQuestions={getAnsweredQuestionsForCurriculum()}
+              questionResults={questionResults}
+              expandedExplanations={expandedExplanations}
+              setExpandedExplanations={setExpandedExplanations}
+              setShowLoginModal={setShowLoginModal}
+              freeQuestionsLimit={FREE_QUESTIONS_LIMIT}
+              formatTimestamp={formatTime}
+              isProcessing={isProcessing}
+              isSegmented={isSegmented}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Modals */}
+      <LoginModal 
+        open={showLoginModal} 
+        onOpenChange={setShowLoginModal}
+        onLoginRedirect={handleLoginRedirect}
+      />
 
          {/* Course Header */}
          <div className="text-center space-y-4">
@@ -1569,45 +1276,30 @@ export default function CoursePage() {
            )}
          </div>
 
-         {/* Video Player */}
-         <InteractiveVideoPlayer
-           videoId={videoId}
-           youtubeUrl={course.youtube_url}
-           isYTApiLoaded={isYTApiLoaded}
-           error={error}
-           isVideoReady={isVideoReady}
-           currentTime={currentTime}
-           duration={duration}
-           questions={questions}
-           answeredQuestions={answeredQuestions}
-           onVideoSeek={handleVideoSeek}
-           formatTime={formatTime}
-           onFetchNextCourse={fetchNextCourse}
-           isLoadingNextCourse={isLoadingNextCourse}
-           nextCourse={nextCourse}
-           nextCourseApiCalled={nextCourseApiCalled}
-         />
+      <NextCourseModal
+        open={showNextCourseModal}
+        onOpenChange={setShowNextCourseModal}
+        nextCourse={nextCourse}
+        isLoadingNextCourse={isLoadingNextCourse}
+        onStartNextCourse={handleStartNextCourse}
+      />
 
-         {/* Question or Transcript Display */}
-         {showQuestion && questions[currentQuestionIndex] ? (
-           <QuestionOverlay
-             question={questions[currentQuestionIndex]}
-             onAnswer={handleAnswer}
-             onContinue={handleContinueVideo}
-             isVisible={showQuestion}
-             player={player}
-             courseId={id as string}
-             segmentIndex={0}
-             isInline={true}
-           />
-         ) : (
-           <TranscriptDisplay
-             courseId={id as string}
-             currentTime={currentTime}
-             onSeek={handleVideoSeek}
-             formatTimestamp={formatTime}
-           />
-         )}
+      <RatingModalWrapper
+        isOpen={showRatingModal}
+        onClose={handleRatingClose}
+        onRate={handleRatingSubmit}
+        courseTitle={course?.title}
+      />
+
+      {/* Canvas Export Dialog */}
+      {course && (
+        <CanvasExportDialog
+          open={showCanvasExport}
+          onOpenChange={setShowCanvasExport}
+          course={course}
+          segments={getCanvasSegments()}
+        />
+      )}
 
          {/* Course Curriculum Card */}
          <CourseCurriculumCard
@@ -1769,6 +1461,9 @@ export default function CoursePage() {
        courseId={id as string}
        currentVideoTime={currentTime}
        activeQuestion={getActiveQuestion()}
+       isAnswerIncorrect={isAnswerIncorrect}
+       userAnswer={lastUserAnswer}
+       hasJustAnswered={hasJustAnswered}
      />
    </div>
  );

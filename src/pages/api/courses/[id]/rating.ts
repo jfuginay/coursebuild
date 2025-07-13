@@ -57,9 +57,8 @@ export default async function handler(
       });
     }
 
-    // Get user from session (if available)
+    // Get user from session - ratings require authentication
     let userId: string | null = null;
-    let anonymousId: string | null = null;
     
     try {
       const authHeader = req.headers.authorization;
@@ -71,13 +70,15 @@ export default async function handler(
         }
       }
     } catch (error) {
-      console.warn('Auth check failed, allowing anonymous rating:', error);
+      console.warn('Auth check failed:', error);
     }
 
-    // For anonymous users, create an anonymous identifier based on IP + course
+    // Ratings require authentication
     if (!userId) {
-      const clientIP = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-      anonymousId = `anon_${Buffer.from(`${clientIP}_${courseId}`).toString('base64').slice(0, 20)}`;
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required to rate courses'
+      });
     }
 
     try {
@@ -96,7 +97,8 @@ export default async function handler(
       }
 
       // Prepare rating data
-      const ratingData: any = {
+      const ratingData = {
+        user_id: userId,
         course_id: courseId,
         rating,
         rating_context: context,
@@ -104,23 +106,9 @@ export default async function handler(
         questions_answered: engagementData?.questionsAnswered || 0,
         completion_percentage: engagementData?.completionPercentage || 0
       };
-
-      // Add user_id or anonymous_id based on authentication status
-      if (userId) {
-        ratingData.user_id = userId;
-      } else {
-        ratingData.anonymous_id = anonymousId;
-      }
-
-      // Insert or update rating (upsert)
-      // Use admin client for anonymous users to bypass RLS
-      const supabaseClient = !userId ? createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      ) : supabase;
       
-      const { data: insertedRating, error: insertError } = await supabaseClient
-        .from('course_ratings')
+      const { data: insertedRating, error: insertError } = await supabase
+        .from('user_course_ratings')
         .upsert(ratingData, {
           onConflict: 'user_id,course_id',
           ignoreDuplicates: false
@@ -158,7 +146,7 @@ export default async function handler(
         };
       }
 
-      console.log(`✅ Rating submitted: ${rating} stars for course ${courseId} by ${userId ? `user ${userId}` : `anonymous ${anonymousId}`}`);
+      console.log(`✅ Rating submitted: ${rating} stars for course ${courseId} by user ${userId}`);
 
       return res.status(200).json({
         success: true,
@@ -254,7 +242,7 @@ export default async function handler(
       }
 
       const { error: deleteError } = await supabase
-        .from('course_ratings')
+        .from('user_course_ratings')
         .delete()
         .eq('user_id', user.id)
         .eq('course_id', courseId);

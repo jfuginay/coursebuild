@@ -16,7 +16,7 @@ const Header = () => {
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full relative z-50">
       <div className="flex justify-between items-center py-4 px-4 sm:px-6 lg:px-8">
         <div className="cursor-pointer" onClick={() => router.push("/")}>
           <Logo />
@@ -26,7 +26,7 @@ const Header = () => {
             variant="outline" 
             size="icon"
             onClick={() => router.push("/animation")}
-            className="h-9 w-9"
+            className="h-9 w-9 relative z-10 border-cyan-500/20 hover:border-cyan-500/40 hover:bg-cyan-500/5"
           >
             <Film className="h-[1.2rem] w-[1.2rem]" />
             <span className="sr-only">Animation Studio</span>
@@ -35,7 +35,7 @@ const Header = () => {
             variant="outline" 
             size="icon"
             onClick={() => router.push("/about")}
-            className="h-9 w-9"
+            className="h-9 w-9 relative z-10 border-cyan-500/20 hover:border-cyan-500/40 hover:bg-cyan-500/5"
           >
             <Info className="h-[1.2rem] w-[1.2rem]" />
             <span className="sr-only">About</span>
@@ -45,7 +45,7 @@ const Header = () => {
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" className="h-9 w-9">
+                <Button variant="outline" size="icon" className="h-9 w-9 relative z-10 border-cyan-500/20 hover:border-cyan-500/40 hover:bg-cyan-500/5">
                   <User className="h-[1.2rem] w-[1.2rem]" />
                   <span className="sr-only">User menu</span>
                 </Button>
@@ -69,7 +69,7 @@ const Header = () => {
             <Button 
               variant="outline" 
               onClick={() => router.push("/login")}
-              className="h-9"
+              className="h-9 relative z-10 border-cyan-500/20 hover:border-cyan-500/40 hover:bg-cyan-500/5"
             >
               Sign In
             </Button>
