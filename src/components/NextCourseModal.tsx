@@ -164,25 +164,46 @@ export default function NextCourseModal({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>🎉 Course Complete!</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-2xl font-bold text-center mb-2">🎉 Course Complete!</DialogTitle>
+          
+          {/* Rating for completed course - Prominently placed below title */}
+          {completedCourseId && !userRating && (
+            <div className="mt-4 mb-6 p-6 bg-gradient-to-br from-[#02cced]/10 to-[#fdd686]/10 rounded-xl border border-[#02cced]/20 space-y-3">
+              <div className="text-center">
+                <p className="text-lg font-semibold text-foreground mb-2">How was this course?</p>
+                <p className="text-sm text-muted-foreground mb-4">Your feedback helps us improve the learning experience</p>
+              </div>
+              <div className="flex justify-center">
+                <StarRating
+                  value={userRating}
+                  onChange={handleRateCompletedCourse}
+                  size="large"
+                  animated={true}
+                  className="scale-110"
+                />
+              </div>
+              <p className="text-xs text-center text-muted-foreground mt-2">Click a star to rate this course</p>
+              {isSubmittingRating && (
+                <div className="flex items-center justify-center mt-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#02cced] mr-2"></div>
+                  <span className="text-xs text-muted-foreground">Saving your rating...</span>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Show thank you message after rating */}
+          {completedCourseId && userRating > 0 && (
+            <div className="mt-4 mb-6 p-4 bg-gradient-to-br from-green-500/10 to-green-600/10 rounded-xl border border-green-500/20 text-center">
+              <p className="text-sm font-medium text-green-700 dark:text-green-400">✨ Thank you for your feedback!</p>
+              <p className="text-xs text-green-600 dark:text-green-500 mt-1">Your rating helps other learners discover great content</p>
+            </div>
+          )}
+          
+          <DialogDescription className="text-center">
             Great job finishing this course! Ready to continue learning?
           </DialogDescription>
         </DialogHeader>
-        
-        {/* Rating for completed course */}
-        {completedCourseId && !userRating && (
-          <div className="p-4 bg-muted rounded-lg space-y-2">
-            <p className="text-sm font-medium">How was this course?</p>
-            <StarRating
-              value={userRating}
-              onChange={handleRateCompletedCourse}
-              size="medium"
-              animated={true}
-            />
-            <p className="text-xs text-muted-foreground">Tap a star to rate</p>
-          </div>
-        )}
         
         {nextCourse ? (
           <div className="space-y-4 my-4">
@@ -286,9 +307,8 @@ export default function NextCourseModal({
         <DialogFooter className="flex-col gap-2 sm:flex-col">
           <Button 
             onClick={handleStartNextCourse}
-            className="w-full"
+            className="w-full bg-gradient-to-r from-[#02cced] to-[#02cced]/90 hover:from-[#02cced]/90 hover:to-[#02cced] text-white font-semibold transition-all duration-300 shadow-lg hover:shadow-xl"
             disabled={!nextCourse || isLoadingNextCourse}
-            style={{ backgroundColor: '#8B5CF6' }}
           >
             {isLoadingNextCourse ? (
               <>
@@ -296,13 +316,13 @@ export default function NextCourseModal({
                 Generating Course...
               </>
             ) : (
-              'Start Next Course'
+              'Start Next Course →'
             )}
           </Button>
           <Button 
             onClick={onClose}
             variant="outline"
-            className="w-full"
+            className="w-full border-[#02cced]/30 hover:border-[#02cced]/60 hover:bg-[#02cced]/10 text-[#02cced]/80 hover:text-[#02cced]"
           >
             Stay Here
           </Button>
