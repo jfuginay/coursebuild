@@ -987,6 +987,7 @@ export default function CoursePage() {
         nextCourse={nextCourse}
         isLoadingNextCourse={isLoadingNextCourse}
         onStartNextCourse={handleStartNextCourse}
+        completedCourseId={id as string}
       />
 
       <RatingModalWrapper

@@ -19,7 +19,6 @@ import {
   Star,
   Calendar,
   User,
-  Settings,
   ExternalLink,
   GraduationCap,
   BarChart3,
@@ -73,6 +72,8 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<any>(null);
   const [showQuestionDetails, setShowQuestionDetails] = useState(false);
+  const [activeTab, setActiveTab] = useState('profile');
+  const [showAllCourses, setShowAllCourses] = useState(false);
 
   useEffect(() => {
     if (user && supabase) {
@@ -270,10 +271,6 @@ export default function DashboardPage() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm">
-                <Settings className="h-4 w-4 mr-2" />
-                Settings
-              </Button>
               <Button 
                 onClick={handleBuyCredits}
                 className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
@@ -285,8 +282,10 @@ export default function DashboardPage() {
             </div>
           </div>
 
+
+
           {/* Main Content Tabs */}
-          <Tabs defaultValue="profile" className="space-y-6">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
             <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="profile">Profile</TabsTrigger>
               <TabsTrigger value="courses">My Courses</TabsTrigger>
@@ -325,10 +324,18 @@ export default function DashboardPage() {
                               {userData.preferred_difficulty} Difficulty
                             </Badge>
                           )}
-                          <Badge variant="outline" className="flex items-center gap-1">
+                          <Badge variant="outline" className="flex items-center gap-1 text-yellow-600 border-yellow-600">
                             <Star className="h-3 w-3 text-yellow-500" />
                             {userData.credits || 0} Credits
                           </Badge>
+                          <Button 
+                            onClick={handleBuyCredits}
+                            size="sm"
+                            className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-xs h-6 px-3"
+                          >
+                            <Star className="h-3 w-3 mr-1" />
+                            Buy More
+                          </Button>
                           <div className="text-sm text-muted-foreground">
                             Member since {formatDate(userData.created_at || new Date().toISOString())}
                           </div>
@@ -395,33 +402,7 @@ export default function DashboardPage() {
                     </CardContent>
                   </Card>
 
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2 text-base">
-                        <Star className="h-4 w-4 text-yellow-600" />
-                        Credits
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Current Balance</span>
-                        <span className="font-medium text-lg">{userData.credits || 0}</span>
-                      </div>
-                      <div className="pt-2">
-                        <Button 
-                          onClick={handleBuyCredits}
-                          size="sm"
-                          className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                        >
-                          <Star className="h-3 w-3 mr-1" />
-                          Buy More Credits
-                        </Button>
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Use credits for premium features
-                      </div>
-                    </CardContent>
-                  </Card>
+
                 </div>
 
                 {/* Course Progress Summary */}
@@ -430,12 +411,12 @@ export default function DashboardPage() {
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <BarChart3 className="h-5 w-5" />
-                        Course Progress Summary
+                        Course Progress
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-4">
-                        {enrollments.slice(0, 5).map((enrollment) => (
+                        {(showAllCourses ? enrollments : enrollments.slice(0, 5)).map((enrollment) => (
                           <div key={enrollment.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                             <div className="flex-1">
                               <h4 className="font-medium text-sm">{enrollment.courses.title}</h4>
@@ -496,8 +477,12 @@ export default function DashboardPage() {
                         ))}
                         {enrollments.length > 5 && (
                           <div className="text-center pt-2">
-                            <Button variant="outline" size="sm" onClick={() => router.push('#courses')}>
-                              View All {enrollments.length} Courses
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => setShowAllCourses(!showAllCourses)}
+                            >
+                              {showAllCourses ? 'Show Less' : `View All ${enrollments.length} Courses`}
                             </Button>
                           </div>
                         )}
@@ -509,73 +494,8 @@ export default function DashboardPage() {
             </TabsContent>
 
             <TabsContent value="courses" className="space-y-6">
-              <Tabs defaultValue="enrolled" className="space-y-4">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="enrolled">Enrolled Courses</TabsTrigger>
-                  <TabsTrigger value="created">Created Courses</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="enrolled" className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {enrollments.map((enrollment) => (
-                      <Card key={enrollment.id} className="hover:shadow-md transition-shadow">
-                        <CardContent className="p-6">
-                          <div className="space-y-4">
-                            <div>
-                              <h3 className="font-semibold line-clamp-2">{enrollment.courses.title}</h3>
-                              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                                {enrollment.courses.description}
-                              </p>
-                            </div>
-                            
-                            <div className="space-y-2">
-                              <div className="flex justify-between text-sm">
-                                <span>Progress</span>
-                                <span>{Math.round(enrollment.progress_percentage || 0)}%</span>
-                              </div>
-                              <Progress value={enrollment.progress_percentage || 0} className="h-2" />
-                            </div>
-
-                            <div className="flex items-center justify-between pt-2">
-                              <Badge 
-                                variant={enrollment.courses?.published ? 'default' : 'secondary'}
-                                className="text-xs"
-                              >
-                                {enrollment.courses?.published ? 'Published' : 'Draft'}
-                              </Badge>
-                              <Button 
-                                size="sm" 
-                                variant="outline"
-                                onClick={() => router.push(`/course/${enrollment.course_id}`)}
-                              >
-                                Continue
-                                <ExternalLink className="h-3 w-3 ml-1" />
-                              </Button>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                    
-                    {enrollments.length === 0 && (
-                      <Card className="col-span-full">
-                        <CardContent className="p-12 text-center">
-                          <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                          <h3 className="text-lg font-medium mb-2">No enrolled courses yet</h3>
-                          <p className="text-muted-foreground mb-4">
-                            Explore our course catalog to start your learning journey
-                          </p>
-                          <Button onClick={() => router.push('/')}>
-                            Browse Courses
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    )}
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="created" className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {createdCourses?.map((creation) => (
                       <Card key={creation.id} className="hover:shadow-md transition-shadow">
                         <CardContent className="p-6">
@@ -643,18 +563,11 @@ export default function DashboardPage() {
                       </Card>
                     )}
                   </div>
-                </TabsContent>
-              </Tabs>
+              </div>
             </TabsContent>
 
             <TabsContent value="achievements" className="space-y-6">
               <Card>
-                <CardHeader>
-                  <CardTitle>All Achievements</CardTitle>
-                  <CardDescription>
-                    You've earned {stats.totalAchievements} achievements and {stats.totalPoints} points
-                  </CardDescription>
-                </CardHeader>
                 <CardContent>
                   <div className="text-center py-8">
                     <Award className="h-12 w-12 mx-auto text-muted-foreground mb-4 opacity-50" />
@@ -674,7 +587,6 @@ export default function DashboardPage() {
               <Card>
                 <CardHeader>
                   <CardTitle>Recent Question Attempts</CardTitle>
-                  <CardDescription>Your latest learning activity</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {recentActivity.attempts.length > 0 ? (

@@ -465,14 +465,20 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
 
                 {/* Course Info - Flexible spacer */}
                 <div className="flex-1 flex flex-col justify-between">
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
                     <div className="flex items-center gap-1">
-                      <Clock className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-xs sm:text-sm text-muted-foreground">{formatDate(course.created_at)}</span>
+                      <Clock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                      <span>{formatDate(course.created_at)}</span>
                     </div>
-                    <Badge variant="secondary" className="text-xs bg-muted/50 text-muted-foreground border-0 pointer-events-none">
+                    <Badge variant="secondary" className="h-5 px-2 text-xs bg-muted/50 text-muted-foreground border-0 pointer-events-none flex items-center">
                       {course.questionCount || 0} Questions
                     </Badge>
+                    {/* Rating Display - only show if rating > 0 */}
+                      <CompactStarRating 
+                        rating={course.averageRating} 
+                        showRatingText={true}
+                        size="sm"
+                      />
                   </div>    
                   {/* Call to Action with gradient effect */}
                   <Button 
