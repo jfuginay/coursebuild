@@ -90,6 +90,8 @@ export default function ChatBubble({
   const [isMinimized, setIsMinimized] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [useModernStyle, setUseModernStyle] = useState(true); // Toggle between styles
+  const [hasEntered, setHasEntered] = useState(false); // Track entrance animation
+  const [showCurio, setShowCurio] = useState(false); // Control visibility
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: '1',
@@ -117,6 +119,38 @@ export default function ChatBubble({
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Trigger entrance animation after component mounts
+  useEffect(() => {
+    // Only play entrance animation on course pages
+    if (courseId) {
+      const entranceTimer = setTimeout(() => {
+        setShowCurio(true);
+        
+        // Play entrance sound effect (optional)
+        try {
+          const audio = new Audio('/sounds/curio-hello.mp3');
+          audio.volume = 0.3;
+          audio.play().catch(() => {
+            // Ignore audio play errors (autoplay policies)
+          });
+        } catch (e) {
+          // Ignore if sound file doesn't exist
+        }
+        
+        // Mark as entered after animation completes
+        setTimeout(() => {
+          setHasEntered(true);
+        }, 1200); // Animation duration
+      }, 600); // Initial delay before entrance
+
+      return () => clearTimeout(entranceTimer);
+    } else {
+      // Show immediately if not on course page
+      setShowCurio(true);
+      setHasEntered(true);
+    }
+  }, [courseId]);
   
   // Determine current action type
   const getCurrentAction = (): 'explain' | 'help' | 'fact-check' => {
@@ -783,8 +817,9 @@ Options: ${activeQuestion.options.join(', ')}`;
         )}
 
                 {/* Action Buttons - positioned to the left of Curio */}
-        <div className="absolute top-1/2 -left-16 -translate-y-1/2">
-          <div className="relative">
+        {hasEntered && (
+          <div className="absolute top-1/2 -left-16 -translate-y-1/2">
+            <div className="relative">
             {/* Hover glow effect */}
             {(shouldShowHoverAnimation || isTransitioningToDefault) && (
               <div className={`absolute inset-0 rounded-full blur-xl scale-150 pointer-events-none transition-all duration-300 ${
@@ -842,29 +877,31 @@ Options: ${activeQuestion.options.join(', ')}`;
         </Button>
           </div>
         </div>
+        )}
 
       {/* Main Chat Bubble Button */}
-      <div className="relative">
-        {/* Active chat indicator ring */}
-        {isOpen && !isMinimized && (
-          <div className="absolute inset-0 rounded-full ring-4 ring-[#02cced] ring-opacity-50 animate-pulse" />
-        )}
-        
-        <Button
-          onClick={() => {
-            if (!isOpen) {
-              // If chat is closed, open it
-              setIsOpen(true);
-              setIsMinimized(false);
-            } else {
-              // If chat is open, toggle minimize/maximize
-              setIsMinimized(!isMinimized);
-            }
-          }}
-          className={`rounded-full w-40 h-40 shadow-xl hover:shadow-2xl transition-all duration-300 bg-transparent hover:bg-transparent p-0 border-0 overflow-hidden group ${isOpen && !isMinimized ? 'ring-2 ring-[#02cced]' : ''}`}
-          size="lg"
-          title={!isOpen ? "Open chat" : (isMinimized ? "Maximize chat" : "Minimize chat")}
-        >
+      {showCurio && (
+        <div className={`relative ${!hasEntered ? 'animate-curio-entrance' : ''}`}>
+          {/* Active chat indicator ring */}
+          {isOpen && !isMinimized && (
+            <div className="absolute inset-0 rounded-full ring-4 ring-[#02cced] ring-opacity-50 animate-pulse" />
+          )}
+          
+                    <Button
+            onClick={() => {
+              if (!isOpen) {
+                // If chat is closed, open it
+                setIsOpen(true);
+                setIsMinimized(false);
+              } else {
+                // If chat is open, toggle minimize/maximize
+                setIsMinimized(!isMinimized);
+              }
+            }}
+            className={`curio-main-button rounded-full w-40 h-40 shadow-xl hover:shadow-2xl transition-all duration-300 bg-transparent hover:bg-transparent p-0 border-0 overflow-hidden group ${isOpen && !isMinimized ? 'ring-2 ring-[#02cced]' : ''}`}
+            size="lg"
+            title={!isOpen ? "Open chat" : (isMinimized ? "Maximize chat" : "Minimize chat")}
+          >
           <div className="relative w-full h-full">
             {/* Glow effect behind image - enhanced when chat is open */}
             <div className={`absolute inset-0 bg-gradient-to-r from-[#02cced]/20 via-[#02cced]/10 to-[#02cced]/20 blur-xl scale-110 transition-all duration-300 ${isOpen ? 'opacity-100' : 'opacity-60 group-hover:opacity-100'}`} />
@@ -889,6 +926,7 @@ Options: ${activeQuestion.options.join(', ')}`;
           </div>
         </Button>
       </div>
+      )}
       </div>
     </div>
   );

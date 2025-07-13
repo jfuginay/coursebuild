@@ -115,6 +115,48 @@
   animation: pulse-border 2s ease-in-out infinite;
 }
 
+/* Curio entrance animation */
+@keyframes curio-entrance {
+  0% {
+    transform: translateY(120px) translateX(40px) scale(0.8);
+    opacity: 0;
+  }
+  60% {
+    transform: translateY(0) translateX(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) translateX(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-curio-entrance {
+  animation: curio-entrance 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  transform-origin: bottom right;
+}
+
+/* Sparkle animation for entrance */
+@keyframes sparkle {
+  0% {
+    transform: scale(0) rotate(0deg);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2) rotate(180deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+.animate-sparkle {
+  animation: sparkle 1.5s ease-out forwards;
+  pointer-events: none;
+}
+
 /* Theme: Curio-inspired */
 @layer base {
   :root {
