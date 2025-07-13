@@ -94,10 +94,7 @@ export default function CourseCurriculumCard({
           </Badge>
         </div>
         <CardDescription>
-          {user 
-            ? "Watch the video and answer questions as they appear"
-            : "Complete questions to reveal the curriculum"
-          }
+          Complete questions to reveal the curriculum
         </CardDescription>
       </CardHeader>
       <CardContent>

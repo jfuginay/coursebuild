@@ -174,7 +174,8 @@ export default function CoursePage() {
     isLoadingNextCourse,
     showNextCourseModal,
     setShowNextCourseModal,
-    fetchNextCourse
+    fetchNextCourse,
+    error: nextCourseError
   } = useNextCourse({
     currentCourseId: id as string | undefined,
     currentCourse: course,
@@ -410,7 +411,8 @@ export default function CoursePage() {
           correct,
           question.type,
           question.timestamp,
-          question.explanation // Pass explanation instead of undefined
+          question.explanation, // Pass explanation instead of undefined
+          id as string // Pass the course ID
         );
       }
     }
@@ -518,7 +520,16 @@ export default function CoursePage() {
   };
 
   const handleVideoSeek = async (seekTime: number) => {
-    if (!playerRef.current || !questions) return;
+    // Check both refs to ensure player is available
+    const currentPlayer = playerRef.current || player;
+    if (!currentPlayer || !questions) {
+      console.warn('⚠️ Cannot seek - player not ready:', { 
+        hasPlayerRef: !!playerRef.current, 
+        hasPlayer: !!player,
+        isVideoReady 
+      });
+      return;
+    }
     
     // Track video seek engagement with error handling
     if (id && typeof id === 'string') {
@@ -582,7 +593,7 @@ export default function CoursePage() {
     }
 
     // Seek the video
-    playerRef.current.seekTo(seekTime);
+    currentPlayer.seekTo(seekTime);
   };
 
   const handleBackToHome = () => {
@@ -939,7 +950,7 @@ export default function CoursePage() {
               <TranscriptDisplay
                 courseId={id as string}
                 currentTime={currentTime}
-                onSeek={handleVideoSeek}
+                onSeek={isVideoReady && player ? handleVideoSeek : undefined}
                 formatTimestamp={formatTime}
               />
             )

@@ -11,6 +11,7 @@ export interface WrongQuestion {
   timestamp?: number;
   concept?: string;
   explanation?: string;
+  courseId?: string; // Added courseId to WrongQuestion interface
 }
 
 export interface CourseProgress {
@@ -51,8 +52,33 @@ export interface AnonymousSession {
 
 export interface SessionPerformanceData {
   sessionId: string;
-  currentCourse: AnonymousSession['currentCourse'];
-  performance: AnonymousSession['performance'];
+  currentCourse: {
+    id: string;
+    title: string;
+    youtube_url: string;
+    completionPercentage: number;
+  } | null;
+  performance: {
+    totalQuestionsAnswered: number;
+    totalQuestionsCorrect: number;
+    accuracy: number;
+    wrongQuestions: Array<{
+      question: string;
+      userAnswer: string;
+      correctAnswer: string;
+      type: string;
+      timestamp?: number;
+      concept?: string;
+      explanation?: string;
+      courseId?: string;
+    }>;
+    questionsByType: {
+      [type: string]: {
+        answered: number;
+        correct: number;
+      };
+    };
+  };
   recentCourses: CourseProgress[];
 }
 
@@ -158,7 +184,8 @@ export class SessionManager {
     isCorrect: boolean,
     type: string,
     timestamp?: number,
-    explanation?: string
+    explanation?: string,
+    courseId?: string
   ): void {
     const session = this.getOrCreateSession();
 
@@ -168,19 +195,30 @@ export class SessionManager {
       session.performance.totalQuestionsCorrect++;
     } else {
       // Track wrong question
-      session.performance.wrongQuestions.push({
+      const wrongQuestion: WrongQuestion = {
         question,
         userAnswer,
         correctAnswer,
         type,
         timestamp,
         concept: undefined, // Keep for backwards compatibility
-        explanation
-      });
+        explanation,
+        courseId
+      };
+      
+      session.performance.wrongQuestions.push(wrongQuestion);
 
-      // Keep only last 50 wrong questions
-      if (session.performance.wrongQuestions.length > 50) {
-        session.performance.wrongQuestions = session.performance.wrongQuestions.slice(-50);
+      // Keep only last 50 wrong questions from the current course if courseId is provided
+      if (courseId && session.currentCourse?.id === courseId) {
+        // Filter to keep only current course questions
+        session.performance.wrongQuestions = session.performance.wrongQuestions
+          .filter(wq => wq.courseId === courseId)
+          .slice(-20); // Keep only last 20 from current course
+      } else {
+        // Fallback: keep last 50 overall
+        if (session.performance.wrongQuestions.length > 50) {
+          session.performance.wrongQuestions = session.performance.wrongQuestions.slice(-50);
+        }
       }
     }
 
@@ -237,6 +275,14 @@ export class SessionManager {
     const session = this.getSession();
     if (!session) return null;
 
+    // Filter wrong questions to only include current course if available
+    let wrongQuestionsForApi = session.performance.wrongQuestions;
+    if (session.currentCourse?.id) {
+      wrongQuestionsForApi = session.performance.wrongQuestions
+        .filter(wq => wq.courseId === session.currentCourse?.id)
+        .slice(-20); // Limit to most recent 20 from current course
+    }
+
     // Include current course if active with question performance
     const recentCourses = [...session.viewingHistory];
     
@@ -264,7 +310,10 @@ export class SessionManager {
     return {
       sessionId: session.sessionId,
       currentCourse: session.currentCourse,
-      performance: session.performance,
+      performance: {
+        ...session.performance,
+        wrongQuestions: wrongQuestionsForApi // Use filtered wrong questions
+      },
       recentCourses: recentCourses.slice(0, 5)
     };
   }

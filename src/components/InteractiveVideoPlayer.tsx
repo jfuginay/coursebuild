@@ -52,9 +52,6 @@ const InteractiveVideoPlayer: React.FC<InteractiveVideoPlayerProps> = ({
     <Card id="interactive-video-player">
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardDescription>
-            Watch the video and answer questions as they appear
-          </CardDescription>
           <Button 
             variant="outline" 
             size="sm"
