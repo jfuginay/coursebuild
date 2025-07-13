@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { CanvasAPI, CanvasConfig } from '@/lib/canvas-api';
 import { CanvasTransformer, CanvasExportOptions } from '@/lib/canvas-transformer';
+import { CanvasExporter, CanvasExportProgress } from '@/lib/canvas-exporter';
 
 // Component Props
 interface CanvasExportDialogProps {
@@ -102,6 +103,8 @@ interface ExportState {
   connectionError?: string;
   exportProgress: number;
   exportStatus: string;
+  exportSuccess: boolean;
+  canvasCourseUrl?: string;
   validationResult?: {
     isValid: boolean;
     warnings: string[];
@@ -135,6 +138,7 @@ export function CanvasExportDialog({ open, onOpenChange, course, segments }: Can
     connectionStatus: 'idle',
     exportProgress: 0,
     exportStatus: 'Ready to export',
+    exportSuccess: false,
   });
 
   // Validate course data when dialog opens
@@ -150,8 +154,25 @@ export function CanvasExportDialog({ open, onOpenChange, course, segments }: Can
     setState(prev => ({ ...prev, isConnecting: true, connectionStatus: 'testing' }));
     
     try {
-      const canvasAPI = new CanvasAPI(state.canvasConfig);
-      await canvasAPI.testConnection();
+      // For now, we'll validate through our API endpoint
+      const response = await fetch('/api/canvas/test-connection', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          canvasUrl: state.canvasConfig.canvasUrl,
+          accessToken: state.canvasConfig.accessToken,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Connection failed');
+      }
+
+      const result = await response.json();
+      
       setState(prev => ({ 
         ...prev, 
         isConnecting: false, 
@@ -173,31 +194,68 @@ export function CanvasExportDialog({ open, onOpenChange, course, segments }: Can
     setState(prev => ({ ...prev, isExporting: true, exportProgress: 0 }));
     
     try {
-      // This would call the actual export service
-      // For now, simulate progress
-      const steps = [
-        'Creating Canvas course...',
-        'Setting up modules...',
-        'Exporting video content...',
-        'Creating quizzes...',
-        'Publishing course...',
-      ];
+      // Start the export through our API
+      const response = await fetch('/api/canvas/export', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          courseId: course.id,
+          canvasConfig: state.canvasConfig,
+          exportOptions: state.exportOptions,
+        }),
+      });
 
-      for (let i = 0; i < steps.length; i++) {
-        setState(prev => ({ 
-          ...prev, 
-          exportStatus: steps[i],
-          exportProgress: ((i + 1) / steps.length) * 100 
-        }));
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate work
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Export failed');
       }
 
-      setState(prev => ({ 
-        ...prev, 
-        isExporting: false,
-        exportStatus: 'Export completed successfully!',
-        exportProgress: 100 
-      }));
+      const { exportId } = await response.json();
+
+      // Poll for progress updates
+      const pollInterval = setInterval(async () => {
+        try {
+          const progressResponse = await fetch(`/api/canvas/export/${exportId}/progress`);
+          
+          if (!progressResponse.ok) {
+            clearInterval(pollInterval);
+            throw new Error('Failed to get export progress');
+          }
+
+          const progress = await progressResponse.json();
+          
+          setState(prev => ({
+            ...prev,
+            exportStatus: progress.currentStep,
+            exportProgress: (progress.completedSteps / progress.totalSteps) * 100,
+          }));
+
+          if (progress.status === 'completed') {
+            clearInterval(pollInterval);
+            setState(prev => ({ 
+              ...prev, 
+              isExporting: false,
+              exportStatus: 'Export completed successfully!',
+              exportProgress: 100,
+              exportSuccess: true,
+              canvasCourseUrl: progress.canvasCourseUrl
+            }));
+          } else if (progress.status === 'failed') {
+            clearInterval(pollInterval);
+            throw new Error(progress.error || 'Export failed');
+          }
+        } catch (error) {
+          clearInterval(pollInterval);
+          setState(prev => ({ 
+            ...prev, 
+            isExporting: false,
+            exportStatus: `Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+          }));
+        }
+      }, 1000); // Poll every second
+
     } catch (error) {
       setState(prev => ({ 
         ...prev, 
@@ -288,6 +346,8 @@ export function CanvasExportDialog({ open, onOpenChange, course, segments }: Can
           isExporting={state.isExporting}
           exportProgress={state.exportProgress}
           exportStatus={state.exportStatus}
+          exportSuccess={state.exportSuccess}
+          canvasCourseUrl={state.canvasCourseUrl}
           onExport={executeExport}
         />;
       
@@ -741,6 +801,8 @@ function ReviewExportStep({
   isExporting,
   exportProgress,
   exportStatus,
+  exportSuccess,
+  canvasCourseUrl,
   onExport
 }: {
   course: any;
@@ -751,26 +813,68 @@ function ReviewExportStep({
   isExporting: boolean;
   exportProgress: number;
   exportStatus: string;
+  exportSuccess: boolean;
+  canvasCourseUrl?: string;
   onExport: () => void;
 }) {
   const totalQuestions = segments.reduce((acc, seg) => acc + seg.questions.length, 0);
   
-  if (isExporting) {
+  if (isExporting || exportSuccess) {
     return (
       <div className="text-center space-y-6">
-        <div className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center">
-          <Upload className="w-8 h-8 text-blue-600" />
+        <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center ${
+          exportSuccess ? 'bg-green-100' : 'bg-blue-100'
+        }`}>
+          {exportSuccess ? (
+            <CheckCircle className="w-8 h-8 text-green-600" />
+          ) : (
+            <Upload className="w-8 h-8 text-blue-600" />
+          )}
         </div>
         
         <div>
-          <h3 className="text-lg font-semibold mb-2">Exporting to Canvas</h3>
+          <h3 className="text-lg font-semibold mb-2">
+            {exportSuccess ? 'Export Completed!' : 'Exporting to Canvas'}
+          </h3>
           <p className="text-gray-600">{exportStatus}</p>
         </div>
         
-        <div className="max-w-md mx-auto">
-          <Progress value={exportProgress} className="mb-2" />
-          <p className="text-sm text-gray-500">{Math.round(exportProgress)}% complete</p>
-        </div>
+        {!exportSuccess && (
+          <div className="max-w-md mx-auto">
+            <Progress value={exportProgress} className="mb-2" />
+            <p className="text-sm text-gray-500">{Math.round(exportProgress)}% complete</p>
+          </div>
+        )}
+        
+        {exportSuccess && canvasCourseUrl && (
+          <div className="space-y-4">
+            <Alert>
+              <CheckCircle className="h-4 w-4" />
+              <AlertDescription>
+                Your course has been successfully exported to Canvas!
+              </AlertDescription>
+            </Alert>
+            
+            <div className="flex justify-center gap-3">
+              <Button
+                onClick={() => window.open(canvasCourseUrl, '_blank')}
+                className="flex items-center gap-2"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Open in Canvas
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  // This will be passed from parent component
+                  window.location.reload(); // Simple solution for now
+                }}
+              >
+                Export Another Course
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

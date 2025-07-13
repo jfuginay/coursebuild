@@ -229,9 +229,12 @@ export default function QuestionOverlay({
     
     // Video overlay questions always need to be overlaid on the video, even when isInline is true
     return (
-      <div className="fixed inset-0 z-50 pointer-events-none">
+      <div className="fixed inset-0 z-50">
+        {/* Dim overlay to focus attention */}
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm pointer-events-none animate-fade-in" />
+        
         {/* Question UI positioned at bottom - not covering video */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 pointer-events-auto">
+        <div className="absolute bottom-0 left-0 right-0 p-4 pointer-events-auto animate-slide-up">
           <div className="max-w-4xl mx-auto">
             <VideoOverlayQuestion
               question={question.question}
@@ -341,8 +344,8 @@ export default function QuestionOverlay({
     }
 
     return (
-      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-4xl mx-auto">
+      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+        <div className="w-full max-w-4xl mx-auto animate-scale-in">
           {matchingContent}
         </div>
       </div>
@@ -398,8 +401,8 @@ export default function QuestionOverlay({
     }
 
     return (
-      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-4xl mx-auto">
+      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+        <div className="w-full max-w-4xl mx-auto animate-scale-in">
           {sequencingContent}
         </div>
       </div>
@@ -534,8 +537,14 @@ export default function QuestionOverlay({
   if (question.type === 'hotspot' && !player && (hasValidBoundingBoxes || hasValidDetectedObjects)) {
     console.log('🔍 Hotspot question detected but no player available - showing error with continue option');
     const hotspotErrorCard = (
-      <Card className={isInline ? "w-full" : "w-full max-w-2xl mx-auto"}>
-        <CardHeader>
+      <Card className={isInline ? "w-full" : "w-full max-w-2xl mx-auto border-2 border-primary/50 shadow-xl"}>
+        <CardHeader className="relative">
+          <div className="absolute -top-3 -right-3 flex items-center gap-2">
+            <div className="animate-pulse">
+              <div className="h-3 w-3 bg-primary rounded-full" />
+            </div>
+            <Badge className="bg-primary text-primary-foreground">Answer to Continue</Badge>
+          </div>
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">Hotspot Question</CardTitle>
             <Badge variant="secondary" className="text-xs">
@@ -574,8 +583,14 @@ export default function QuestionOverlay({
   // Handle case where no options are available
   if (finalOptions.length === 0) {
     const errorCard = (
-      <Card className={isInline ? "w-full" : "w-full max-w-2xl mx-auto"}>
-        <CardHeader>
+      <Card className={isInline ? "w-full" : "w-full max-w-2xl mx-auto border-2 border-primary/50 shadow-xl"}>
+        <CardHeader className="relative">
+          <div className="absolute -top-3 -right-3 flex items-center gap-2">
+            <div className="animate-pulse">
+              <div className="h-3 w-3 bg-primary rounded-full" />
+            </div>
+            <Badge className="bg-primary text-primary-foreground">Answer to Continue</Badge>
+          </div>
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">Question Error</CardTitle>
             <Badge variant="secondary" className="text-xs">
@@ -744,8 +759,10 @@ export default function QuestionOverlay({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      {questionCard}
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+      <div className="animate-scale-in">
+        {questionCard}
+      </div>
     </div>
   );
 }

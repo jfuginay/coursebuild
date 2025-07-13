@@ -228,15 +228,21 @@ const VideoOverlayQuestion: React.FC<VideoOverlayQuestionProps> = ({
   return (
     <div className="w-full">
       {/* Compact Question Card */}
-      <Card className="w-full max-w-4xl mx-auto shadow-lg border-2 border-blue-200">
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-2 mb-1">
-            <Target className="w-4 h-4 text-blue-600" />
-            <Badge variant="outline" className="text-xs">Video Overlay</Badge>
+      <Card className="w-full max-w-4xl mx-auto shadow-2xl border-2 border-primary animate-pulse-border">
+        <CardHeader className="pb-3 relative">
+          <div className="absolute -top-3 -right-3 flex items-center gap-2">
+            <div className="animate-pulse">
+              <div className="h-3 w-3 bg-primary rounded-full" />
+            </div>
+            <Badge className="bg-primary text-primary-foreground">Answer to Continue</Badge>
           </div>
-          <CardTitle className="text-lg">{question}</CardTitle>
-          <CardDescription className="text-sm">
-            Click on the highlighted areas in the video above to answer.
+          <div className="flex items-center gap-2 mb-1">
+            <Target className="w-5 h-5 text-primary animate-pulse" />
+            <Badge variant="outline" className="text-xs">Interactive Video Question</Badge>
+          </div>
+          <CardTitle className="text-xl font-bold">{question}</CardTitle>
+          <CardDescription className="text-base font-medium text-primary">
+            ⬆️ Click on the highlighted areas in the video above to answer
           </CardDescription>
         </CardHeader>
         
