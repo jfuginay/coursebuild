@@ -614,6 +614,32 @@ export default function QuestionOverlay({
   // Standard multiple choice / true-false question UI
   const questionCard = (
     <Card className={isInline ? "w-full relative" : "w-full max-w-2xl mx-auto relative"}>
+      {/* Rating buttons positioned at top right */}
+      <div className="absolute top-4 right-4 flex gap-2 z-0">
+        <button
+          onClick={() => toggleThumb(1)}
+          className={`p-2 rounded-lg transition-colors ${
+            rating === 1 
+              ? 'bg-green-100 text-green-600 dark:bg-green-900/20 dark:text-green-400' 
+              : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
+          }`}
+          title="Thumbs up"
+        >
+          <ThumbsUp className="h-4 w-4" />
+        </button>
+        <button
+          onClick={() => toggleThumb(-1)}
+          className={`p-2 rounded-lg transition-colors ${
+            rating === -1 
+              ? 'bg-red-100 text-red-600 dark:bg-red-900/20 dark:text-red-400' 
+              : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
+          }`}
+          title="Thumbs down"
+        >
+          <ThumbsDown className="h-4 w-4" />
+        </button>
+      </div>
+      
       <CardContent className="space-y-6 pt-6">
         {/* Show free questions remaining banner for unauthenticated users */}
         {!user && freeQuestionsRemaining !== undefined && freeQuestionsRemaining > 0 && (
@@ -690,32 +716,6 @@ export default function QuestionOverlay({
                 Skip Question
               </Button>
             )}
-          </div>
-          
-          {/* Rating buttons in the middle */}
-          <div className="flex gap-2">
-            <button
-              onClick={() => toggleThumb(1)}
-              className={`p-2 rounded-lg transition-colors ${
-                rating === 1 
-                  ? 'bg-green-100 text-green-600 dark:bg-green-900/20 dark:text-green-400' 
-                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
-              }`}
-              title="Thumbs up"
-            >
-              <ThumbsUp className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => toggleThumb(-1)}
-              className={`p-2 rounded-lg transition-colors ${
-                rating === -1 
-                  ? 'bg-red-100 text-red-600 dark:bg-red-900/20 dark:text-red-400' 
-                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
-              }`}
-              title="Thumbs down"
-            >
-              <ThumbsDown className="h-4 w-4" />
-            </button>
           </div>
           
           <div className="flex gap-3">

@@ -280,21 +280,24 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
   }
 
   return (
-    <div className="w-full space-y-8">
-      <div className="text-center space-y-4">
-        <h2 className="text-3xl font-bold tracking-tight">
+    <div className="w-full space-y-8 relative">
+      {/* Section with enhanced styling */}
+      <div className="text-center space-y-4 relative">
+        <h2 className="text-3xl font-bold tracking-tight text-foreground">
           Featured Courses
         </h2>
         <p className="text-lg text-muted-foreground">
-          Explore Community Created Courses
+          Explore AI-Enhanced Learning Experiences Created by Our Community
         </p>
         
-        {/* Rating Filter */}
+        {/* Rating Filter with enhanced styling */}
         <div className="flex justify-center px-4">
-          <div className="flex items-center gap-2 w-full max-w-xs sm:w-auto">
-            <Filter className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          <div className="flex items-center gap-2 w-full max-w-xs sm:w-auto bg-muted/20 backdrop-blur-sm rounded-lg p-1">
+            <div className="p-2">
+              <Filter className="h-4 w-4 text-primary flex-shrink-0" />
+            </div>
             <Select value={ratingFilter} onValueChange={handleRatingFilterChange}>
-              <SelectTrigger className="w-full sm:w-40 text-sm">
+              <SelectTrigger className="w-full sm:w-40 text-sm border-0 bg-transparent focus:ring-primary/50">
                 <SelectValue placeholder="Filter by rating" />
               </SelectTrigger>
               <SelectContent>
@@ -330,7 +333,7 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {displayedCourses.map((course) => {
+        {displayedCourses.map((course, index) => {
           const videoId = extractVideoId(course.youtube_url);
           const thumbnailUrl = videoId 
             ? `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`
@@ -339,17 +342,24 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
           return (
             <Card 
               key={course.id} 
-              className="group hover:shadow-lg transition-all duration-300 cursor-pointer relative h-full flex flex-col"
+              className="group hover:shadow-lg transition-all duration-300 cursor-pointer relative h-full flex flex-col bg-card/50 backdrop-blur-sm border-border/20 hover:border-border/40 overflow-hidden"
               onClick={() => handleCourseClick(course.id)}
+              style={{
+                animationDelay: `${index * 100}ms`
+              }}
             >
-              {/* Delete button in top right corner */}
+              {/* Geometric accent */}
+              <div className="absolute top-0 right-0 w-16 h-16 opacity-5 group-hover:opacity-10 transition-opacity">
+                <div className="absolute top-2 right-2 w-12 h-12 border-2 border-muted rounded-full" />
+              </div>
+              {/* Delete button with enhanced styling */}
               <div className="absolute top-3 right-3 z-10">
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-8 w-8 p-0 bg-red-500/10 hover:bg-red-500/20 text-red-600 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="h-8 w-8 p-0 bg-destructive/10 hover:bg-destructive/20 text-destructive hover:text-destructive/90 opacity-0 group-hover:opacity-100 transition-all rounded-full backdrop-blur-sm"
                       onClick={(e) => e.stopPropagation()}
                       disabled={deletingCourseId === course.id}
                     >
@@ -380,20 +390,20 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
                 </AlertDialog>
               </div>
 
-              <CardHeader className="pb-4 flex-shrink-0">
+              <CardHeader className="pb-4 flex-shrink-0 relative">
                 <div className="flex items-start justify-between">
                   <div className="flex-1 pr-8">
-                    <CardTitle className="text-lg line-clamp-2 group-hover:text-primary transition-colors min-h-[3.5rem] flex items-start">
+                    <CardTitle className="text-lg line-clamp-2 text-foreground/90 group-hover:text-foreground transition-colors min-h-[3.5rem] flex items-start">
                       {course.title}
                     </CardTitle>
-                    {/* Rating Display - Consistent positioning */}
+                    {/* Rating Display with enhanced styling */}
                     <div className="mt-3">
                       <CompactStarRating 
                         rating={course.averageRating || 0} 
                         totalRatings={course.totalRatings || 0}
                         showRatingText={true}
                         size="sm"
-                        className="text-yellow-500"
+                        className="text-muted-foreground"
                       />
                     </div>
                   </div>
@@ -401,14 +411,15 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
               </CardHeader>
               
               <CardContent className="flex-1 flex flex-col space-y-4">
-                {/* Video Thumbnail */}
-                <div className="relative aspect-video bg-muted rounded-lg overflow-hidden flex-shrink-0">
+                {/* Video Thumbnail with overlay effects */}
+                <div className="relative aspect-video bg-muted/50 rounded-lg overflow-hidden flex-shrink-0">
                   {thumbnailUrl ? (
-                    <img 
-                      src={thumbnailUrl}
-                      alt={course.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      onError={(e) => {
+                    <>
+                      <img 
+                        src={thumbnailUrl}
+                        alt={course.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => {
                         // Fallback to smaller resolution thumbnails
                         const img = e.target as HTMLImageElement;
                         const currentSrc = img.src;
@@ -438,16 +449,19 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
                             `;
                           }
                         }
-                      }}
-                    />
+                        }}
+                      />
+                      {/* Gradient overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </>
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center">
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/5 to-secondary/5">
                       <Play className="h-8 w-8 text-muted-foreground" />
                     </div>
                   )}
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300 flex items-center justify-center">
-                    <div className="bg-white/90 group-hover:bg-white rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      <Play className="h-4 w-4 text-primary" />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300 flex items-center justify-center">
+                    <div className="bg-white/90 rounded-full p-3 opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:scale-110 shadow-lg">
+                      <Play className="h-5 w-5 text-black" />
                     </div>
                   </div>
                 </div>
@@ -456,26 +470,28 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
                 <div className="flex-1 flex flex-col justify-between">
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
                     <div className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      <span className="text-xs sm:text-sm">{formatDate(course.created_at)}</span>
+                      <Clock className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-xs sm:text-sm text-muted-foreground">{formatDate(course.created_at)}</span>
                     </div>
-                    <Badge variant="secondary" className="text-xs">
+                    <Badge variant="secondary" className="text-xs bg-muted/50 text-muted-foreground border-0">
                       {course.questionCount || 0} Questions
                     </Badge>
                   </div>
 
-                  {/* Call to Action - Always at bottom */}
+                  {/* Call to Action with gradient effect */}
                   <Button 
-                    variant="outline" 
+                    variant="secondary" 
                     size="sm" 
-                    className="w-full group-hover:bg-primary group-hover:text-primary-foreground transition-colors mt-4"
+                    className="w-full bg-secondary/80 hover:bg-secondary text-secondary-foreground border-0 transition-all mt-4"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleCourseClick(course.id);
                     }}
                   >
-                    Start Learning
-                    <Play className="ml-2 h-3 w-3" />
+                    <span className="flex items-center justify-center">
+                      Start Learning
+                      <Play className="ml-2 h-3 w-3" />
+                    </span>
                   </Button>
                 </div>
               </CardContent>
@@ -486,9 +502,16 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
 
       {displayedCourses.length < filteredCourses.length && (
         <div className="text-center">
-          <Button variant="outline" size="lg" onClick={handleShowMore}>
-            Show More Courses
-            <ExternalLink className="ml-2 h-4 w-4" />
+          <Button 
+            variant="outline" 
+            size="lg" 
+            onClick={handleShowMore}
+            className="border-primary/20 hover:border-primary/40 hover:bg-primary/5 transition-all group"
+          >
+            <span className="group-hover:text-primary transition-colors flex items-center">
+              Show More Courses
+              <ExternalLink className="ml-2 h-4 w-4 group-hover:translate-y-0.5 transition-transform" />
+            </span>
           </Button>
         </div>
       )}
