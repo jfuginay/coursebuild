@@ -613,17 +613,13 @@ Options: ${activeQuestion.options.join(', ')}`;
         </Button>
       </div>
 
-      {/* Main Chat Bubble Button */}
-      <Button
-        onClick={() => setIsOpen(!isOpen)}
-        className="rounded-full w-40 h-40 shadow-xl hover:shadow-2xl transition-all duration-300 bg-transparent hover:bg-transparent p-0 border-0 overflow-hidden group"
-        size="lg"
-      >
-        {isOpen ? (
-          <div className="w-full h-full flex items-center justify-center bg-gradient-to-r from-[#02cced] to-[#02cced]/90 rounded-full transition-all duration-300">
-            <X className="h-6 w-6 text-white" />
-          </div>
-        ) : (
+      {/* Main Chat Bubble Button - Hidden when chat is active */}
+      {!isOpen && (
+        <Button
+          onClick={() => setIsOpen(!isOpen)}
+          className="rounded-full w-40 h-40 shadow-xl hover:shadow-2xl transition-all duration-300 bg-transparent hover:bg-transparent p-0 border-0 overflow-hidden group"
+          size="lg"
+        >
           <div className="relative w-full h-full">
             {/* Glow effect behind image */}
             <div className="absolute inset-0 bg-gradient-to-r from-[#02cced]/20 via-[#02cced]/10 to-[#02cced]/20 blur-xl scale-110 opacity-60 group-hover:opacity-100 transition-opacity duration-300" />
@@ -639,8 +635,8 @@ Options: ${activeQuestion.options.join(', ')}`;
             <div className="absolute bottom-8 -left-1 w-2 h-2 bg-[#fdd686] rounded-full animate-pulse opacity-80" style={{ animationDelay: '0.5s' }} />
             <div className="absolute top-1/3 -left-2 w-2 h-2 bg-[#02cced] rounded-full animate-pulse opacity-60" style={{ animationDelay: '1s' }} />
           </div>
-        )}
-      </Button>
+        </Button>
+      )}
     </div>
   );
 } 
