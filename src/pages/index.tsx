@@ -21,6 +21,7 @@ import { newcomerTourSteps } from '@/config/tours';
 import { BorderTrail } from '@/components/ui/border-trail';
 import { HoverBorderTrail, useHoverBorderTrail } from '@/components/ui/hover-border-trail';
 import { BackgroundGradient } from '@/components/ui/background-gradient';
+import { PaymentSuccessModal } from '@/components/PaymentSuccessModal';
 
 // YouTube URL validation schema
 const courseGenerationSchema = z.object({
@@ -105,6 +106,7 @@ export default function Home() {
   const [concepts, setConcepts] = useState<ConceptData[]>([]);
   const [isMainCardHovered, setIsMainCardHovered] = useState(false);
   const [mainCardRandomStart, setMainCardRandomStart] = useState<number | null>(null);
+  const [showPaymentSuccessModal, setShowPaymentSuccessModal] = useState(false);
   const [tips, setTips] = useState([
     {
       title: "Did you know?",
@@ -157,6 +159,16 @@ export default function Home() {
       setUseCache(true);
     }
   }, [router.query.url, router.query.cache, reset]);
+
+  // Check for payment success parameter
+  useEffect(() => {
+    if (router.query.payment_success === 'true' || router.query.payment_finished === 'true') {
+      setShowPaymentSuccessModal(true);
+      // Clean up URL by removing the payment parameter
+      const cleanUrl = router.pathname;
+      router.replace(cleanUrl, undefined, { shallow: true });
+    }
+  }, [router.query.payment_success, router.query.payment_finished, router]);
 
   // Helper function to track course creation for logged-in users
   const trackCourseCreation = async (courseId: string, courseData: CourseData, youtubeUrl: string) => {
@@ -790,6 +802,12 @@ export default function Home() {
           </div>
         </div>
       )}
+      
+      {/* Payment Success Modal */}
+      <PaymentSuccessModal 
+        open={showPaymentSuccessModal}
+        onOpenChange={setShowPaymentSuccessModal}
+      />
     </>
   );
 }

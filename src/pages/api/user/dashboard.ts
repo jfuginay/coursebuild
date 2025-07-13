@@ -318,7 +318,8 @@ export default async function handler(
       success: true,
       user: {
         id: user.id,
-        ...dashboardStats
+        ...dashboardStats,
+        credits: profile.credits || 0
       },
       stats: {
         coursesEnrolled: dashboardStats?.courses_enrolled || 0,
