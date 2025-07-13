@@ -21,6 +21,7 @@ import { supabase } from '@/lib/supabase';
 import { useGuidedTour } from '@/hooks/useGuidedTour';
 import { learnerTourSteps } from '@/config/tours';
 import ChatBubble from '@/components/ChatBubble';
+import { CanvasExportDialog } from '@/components/CanvasExportDialog';
 
 interface Course {
  id: string;
@@ -137,6 +138,9 @@ export default function CoursePage() {
  // Guided tour state
  const [shouldRunTour, setShouldRunTour] = useState(false);
  const [hasCheckedOnboarding, setHasCheckedOnboarding] = useState(false);
+
+ // Canvas export state
+ const [showCanvasExport, setShowCanvasExport] = useState(false);
 
  // Free questions limit
  const FREE_QUESTIONS_LIMIT = 2;
@@ -1272,6 +1276,79 @@ export default function CoursePage() {
    };
  };
 
+ // Convert questions to Canvas export format
+ const getCanvasSegments = (): Segment[] => {
+   if (!course || questions.length === 0) {
+     return [];
+   }
+
+   // Group questions by timestamp if they have them, otherwise create a single segment
+   const questionsWithTimestamps = questions.filter(q => q.timestamp && q.timestamp > 0);
+   
+   if (questionsWithTimestamps.length > 0) {
+     // Create segments based on question timestamps
+     const segments: Segment[] = [];
+     const sortedQuestions = [...questionsWithTimestamps].sort((a, b) => a.timestamp - b.timestamp);
+     
+     // Group questions into segments (every 5 questions or significant timestamp gap)
+     let currentSegment: Segment = {
+       title: "Introduction",
+       timestamp: formatTime(sortedQuestions[0]?.timestamp || 0),
+       timestampSeconds: sortedQuestions[0]?.timestamp || 0,
+       concepts: [],
+       questions: []
+     };
+     
+     for (let i = 0; i < sortedQuestions.length; i++) {
+       const question = sortedQuestions[i];
+       
+       // Start new segment if timestamp gap > 5 minutes or every 5 questions
+       if (i > 0 && (
+         question.timestamp - currentSegment.timestampSeconds > 300 || 
+         currentSegment.questions.length >= 5
+       )) {
+         if (currentSegment.questions.length > 0) {
+           segments.push(currentSegment);
+         }
+         
+         currentSegment = {
+           title: `Segment ${segments.length + 1}`,
+           timestamp: formatTime(question.timestamp),
+           timestampSeconds: question.timestamp,
+           concepts: [],
+           questions: []
+         };
+       }
+       
+       currentSegment.questions.push(question);
+       
+       // Extract concepts from question text (simple approach)
+       if (question.visual_context) {
+         const concept = question.visual_context.substring(0, 50);
+         if (!currentSegment.concepts.includes(concept)) {
+           currentSegment.concepts.push(concept);
+         }
+       }
+     }
+     
+     // Add the last segment
+     if (currentSegment.questions.length > 0) {
+       segments.push(currentSegment);
+     }
+     
+     return segments;
+   } else {
+     // Create a single segment with all questions
+     return [{
+       title: "Course Content",
+       timestamp: "00:00",
+       timestampSeconds: 0,
+       concepts: questions.map(q => q.question.substring(0, 50)).slice(0, 5),
+       questions: questions
+     }];
+   }
+ };
+
  // Get active question data for chat bubble
  const getActiveQuestion = () => {
    if (!showQuestion || !questions[currentQuestionIndex]) {
@@ -1476,6 +1553,20 @@ export default function CoursePage() {
            <h1 className="text-3xl font-bold tracking-tight lg:text-4xl">
              {course.title}
            </h1>
+           
+           {/* Canvas Export Button */}
+           {user && course && questions.length > 0 && (
+             <div className="flex justify-center">
+               <Button 
+                 onClick={() => setShowCanvasExport(true)}
+                 variant="outline"
+                 className="flex items-center gap-2"
+               >
+                 <ExternalLink className="w-4 h-4" />
+                 Export to Canvas LMS
+               </Button>
+             </div>
+           )}
          </div>
 
          {/* Video Player */}
@@ -1662,6 +1753,16 @@ export default function CoursePage() {
        position="center"
        autoHide={8000}
      />
+
+     {/* Canvas Export Dialog */}
+     {course && (
+       <CanvasExportDialog
+         open={showCanvasExport}
+         onOpenChange={setShowCanvasExport}
+         course={course}
+         segments={getCanvasSegments()}
+       />
+     )}
 
      {/* Chat Bubble */}
      <ChatBubble 
