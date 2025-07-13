@@ -79,11 +79,26 @@ const VideoOverlayQuestion: React.FC<VideoOverlayQuestionProps> = ({
   useEffect(() => {
     if (!videoContainer || !overlayContainerRef.current) return;
 
+    // Cache overlay reference and video rect to reduce DOM queries
+    let cachedVideoRect: DOMRect | null = null;
+    let isPositionUpdateScheduled = false;
+
     const updateOverlayPosition = () => {
       if (!overlayContainerRef.current) return;
       
       const videoRect = videoContainer.getBoundingClientRect();
       const overlay = overlayContainerRef.current;
+      
+      // Only update if position actually changed (optimization)
+      if (cachedVideoRect && 
+          Math.abs(cachedVideoRect.left - videoRect.left) < 1 &&
+          Math.abs(cachedVideoRect.top - videoRect.top) < 1 &&
+          Math.abs(cachedVideoRect.width - videoRect.width) < 1 &&
+          Math.abs(cachedVideoRect.height - videoRect.height) < 1) {
+        return; // Skip update if position hasn't meaningfully changed
+      }
+      
+      cachedVideoRect = videoRect;
       
       // Position overlay container to exactly match video dimensions and position
       overlay.style.position = 'fixed';
@@ -92,26 +107,50 @@ const VideoOverlayQuestion: React.FC<VideoOverlayQuestionProps> = ({
       overlay.style.width = `${videoRect.width}px`;
       overlay.style.height = `${videoRect.height}px`;
       overlay.style.pointerEvents = 'none'; // Allow clicks through to video
-      overlay.style.zIndex = '1000';
+      overlay.style.zIndex = '1100'; // Increased to be above ChatBubble (z-50)
+    };
+
+    // Debounced scroll handler to reduce frequency of updates
+    const debouncedUpdate = () => {
+      if (isPositionUpdateScheduled) return;
+      
+      isPositionUpdateScheduled = true;
+      requestAnimationFrame(() => {
+        updateOverlayPosition();
+        isPositionUpdateScheduled = false;
+      });
     };
 
     // Initial positioning
     updateOverlayPosition();
 
-    // Use requestAnimationFrame for smooth updates
-    let rafId: number;
-    const smoothUpdate = () => {
-      updateOverlayPosition();
-      rafId = requestAnimationFrame(smoothUpdate);
-    };
+    // Use passive event listeners with debouncing
+    window.addEventListener('scroll', debouncedUpdate, { passive: true });
+    window.addEventListener('resize', updateOverlayPosition, { passive: true }); // Resize less frequent, no debounce needed
 
-    // Start smooth updates
-    rafId = requestAnimationFrame(smoothUpdate);
+    // Reduced parent scroll detection - only check immediate scrollable parents
+    const scrollElements: Element[] = [];
+    let scrollParent = videoContainer.parentElement;
+    let depth = 0;
+    const maxDepth = 3; // Limit depth to prevent excessive listeners
+    
+    while (scrollParent && scrollParent !== document.body && depth < maxDepth) {
+      const computedStyle = window.getComputedStyle(scrollParent);
+      if (computedStyle.overflow === 'auto' || computedStyle.overflow === 'scroll' || 
+          computedStyle.overflowY === 'auto' || computedStyle.overflowY === 'scroll') {
+        scrollElements.push(scrollParent);
+        scrollParent.addEventListener('scroll', debouncedUpdate, { passive: true });
+      }
+      scrollParent = scrollParent.parentElement;
+      depth++;
+    }
 
     return () => {
-      if (rafId) {
-        cancelAnimationFrame(rafId);
-      }
+      window.removeEventListener('scroll', debouncedUpdate);
+      window.removeEventListener('resize', updateOverlayPosition);
+      scrollElements.forEach(el => {
+        el.removeEventListener('scroll', debouncedUpdate);
+      });
     };
   }, [videoContainer]);
 
@@ -236,14 +275,11 @@ const VideoOverlayQuestion: React.FC<VideoOverlayQuestionProps> = ({
             </div>
             <Badge className="bg-primary text-primary-foreground">Answer to Continue</Badge>
           </div>
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-2">
             <Target className="w-5 h-5 text-primary animate-pulse" />
             <Badge variant="outline" className="text-xs">Interactive Video Question</Badge>
           </div>
           <CardTitle className="text-xl font-bold">{question}</CardTitle>
-          <CardDescription className="text-base font-medium text-primary">
-            ⬆️ Click on the highlighted areas in the video above to answer
-          </CardDescription>
         </CardHeader>
         
         <CardContent className="pt-0">

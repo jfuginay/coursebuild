@@ -454,8 +454,8 @@ html.dark .space-y-3 button[class*="border-red-200"] {
   background-color: rgb(127 29 29 / 0.2) !important;
   border-color: rgb(127 29 29 / 0.5) !important;
   color: rgb(252 165 165) !important;
-}
-
+  }
+  
 html.dark .space-y-3 button[class*="bg-green-50"],
 html.dark .space-y-3 button[class*="border-green-200"] {
   background-color: rgb(20 83 45 / 0.2) !important;
@@ -518,8 +518,8 @@ html.dark .space-y-3 button[class*="border-green-200"] {
 
 .dark .border-purple-500 {
   border-color: rgb(147 51 234 / 0.5) !important;
-}
-
+  }
+  
 .dark .border-orange-500 {
   border-color: rgb(249 115 22 / 0.5) !important;
 }
