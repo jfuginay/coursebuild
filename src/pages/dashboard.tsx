@@ -41,6 +41,7 @@ interface DashboardData {
     created_at?: string;
     bio?: string;
     preferred_difficulty?: 'easy' | 'medium' | 'hard';
+    credits?: number;
   };
   stats: {
     coursesEnrolled: number;
@@ -78,6 +79,25 @@ export default function DashboardPage() {
       fetchDashboardData();
     }
   }, [user, supabase]);
+
+  useEffect(() => {
+    // Check for payment success/failure in URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentSuccess = urlParams.get('payment_success');
+    const paymentCancelled = urlParams.get('payment_cancelled');
+    
+    if (paymentSuccess === 'true') {
+      // Show success message and refresh data
+      setError(null);
+      fetchDashboardData();
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (paymentCancelled === 'true') {
+      setError('Payment was cancelled');
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
 
   const fetchDashboardData = async () => {
     try {
@@ -127,6 +147,65 @@ export default function DashboardPage() {
   const handleViewQuestionDetails = (course: any) => {
     setSelectedCourse(course);
     setShowQuestionDetails(true);
+  };
+
+  const handleBuyCredits = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setError('Please log in to purchase credits');
+        return;
+      }
+
+      console.log('Session user:', session.user);
+      console.log('Context user:', user);
+
+      // Create a checkout session with user context
+      const response = await fetch('/api/stripe/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          userId: session.user.id, // Use session user ID directly
+          userEmail: session.user.email,
+          returnUrl: window.location.origin // Return to homepage instead of dashboard
+        })
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        console.error('API Error:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: data
+        });
+        throw new Error(data.error || `API Error: ${response.status} ${response.statusText}`);
+      }
+
+      if (data.success && data.url) {
+        console.log('Redirecting to:', data.url);
+        setError(null); // Clear any previous errors
+        // Redirect to Stripe checkout
+        window.location.href = data.url;
+      } else {
+        console.error('Checkout creation failed:', data);
+        throw new Error(data.error || 'Failed to create checkout session');
+      }
+    } catch (err) {
+      console.error('Error creating checkout session:', err);
+      if (err instanceof Error) {
+        if (err.message.includes('404')) {
+          setError('API route not found. Please restart the development server.');
+        } else {
+          setError(`Failed to start checkout process: ${err.message}`);
+        }
+      } else {
+        setError('Failed to start checkout process');
+      }
+    }
   };
 
   if (authLoading || isLoading) {
@@ -195,6 +274,14 @@ export default function DashboardPage() {
                 <Settings className="h-4 w-4 mr-2" />
                 Settings
               </Button>
+              <Button 
+                onClick={handleBuyCredits}
+                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                size="sm"
+              >
+                <Star className="h-4 w-4 mr-2" />
+                Buy Credits
+              </Button>
             </div>
           </div>
 
@@ -238,6 +325,10 @@ export default function DashboardPage() {
                               {userData.preferred_difficulty} Difficulty
                             </Badge>
                           )}
+                          <Badge variant="outline" className="flex items-center gap-1">
+                            <Star className="h-3 w-3 text-yellow-500" />
+                            {userData.credits || 0} Credits
+                          </Badge>
                           <div className="text-sm text-muted-foreground">
                             Member since {formatDate(userData.created_at || new Date().toISOString())}
                           </div>
@@ -300,6 +391,34 @@ export default function DashboardPage() {
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">Created Courses</span>
                         <span className="font-medium">{stats.coursesCreated}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Star className="h-4 w-4 text-yellow-600" />
+                        Credits
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Current Balance</span>
+                        <span className="font-medium text-lg">{userData.credits || 0}</span>
+                      </div>
+                      <div className="pt-2">
+                        <Button 
+                          onClick={handleBuyCredits}
+                          size="sm"
+                          className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                        >
+                          <Star className="h-3 w-3 mr-1" />
+                          Buy More Credits
+                        </Button>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Use credits for premium features
                       </div>
                     </CardContent>
                   </Card>

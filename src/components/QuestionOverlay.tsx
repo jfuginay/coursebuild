@@ -230,8 +230,8 @@ export default function QuestionOverlay({
     // Video overlay questions always need to be overlaid on the video, even when isInline is true
     return (
       <div className="fixed inset-0 z-50">
-        {/* Dim overlay to focus attention */}
-        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm pointer-events-none animate-fade-in" />
+        {/* Dim overlay to focus attention - no blur for video overlay questions */}
+        <div className="absolute inset-0 bg-black/15 pointer-events-none animate-fade-in" />
         
         {/* Question UI positioned at bottom - not covering video */}
         <div className="absolute bottom-0 left-0 right-0 p-4 pointer-events-auto animate-slide-up">

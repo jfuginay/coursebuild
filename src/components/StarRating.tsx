@@ -181,8 +181,11 @@ export function RatingModal({
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-6 max-w-sm mx-4 sm:mx-auto">
       <div className="text-center space-y-3 sm:space-y-4">
         <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100">
-          How was this course?
+          🎉 Course Complete!
         </h3>
+        <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
+          Please rate your experience
+        </p>
         {courseTitle && (
           <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 truncate px-2">
             {courseTitle}
@@ -200,7 +203,10 @@ export function RatingModal({
         </div>
         
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          Tap a star to rate
+          Click a star to rate this course (1-5 stars)
+        </p>
+        <p className="text-xs text-gray-400 dark:text-gray-500">
+          Your feedback helps improve the learning experience
         </p>
       </div>
     </div>
