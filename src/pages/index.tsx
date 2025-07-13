@@ -94,7 +94,7 @@ interface ConceptData {
 
 export default function Home() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, session } = useAuth(); // Add session to get JWT token
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatingStatus, setGeneratingStatus] = useState<string>('');
@@ -160,13 +160,14 @@ export default function Home() {
 
   // Helper function to track course creation for logged-in users
   const trackCourseCreation = async (courseId: string, courseData: CourseData, youtubeUrl: string) => {
-    if (!user) return; // Only track for logged-in users
+    if (!user || !session?.access_token) return; // Only track for logged-in users
     
     try {
       const response = await fetch('/api/user-course-creations', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           user_id: user.id,
@@ -252,12 +253,20 @@ export default function Home() {
         timeoutRefs.current.push(timeout);
       });
 
+      // Prepare headers for API call
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      // Add Authorization header if user is logged in
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+
       // Use the smart analysis endpoint that supports segmentation
       const response = await fetch('/api/course/analyze-video-smart', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           course_id: null, // Will be created by the endpoint
           youtube_url: data.youtubeUrl,

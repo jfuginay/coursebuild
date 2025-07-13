@@ -33,6 +33,7 @@ import { useGuidedTour, hasTourBeenCompleted } from '@/hooks/useGuidedTour';
 
 // Utilities and config
 import { learnerTourSteps } from '@/config/tours';
+
 import { supabase } from '@/lib/supabase';
 import { Course, CourseData, Segment, Question } from '@/types/course';
 import { formatTime, adjustEndOfVideoQuestions, parseOptions, formatUserAnswer, formatCorrectAnswer } from '@/utils/courseHelpers';
