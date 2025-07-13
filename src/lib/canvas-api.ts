@@ -2,7 +2,7 @@
  * Canvas LMS API Integration Service
  * 
  * This service provides a TypeScript interface for interacting with Canvas LMS APIs
- * to export CourseForge AI courses to Canvas instances.
+ * to export CourseBuild courses to Canvas instances.
  * 
  * Features:
  * - Course creation and management

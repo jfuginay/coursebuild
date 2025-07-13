@@ -1,10 +1,10 @@
-# Canvas LMS Export Plan for CourseForge AI
+# Canvas LMS Export Plan for CourseBuild
 
 ## 🎯 Project Overview
 
-This document outlines the comprehensive plan to add Canvas LMS export functionality to CourseForge AI, enabling educators to seamlessly transfer AI-generated courses from CourseForge to their Canvas LMS instances.
+This document outlines the comprehensive plan to add Canvas LMS export functionality to CourseBuild, enabling educators to seamlessly transfer AI-generated courses from CourseBuild to their Canvas LMS instances.
 
-## 📋 Current CourseForge Data Structure Analysis
+## 📋 Current CourseBuild Data Structure Analysis
 
 ### Course Data Model
 ```typescript
@@ -77,7 +77,7 @@ interface CanvasExportOptions {
 
 #### Course Structure Mapping
 ```
-CourseForge Course → Canvas Course
+CourseBuild Course → Canvas Course
 ├── Course Metadata → Course Settings
 ├── Video Content → External Tool/Page
 ├── Segments → Modules
@@ -449,7 +449,7 @@ describe('Canvas API Integration', () => {
 ```typescript
 // test/canvas-transformer.test.ts
 describe('Canvas Data Transformation', () => {
-  test('should transform CourseForge course to Canvas format', () => {
+  test('should transform CourseBuild course to Canvas format', () => {
     const canvasCourse = CanvasTransformer.transformCourse(mockCourse, mockSegments);
     expect(canvasCourse.name).toBe(mockCourse.title);
   });
@@ -467,7 +467,7 @@ describe('Canvas Data Transformation', () => {
 describe('Canvas Export E2E', () => {
   test('should complete full export workflow', async () => {
     // 1. Setup Canvas sandbox
-    // 2. Export course from CourseForge
+    // 2. Export course from CourseBuild
     // 3. Verify Canvas course creation
     // 4. Verify content structure
     // 5. Verify quiz functionality
@@ -503,7 +503,7 @@ export class ExportAnalytics {
 ## 🚀 Deployment and Rollout
 
 ### Phase 1: Beta Testing (Week 4-5)
-- Internal testing with CourseForge team
+- Internal testing with CourseBuild team
 - Canvas sandbox environment testing
 - User acceptance testing with selected educators
 
@@ -540,7 +540,7 @@ export class ExportAnalytics {
 ## 🔮 Future Enhancements
 
 ### 1. Bidirectional Sync
-- Import Canvas courses into CourseForge
+- Import Canvas courses into CourseBuild
 - Sync progress data between systems
 - Real-time collaboration features
 
@@ -578,4 +578,4 @@ export class ExportAnalytics {
 3. Begin Phase 1 implementation
 4. Create detailed user stories and sprint planning
 
-This comprehensive plan provides a roadmap for implementing Canvas LMS export functionality that will significantly enhance CourseForge AI's value proposition for educators using Canvas.
+This comprehensive plan provides a roadmap for implementing Canvas LMS export functionality that will significantly enhance CourseBuild's value proposition for educators using Canvas.

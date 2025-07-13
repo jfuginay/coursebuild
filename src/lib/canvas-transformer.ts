@@ -1,14 +1,14 @@
 /**
  * Canvas Data Transformation Service
  * 
- * Transforms CourseForge AI course data into Canvas LMS compatible formats.
+ * Transforms CourseBuild course data into Canvas LMS compatible formats.
  * Handles complex mappings between different question types, video content,
  * and course structures.
  */
 
 import { CanvasCourse, CanvasModule, CanvasQuiz, CanvasQuizQuestion, CanvasQuizAnswer, CanvasPage } from './canvas-api';
 
-// CourseForge Data Types (from existing codebase)
+// CourseBuild Data Types (from existing codebase)
 export interface Course {
   id: string;
   title: string;
@@ -106,7 +106,7 @@ const QUESTION_TYPE_MAPPING: Record<string, CanvasQuizQuestion['question_type']>
 
 export class CanvasTransformer {
   /**
-   * Transform CourseForge course to Canvas course format
+   * Transform CourseBuild course to Canvas course format
    */
   static transformCourse(
     course: Course, 
@@ -215,7 +215,7 @@ ${segments.map((seg, i) =>
 ).join('\n')}
 </ol>
 
-<p><em>This course was generated using CourseForge AI from educational video content.</em></p>
+<p><em>This course was generated using CourseBuild from educational video content.</em></p>
     `.trim();
   }
 
@@ -465,7 +465,7 @@ ${segments.map((seg, i) =>
   }
 
   /**
-   * Transform CourseForge question to Canvas question
+   * Transform CourseBuild question to Canvas question
    */
   static transformQuestion(question: Question, position: number = 1): CanvasQuizQuestion {
     const baseQuestion: CanvasQuizQuestion = {

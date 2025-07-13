@@ -230,7 +230,7 @@ Options: ${activeQuestion.options.join(', ')}`;
                 </AvatarFallback>
               </Avatar>
               <div>
-                <h3 className="text-sm font-semibold">CourseForge AI</h3>
+                <h3 className="text-sm font-semibold">CourseBuild AI</h3>
                 <p className="text-xs opacity-90">Always here to help</p>
               </div>
             </div>

@@ -5,7 +5,7 @@ export const newcomerTourSteps: DriveStep[] = [
   {
     element: '#main-headline',
     popover: {
-      title: 'Welcome to CourseForge AI! 🚀',
+      title: 'Welcome to CourseBuild! 🚀',
       description: 'Ready to turn any YouTube video into an interactive course? Let\'s get started in just two clicks.',
       position: 'bottom',
       align: 'center',

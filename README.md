@@ -1,10 +1,10 @@
-# CourseBuilder
+# CourseBuild
 
-CourseBuilder is an innovative platform that transforms YouTube videos into comprehensive, interactive online courses using advanced AI and educational design principles. Think of it as "Cursor for Course Creators" - an AI-powered tool that automatically generates structured learning experiences from video content.
+CourseBuild is an innovative platform that transforms YouTube videos into comprehensive, interactive online courses using advanced AI and educational design principles. Think of it as "Cursor for Course Creators" - an AI-powered tool that automatically generates structured learning experiences from video content.
 
 ## 🎯 Project Overview
 
-CourseBuilder leverages dual LLM providers with full video transcription and intelligent question timing to:
+CourseBuild leverages dual LLM providers with full video transcription and intelligent question timing to:
 - **Full Video Transcript Generation** with visual descriptions and concept timeline
 - **Intelligent Question Timing** using LLM-based optimization to place questions after concepts are explained
 - **Dual LLM Provider Support** with OpenAI GPT-4o (default for text) and Google Gemini 2.5 Flash (for visual)
@@ -481,4 +481,4 @@ Gemini uses base-60 timestamps where 100 = 1:00 = 60 seconds. The v5.0 system au
 
 ---
 
-*CourseForge AI v5.0 - Advanced video-to-course transformation with full transcript generation, intelligent question timing, and enhanced educational context awareness.*
+*CourseBuild v5.0 - Advanced video-to-course transformation with full transcript generation, intelligent question timing, and enhanced educational context awareness.*
