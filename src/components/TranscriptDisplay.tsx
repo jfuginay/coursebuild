@@ -106,9 +106,13 @@ export default function TranscriptDisplay({
   };
 
   const handleSegmentClick = (timestamp: string) => {
-    const time = parseFloat(timestamp);
-    if (onSeek) {
+    // Validate onSeek is available and player is ready
+    if (onSeek && typeof onSeek === 'function') {
+      const time = parseFloat(timestamp);
+      console.log('📍 Seeking to timestamp:', time);
       onSeek(time);
+    } else {
+      console.warn('⚠️ Seek functionality not available - player may not be ready');
     }
   };
 
@@ -153,7 +157,8 @@ export default function TranscriptDisplay({
       <div
         key={`${segment.transcript_id}-${segment.timestamp}`}
         className={cn(
-          "absolute w-full px-2 transition-all duration-300 ease-out cursor-pointer",
+          "absolute w-full px-2 transition-all duration-300 ease-out",
+          onSeek ? "cursor-pointer" : "cursor-wait",
           isTransitioning && "duration-500",
         )}
         style={{
@@ -163,6 +168,7 @@ export default function TranscriptDisplay({
           zIndex: 10 - distance,
         }}
         onClick={() => handleSegmentClick(segment.timestamp)}
+        title={onSeek ? "Click to jump to this timestamp" : "Video player is loading..."}
       >
         <div className={cn(
           "p-4 rounded-xl border-2 transition-all duration-300",
@@ -283,6 +289,16 @@ export default function TranscriptDisplay({
         </div>
       </CardHeader>
       <CardContent className="relative px-4 pb-6 pt-2">
+        {/* Warning when seek is not available */}
+        {!onSeek && (
+          <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+            <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
+              <AlertCircle className="h-4 w-4" />
+              <span className="text-sm">Video player is loading. Seek functionality will be available shortly.</span>
+            </div>
+          </div>
+        )}
+        
         {/* Slot machine container */}
         <div 
           ref={containerRef}
