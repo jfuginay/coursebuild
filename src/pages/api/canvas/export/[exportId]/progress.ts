@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { exportProgress } from '../../export';
+import { exportProgress } from '../export';
 
 export default async function handler(
   req: NextApiRequest,
