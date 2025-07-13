@@ -27,7 +27,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
     const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
     const geminiKey = process.env.GEMINI_API_KEY;
-    const quizGenerationUrl = supabaseUrl + '/functions/v1/quiz-generation-v4';
+    const quizGenerationUrl = supabaseUrl + '/functions/v1/quiz-generation-v5';
     
     console.log('🔍 Environment check:');
     console.log(`   - Supabase URL: ${supabaseUrl ? '✅ Found' : '❌ Missing'}`);
@@ -71,16 +71,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           'Set NEXT_PUBLIC_SUPABASE_ANON_KEY in environment (✅ Found)', 
           'Set GEMINI_API_KEY in environment (❌ Missing - Get from https://aistudio.google.com/app/apikey)',
           'Apply database migration: 20250709161624_add_quiz_v4_quality_columns.sql',
-          'Ensure quiz-generation-v4 edge function is deployed'
+          'Ensure quiz-generation-v5 edge function is deployed'
         ],
         services_status: {
-          'quiz-generation-v4': 'Deployed - Enhanced pipeline with quality verification',
-          'enhanced-quiz-service': 'Available - Legacy service for comparison'
+          'quiz-generation-v5': 'Deployed - Latest pipeline with transcript generation and LLM timing'
         }
       });
     }
 
-    console.log('🎯 Calling Quiz Generation v4.0 with real configuration...');
+    console.log('🎯 Calling Quiz Generation v5.0 with real configuration...');
     
     const startTime = Date.now();
     
@@ -101,18 +100,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     const processingTime = Date.now() - startTime;
-    console.log(`📊 Quiz Generation v4.0 response: ${response.status} (${processingTime}ms)`);
+    console.log(`📊 Quiz Generation v5.0 response: ${response.status} (${processingTime}ms)`);
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Quiz Generation v4.0 failed:', errorText);
+      console.error('❌ Quiz Generation v5.0 failed:', errorText);
       
       return res.status(500).json({
         success: false,
-        error: 'Quiz Generation v4.0 failed',
+        error: 'Quiz Generation v5.0 failed',
         status: response.status,
         details: errorText,
-        test_type: 'full_pipeline_with_quiz_generation_v4',
+        test_type: 'full_pipeline_with_quiz_generation_v5',
         youtube_url: youtubeUrl,
         processing_time_ms: processingTime,
         issue: 'Service call failed - may need environment configuration or database migration'
@@ -225,7 +224,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         'Check database migration status',
         'Verify API key configuration',
         'Review service logs for detailed errors',
-        'Ensure quiz-generation-v4 is properly deployed'
+                  'Ensure quiz-generation-v5 is properly deployed'
       ]
     });
 

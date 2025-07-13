@@ -152,12 +152,13 @@ Use this transcript context to:
 ` : ''}
 
 Requirements:
-1. Analyze the 2-second window and select the EXACT timestamp where target objects are clearest
-2. Generate clear, educational question text that asks students to identify ONE SINGLE target object
-3. Generate a comprehensive explanation that explains why identifying this object is important
-4. Find and mark all other visible objects in the selected frame with minimal overlap with the target object (minimum 3-5 bounding boxes)
-5. Mark the target object as correct answers
-6. Choose educational distractors that test understanding
+1. Analyze the 2-second window and select the EXACT timestamp where target objects are clearest.
+2. Make sure the scene in the selected timestamp stays is visible for at least 1 second before and after the timestamp.
+3. Generate clear, educational question text that asks students to identify ONE SINGLE target object
+4. Generate a comprehensive explanation that explains why identifying this object is important
+5. Find and mark all other visible objects in the selected frame with minimal overlap with the target object (minimum 3-5 bounding boxes)
+6. Mark the target object as correct answers
+7. Choose educational distractors that test understanding
 
 Guidelines for question text:
 - Be specific about what to identify

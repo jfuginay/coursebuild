@@ -10,6 +10,7 @@ import { ProgressTracker } from '@/components/ProgressTracker';
 import { extractVideoId, fetchYouTubeMetadata, generateFallbackTitle } from '@/utils/youtube';
 import { useGuidedTour, hasTourBeenCompleted } from '@/hooks/useGuidedTour';
 import { creationPageSteps } from '@/config/tours';
+import { useAuth } from '@/contexts/AuthContext';
 
 // =============================================================================
 // Course Creation with Progress Tracking Demo
@@ -22,6 +23,7 @@ export default function CreateWithProgress() {
   const [courseId, setCourseId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<any[]>([]);
   const router = useRouter();
+  const { user } = useAuth(); // Get the authenticated user
   
   // Guided tour state
   const [shouldRunTour, setShouldRunTour] = useState(false);
@@ -107,7 +109,8 @@ export default function CreateWithProgress() {
           description: videoDescription,
           youtube_url: youtubeUrl,
           published: false,  // Ensure course starts as unpublished
-          status: 'processing'
+          status: 'processing',
+          created_by: user?.id // Include user ID if logged in
         })
         .select()
         .single();
@@ -119,12 +122,38 @@ export default function CreateWithProgress() {
       console.log('✅ Course created:', courseData.id);
       setCourseId(courseData.id);
 
-      // Step 2: Generate a unique session ID for progress tracking
+      // Step 2: Record course creation in user_course_creations table if user is logged in
+      if (user?.id) {
+        try {
+          const response = await fetch('/api/user-course-creations', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              user_id: user.id,
+              course_id: courseData.id,
+              role: 'creator'
+            }),
+          });
+
+          if (!response.ok) {
+            console.error('Failed to record course creation, but continuing...');
+          } else {
+            console.log('✅ Course creation recorded in user_course_creations');
+          }
+        } catch (error) {
+          console.error('Error recording course creation:', error);
+          // Continue with course creation even if this fails
+        }
+      }
+
+      // Step 3: Generate a unique session ID for progress tracking
       const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       setSessionId(newSessionId);
       console.log('📊 Session ID generated:', newSessionId);
 
-      // Step 3: Start the quiz generation pipeline with progress tracking
+      // Step 4: Start the quiz generation pipeline with progress tracking
       const response = await fetch('/api/course/analyze-video-smart', {
         method: 'POST',
         headers: {
@@ -142,6 +171,23 @@ export default function CreateWithProgress() {
 
       if (!response.ok) {
         const errorData = await response.json();
+        
+        // Check if it's a video duration error
+        if (errorData.video_duration && errorData.max_duration) {
+          const videoDurationMinutes = Math.floor(errorData.video_duration / 60);
+          const maxDurationMinutes = Math.floor(errorData.max_duration / 60);
+          
+          // Clean up the created course
+          if (courseData.id) {
+            await supabase
+              .from('courses')
+              .delete()
+              .eq('id', courseData.id);
+          }
+          
+          throw new Error(`This video is ${videoDurationMinutes} minutes long. Maximum allowed duration is ${maxDurationMinutes} minutes. Please choose a shorter video.`);
+        }
+        
         throw new Error(errorData.error || 'Failed to start video processing');
       }
 

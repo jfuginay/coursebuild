@@ -86,7 +86,7 @@ CREATE TABLE pipeline_stages (
 
 ### 2. Progress Tracking Utility
 
-Create a robust progress tracking utility (`supabase/functions/quiz-generation-v4/utils/progress-tracker.ts`):
+Create a robust progress tracking utility (`supabase/functions/quiz-generation-v5/utils/progress-tracker.ts`):
 
 ```typescript
 export class ProgressTracker {
@@ -170,7 +170,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     // Call the quiz generation pipeline
-    const pipelineResponse = await fetch(`${supabaseUrl}/functions/v1/quiz-generation-v4`, {
+    const pipelineResponse = await fetch(`${supabaseUrl}/functions/v1/quiz-generation-v5`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -41,9 +41,9 @@ function sanitizeYouTubeUrl(url: string): string {
   return sanitized;
 }
 
-// Transform quiz-generation-v4 response to expected frontend structure
+// Transform quiz-generation-v5 response to expected frontend structure
 function transformResponseToExpectedFormat(edgeResponse: any): any {
-  // Handle new quiz-generation-v4 response structure
+  // Handle new quiz-generation-v5 response structure
   const { 
     final_questions = [], 
     video_summary = "AI Generated Course", 
@@ -52,7 +52,7 @@ function transformResponseToExpectedFormat(edgeResponse: any): any {
     pipeline_metadata = {}
   } = edgeResponse;
   
-  // Use final_questions from quiz-generation-v4 response
+  // Use final_questions from quiz-generation-v5 response
   const questions = final_questions || [];
   
   if (!questions || !Array.isArray(questions)) {
@@ -65,7 +65,7 @@ function transformResponseToExpectedFormat(edgeResponse: any): any {
         visual_questions_enabled: false,
         visual_questions_count: 0,
         frame_capture_available: false,
-        pipeline_v4_enabled: true
+        pipeline_v5_enabled: true
       }
     };
   }
@@ -221,7 +221,7 @@ function transformResponseToExpectedFormat(edgeResponse: any): any {
   
   return {
     title: video_summary.substring(0, 80) + (video_summary.length > 80 ? "..." : ""),
-    description: `Interactive course with ${visualQuestionsCount} visual questions generated using Quiz Generation Pipeline v4.0.`,
+    description: `Interactive course with ${visualQuestionsCount} visual questions generated using Quiz Generation Pipeline v5.0.`,
     duration: durationText,
     segments: segments,
     video_summary: video_summary,
@@ -230,7 +230,7 @@ function transformResponseToExpectedFormat(edgeResponse: any): any {
       visual_questions_enabled: visualQuestionsCount > 0,
       visual_questions_count: visualQuestionsCount,
       frame_capture_available: true,
-      pipeline_v4_enabled: true,
+      pipeline_v5_enabled: true,
       average_quality_score: avgQualityScore,
       pipeline_metadata: pipeline_metadata
     }
@@ -449,14 +449,38 @@ export default async function handler(
     console.log('🧹 Sanitized URL:', sanitizedUrl);
     console.log('📹 Video Title:', videoTitle);
     
+    // Extract user from authorization header [[memory:2766702]]
+    let userId = null;
+    try {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+        if (!authError && user) {
+          userId = user.id;
+        }
+      }
+    } catch (error) {
+      console.log('No valid user token found, proceeding without user ID');
+    }
+
+    console.log('👤 Creating course for user:', userId || 'Anonymous');
+
+    const courseData: any = {
+      title: videoTitle,
+      description: videoDescription,
+      youtube_url: sanitizedUrl,  // Store sanitized URL for consistent cache lookups
+      published: false
+    };
+
+    // Add created_by field if user is logged in
+    if (userId) {
+      courseData.created_by = userId;
+    }
+
     const { data: course, error: courseError } = await supabase
       .from('courses')
-      .insert({
-        title: videoTitle,
-        description: videoDescription,
-        youtube_url: sanitizedUrl,  // Store sanitized URL for consistent cache lookups
-        published: false
-      })
+      .insert(courseData)
       .select()
       .single();
 
@@ -469,6 +493,32 @@ export default async function handler(
     }
 
     console.log('✅ Course created:', course.id);
+
+    // Record course creation in user_course_creations table if user is logged in
+    if (userId) {
+      try {
+        const creationResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/user-course-creations`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            user_id: userId,
+            course_id: course.id,
+            role: 'creator'
+          }),
+        });
+
+        if (!creationResponse.ok) {
+          console.error('Failed to record course creation, but continuing...');
+        } else {
+          console.log('✅ Course creation recorded in user_course_creations');
+        }
+      } catch (error) {
+        console.error('Error recording course creation:', error);
+        // Continue with course creation even if this fails
+      }
+    }
 
     // Step 2: Check cache if enabled
     if (useCache) {

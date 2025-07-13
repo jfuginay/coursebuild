@@ -57,8 +57,8 @@ fi
 
 echo ""
 echo "🎯 Services Status:"
-echo "- enhanced-quiz-service: Deployed (81.7kB)"
-echo "- gemini-quiz-service: Deployed - Core video understanding"
+echo "- quiz-generation-v5: Deployed - Latest pipeline with transcript generation"
+echo "- ai-chat-assistant: Deployed - Chat with visual diagram generation"
 echo ""
 echo "🧪 Available Test Commands:"
 echo "- npm run demo:targeted-visual (local demo)"

@@ -1,0 +1,8 @@
+{
+  "imports": {
+    "https://deno.land/x/": "https://deno.land/x/"
+  },
+  "compilerOptions": {
+    "lib": ["deno.ns", "dom"]
+  }
+} 

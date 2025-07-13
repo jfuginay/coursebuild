@@ -74,11 +74,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const allCompleted = allSegments?.every(s => s.status === 'completed');
 
       if (allCompleted) {
-        // Update course as published
-        await supabase
-          .from('courses')
-          .update({ published: true })
-          .eq('id', course_id);
+        // NOTE: Course publishing is handled by the segment processor
+        // after verifying questions exist. We don't mark as published here.
+        console.log('All segments completed - segment processor will handle publishing');
 
         return res.status(200).json({
           success: true,

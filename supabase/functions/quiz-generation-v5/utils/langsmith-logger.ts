@@ -267,7 +267,7 @@ export class LangSmithLogger {
     // Wait for run creation and return the run ID
     const runId = await this.createRun(
       requestId,
-      `Gemini ${model} - Quiz Generation`,
+      `Quiz Generation v5 - ${model}`,
       inputs,
       metadata,
       tags
@@ -386,7 +386,7 @@ export class LangSmithLogger {
     // Wait for run creation and return the run ID
     const runId = await this.createRun(
       requestId,
-      `OpenAI ${model} - Quiz Generation`,
+      `Quiz Generation v5 - ${model}`,
       inputs,
       metadata,
       tags
@@ -492,8 +492,43 @@ export class LangSmithLogger {
       console.log(`\n🎯 ${options.description}`);
     }
     
-    // Log request to LangSmith and wait for run creation
-    const runId = await this.logGeminiRequest(requestId, model, prompt, config, videoMetadata);
+    // Use description in the run name if provided
+    const runName = options.description 
+      ? `Quiz Generation v5 - ${options.description}`
+      : `Quiz Generation v5 - ${model}`;
+    
+    // Log request to LangSmith with descriptive name
+    const runId = await this.createRun(
+      requestId,
+      runName,
+      {
+        messages: [{
+          role: 'user',
+          content: prompt
+        }],
+        model,
+        config,
+        ...(videoMetadata && { video_metadata: videoMetadata })
+      },
+      {
+        model,
+        endpoint: 'generateContent',
+        prompt_length: prompt.length,
+        has_video: !!videoMetadata,
+        ...(videoMetadata && {
+          video_url: videoMetadata.fileUri,
+          video_fps: videoMetadata.fps,
+          start_offset: videoMetadata.startOffset,
+          end_offset: videoMetadata.endOffset
+        })
+      },
+      [
+        'gemini',
+        model,
+        'quiz-generation',
+        videoMetadata ? 'video-analysis' : 'text-only'
+      ]
+    );
     
     if (!runId && this.enabled) {
       console.warn('[LangSmith] Failed to create run, continuing without logging');

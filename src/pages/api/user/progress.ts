@@ -54,8 +54,8 @@ export default async function handler(
       explanationViewed
     }: ProgressUpdateRequest = req.body;
 
-    if (!courseId || segmentIndex === undefined) {
-      return res.status(400).json({ error: 'Course ID and segment index are required' });
+    if (!courseId) {
+      return res.status(400).json({ error: 'Course ID is required' });
     }
 
     console.log('📊 Updating user progress:', {
@@ -65,196 +65,161 @@ export default async function handler(
       questionId: questionId ? questionId.substring(0, 8) + '...' : 'none'
     });
 
-    // Start a transaction-like operation
-    const operations = [];
-
     // 1. Ensure user is enrolled in the course
     const { data: enrollment, error: enrollmentError } = await supabase
       .from('user_course_enrollments')
-      .select('id')
+      .select('id, total_questions_answered, total_questions_correct')
       .eq('user_id', user.id)
       .eq('course_id', courseId)
       .single();
+
+    let enrollmentId: string;
+    let currentAnswered = 0;
+    let currentCorrect = 0;
 
     if (enrollmentError && enrollmentError.code === 'PGRST116') {
       // User not enrolled, create enrollment
       console.log('🎓 Creating new course enrollment');
-      const { error: createEnrollmentError } = await supabase
+      const { data: newEnrollment, error: createEnrollmentError } = await supabase
         .from('user_course_enrollments')
         .insert({
           user_id: user.id,
-          course_id: courseId,
-          enrollment_type: 'free'
-        });
+          course_id: courseId
+        })
+        .select()
+        .single();
 
-      if (createEnrollmentError) {
+      if (createEnrollmentError || !newEnrollment) {
         console.error('Error creating enrollment:', createEnrollmentError);
         return res.status(500).json({ error: 'Failed to create enrollment' });
       }
+      
+      enrollmentId = newEnrollment.id;
+    } else if (enrollment) {
+      enrollmentId = enrollment.id;
+      currentAnswered = enrollment.total_questions_answered || 0;
+      currentCorrect = enrollment.total_questions_correct || 0;
+    } else {
+      return res.status(500).json({ error: 'Failed to get enrollment' });
     }
 
-    // 2. If this is a question attempt, record it
+    // 2. If this is a question attempt, record it in user_question_responses
     if (questionId && selectedAnswer !== undefined && isCorrect !== undefined) {
-      console.log(`📝 Recording question attempt: ${isCorrect ? 'CORRECT' : 'INCORRECT'}`);
+      console.log(`📝 Recording question response: ${isCorrect ? 'CORRECT' : 'INCORRECT'}`);
       
-      // Get the current attempt number for this question
-      const { data: existingAttempts } = await supabase
-        .from('user_question_attempts')
-        .select('attempt_number')
+      // Check if response already exists
+      const { data: existingResponse } = await supabase
+        .from('user_question_responses')
+        .select('id')
         .eq('user_id', user.id)
         .eq('question_id', questionId)
-        .order('attempt_number', { ascending: false })
-        .limit(1);
+        .eq('enrollment_id', enrollmentId)
+        .single();
 
-      const attemptNumber = existingAttempts && existingAttempts.length > 0 
-        ? existingAttempts[0].attempt_number + 1 
-        : 1;
+      if (!existingResponse) {
+        // Create new response
+        const { error: responseError } = await supabase
+          .from('user_question_responses')
+          .insert({
+            user_id: user.id,
+            question_id: questionId,
+            enrollment_id: enrollmentId,
+            selected_answer: selectedAnswer,
+            is_correct: isCorrect,
+            points_earned: isCorrect ? 1 : 0,
+            max_points: 1,
+            response_time_ms: timeSpent ? timeSpent * 1000 : null,
+            attempt_number: 1,
+            is_final_attempt: true,
+            is_skipped: false,
+            rating: 0
+          });
 
-      const { error: attemptError } = await supabase
-        .from('user_question_attempts')
-        .insert({
-          user_id: user.id,
-          question_id: questionId,
-          course_id: courseId,
-          selected_answer: selectedAnswer,
-          is_correct: isCorrect,
-          time_spent_seconds: timeSpent || 0,
-          attempt_number: attemptNumber,
-          hints_used: hintsUsed || 0,
-          explanation_viewed: explanationViewed || false
-        });
+        if (responseError) {
+          console.error('Error recording question response:', responseError);
+          // Don't fail the whole request if this fails
+        }
 
-      if (attemptError) {
-        console.error('Error recording question attempt:', attemptError);
-        return res.status(500).json({ error: 'Failed to record question attempt' });
+        // Update enrollment stats
+        if (!responseError) {
+          currentAnswered++;
+          if (isCorrect) currentCorrect++;
+        }
       }
     }
 
-    // 3. Update or create segment progress
-    console.log('📈 Updating segment progress');
-    const { data: existingProgress } = await supabase
-      .from('user_course_progress')
-      .select('*')
+    // 3. Update enrollment statistics and progress
+    const { data: allResponses } = await supabase
+      .from('user_question_responses')
+      .select('id, is_correct')
       .eq('user_id', user.id)
-      .eq('course_id', courseId)
-      .eq('segment_index', segmentIndex)
-      .single();
+      .eq('enrollment_id', enrollmentId);
 
-    const progressData: any = {
-      user_id: user.id,
-      course_id: courseId,
-      segment_index: segmentIndex,
-      segment_title: segmentTitle || existingProgress?.segment_title,
-      video_progress_seconds: Math.max(
-        videoProgress || 0,
-        existingProgress?.video_progress_seconds || 0
-      )
+    const totalAnswered = allResponses?.length || 0;
+    const totalCorrect = allResponses?.filter(r => r.is_correct).length || 0;
+
+    // Get total questions for the course
+    const { data: totalQuestions } = await supabase
+      .from('questions')
+      .select('id', { count: 'exact' })
+      .eq('course_id', courseId);
+
+    const questionCount = totalQuestions?.length || 0;
+    const progressPercentage = questionCount > 0 ? Math.round((totalAnswered / questionCount) * 100) : 0;
+
+    // Update enrollment
+    const updateData: any = {
+      last_accessed_at: new Date().toISOString(),
+      total_questions_answered: totalAnswered,
+      total_questions_correct: totalCorrect,
+      progress_percentage: progressPercentage,
+      current_question_index: segmentIndex || 0
     };
 
-    // Calculate questions answered and correct for this segment
-    const { data: segmentStats } = await supabase
-      .from('user_question_attempts')
-      .select('is_correct')
-      .eq('user_id', user.id)
-      .eq('course_id', courseId);
-
-    if (segmentStats) {
-      const questionsAnswered = segmentStats.length;
-      const questionsCorrect = segmentStats.filter(stat => stat.is_correct).length;
-      
-      progressData.questions_answered = questionsAnswered;
-      progressData.questions_correct = questionsCorrect;
+    // Check if course is completed
+    if (progressPercentage === 100) {
+      updateData.is_completed = true;
+      updateData.completed_at = new Date().toISOString();
+      updateData.completion_score = Math.round((totalCorrect / totalAnswered) * 100);
     }
 
-    if (existingProgress) {
-      // Update existing progress
-      const { error: updateError } = await supabase
-        .from('user_course_progress')
-        .update(progressData)
-        .eq('user_id', user.id)
-        .eq('course_id', courseId)
-        .eq('segment_index', segmentIndex);
-
-      if (updateError) {
-        console.error('Error updating progress:', updateError);
-        return res.status(500).json({ error: 'Failed to update progress' });
-      }
-    } else {
-      // Create new progress record
-      const { error: insertError } = await supabase
-        .from('user_course_progress')
-        .insert(progressData);
-
-      if (insertError) {
-        console.error('Error creating progress:', insertError);
-        return res.status(500).json({ error: 'Failed to create progress' });
-      }
-    }
-
-    // 4. Calculate and update overall course completion
-    console.log('🎯 Calculating course completion');
-    const { data: completionResult, error: completionError } = await supabase
-      .rpc('calculate_course_completion', {
-        user_id_param: user.id,
-        course_id_param: courseId
-      });
-
-    if (completionError) {
-      console.error('Error calculating completion:', completionError);
-    }
-
-    // 5. Check for achievements
-    if (isCorrect && questionId) {
-      // Award achievement for first correct answer
-      const { data: firstAnswer } = await supabase
-        .from('user_question_attempts')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('is_correct', true)
-        .limit(1);
-
-      if (firstAnswer && firstAnswer.length === 1) {
-        await supabase.rpc('award_achievement', {
-          user_id_param: user.id,
-          achievement_type_param: 'first_correct_answer',
-          achievement_name_param: 'First Success!',
-          description_param: 'Answered your first question correctly',
-          icon_name_param: 'star',
-          points_param: 10
-        });
-      }
-
-      // Award achievement for 10 correct answers
-      const { data: correctAnswers } = await supabase
-        .from('user_question_attempts')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('is_correct', true);
-
-      if (correctAnswers && correctAnswers.length === 10) {
-        await supabase.rpc('award_achievement', {
-          user_id_param: user.id,
-          achievement_type_param: 'ten_correct_answers',
-          achievement_name_param: 'Knowledge Builder',
-          description_param: 'Answered 10 questions correctly',
-          icon_name_param: 'trophy',
-          points_param: 50
-        });
-      }
-    }
-
-    // 6. Update enrollment last accessed
-    await supabase
+    const { error: updateError } = await supabase
       .from('user_course_enrollments')
-      .update({ last_accessed_at: new Date().toISOString() })
-      .eq('user_id', user.id)
-      .eq('course_id', courseId);
+      .update(updateData)
+      .eq('id', enrollmentId);
+
+    if (updateError) {
+      console.error('Error updating enrollment:', updateError);
+      // Don't fail the whole request if this fails
+    }
+
+    // 4. Update user profile stats
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('total_questions_answered, total_questions_correct')
+      .eq('id', user.id)
+      .single();
+
+    if (profile) {
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          total_questions_answered: (profile.total_questions_answered || 0) + (totalAnswered - currentAnswered),
+          total_questions_correct: (profile.total_questions_correct || 0) + (totalCorrect - currentCorrect),
+          last_active_at: new Date().toISOString()
+        })
+        .eq('id', user.id);
+
+      if (profileError) {
+        console.error('Error updating profile:', profileError);
+      }
+    }
 
     console.log('✅ Progress update completed');
 
     return res.status(200).json({
       success: true,
-      completionPercentage: completionResult || 0,
+      completionPercentage: progressPercentage,
       message: 'Progress updated successfully'
     });
 

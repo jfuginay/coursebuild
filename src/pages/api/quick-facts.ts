@@ -99,7 +99,7 @@ export default async function handler(
     // If Gemini is available, try to generate better facts
     if (genAI && process.env.GEMINI_API_KEY) {
       try {
-        const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
         
         const prompt = `
         Based on this YouTube video:

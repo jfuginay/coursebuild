@@ -215,16 +215,14 @@ export default function TranscriptDisplay({
   if (isLoading) {
     return (
       <Card className={className}>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Transcript
-          </CardTitle>
-          <CardDescription>
-            Loading transcript...
-          </CardDescription>
+        <CardHeader className="pb-2 pt-4">
+          <div className="flex items-center gap-2 text-sm">
+            <FileText className="h-4 w-4" />
+            <span className="font-semibold">Transcript</span>
+            <span className="text-muted-foreground">– Loading transcript...</span>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 pt-2">
           <Skeleton className="h-16 w-full" />
           <Skeleton className="h-16 w-full" />
           <Skeleton className="h-16 w-full" />
@@ -236,16 +234,14 @@ export default function TranscriptDisplay({
   if (error) {
     return (
       <Card className={className}>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Transcript
-          </CardTitle>
-          <CardDescription>
-            Transcript not available
-          </CardDescription>
+        <CardHeader className="pb-2 pt-4">
+          <div className="flex items-center gap-2 text-sm">
+            <FileText className="h-4 w-4" />
+            <span className="font-semibold">Transcript</span>
+            <span className="text-muted-foreground">– Not available</span>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-2">
           <div className="flex items-center gap-2 text-muted-foreground">
             <AlertCircle className="h-4 w-4" />
             <span className="text-sm">{error}</span>
@@ -258,16 +254,14 @@ export default function TranscriptDisplay({
   if (segments.length === 0) {
     return (
       <Card className={className}>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Transcript
-          </CardTitle>
-          <CardDescription>
-            No transcript available for this course
-          </CardDescription>
+        <CardHeader className="pb-2 pt-4">
+          <div className="flex items-center gap-2 text-sm">
+            <FileText className="h-4 w-4" />
+            <span className="font-semibold">Transcript</span>
+            <span className="text-muted-foreground">– No transcript available</span>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-2">
           <div className="flex items-center gap-2 text-muted-foreground">
             <AlertCircle className="h-4 w-4" />
             <span className="text-sm">Transcript data not found</span>
@@ -281,16 +275,14 @@ export default function TranscriptDisplay({
 
   return (
     <Card id="transcript-display" className={cn("overflow-hidden", className)}>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg flex items-center gap-2">
-          <FileText className="h-5 w-5" />
-          Transcript
-        </CardTitle>
-        <CardDescription className="text-xs">
-          Click on any segment to jump to that time
-        </CardDescription>
+      <CardHeader className="pb-2 pt-4">
+        <div className="flex items-center gap-2 text-sm">
+          <FileText className="h-4 w-4" />
+          <span className="font-semibold">Transcript</span>
+          <span className="text-muted-foreground">– Click on any segment to jump to that time</span>
+        </div>
       </CardHeader>
-      <CardContent className="relative px-4 pb-6">
+      <CardContent className="relative px-4 pb-6 pt-2">
         {/* Slot machine container */}
         <div 
           ref={containerRef}

@@ -25,6 +25,7 @@ CourseBuild leverages dual LLM providers with full video transcription and intel
 - **Segmented processing** for long videos (>10 minutes) with context preservation (NEW)
 
 ### 🔧 **Advanced Processing Pipeline**
+- **Video Duration Limit**: Maximum 45 minutes per video (clear error messages for longer videos)
 - **Enhanced 3-stage processing**: 
   - Stage 1: Full transcript generation + planning with dynamic frame sampling
   - Stage 2: Context-aware question generation with optimal timing
@@ -51,6 +52,50 @@ CourseBuild leverages dual LLM providers with full video transcription and intel
 - **Transcript-aware rendering** supporting contextual question display
 - **Complete metadata storage** including all bounding boxes for segmented videos (NEW)
 
+### 🤖 **AI Chat Assistant with Visual Generation**
+- **Intelligent Video Context Awareness** with full transcript integration for contextual responses
+- **Dynamic Visual Generation** using Mermaid diagrams to enhance learning comprehension
+- **Multi-Modal Learning Support** combining text responses with interactive visual content
+- **Smart Visual Detection** using pattern matching and LLM analysis to determine when diagrams would benefit learning
+- **Five Diagram Types** with specialized generation for different educational contexts:
+  - **Flowcharts**: Process flows and decision trees based on video content
+  - **Mind Maps**: Concept relationships and hierarchical knowledge structures
+  - **Sequence Diagrams**: Step-by-step processes and interactions
+  - **Comparison Charts**: Side-by-side analysis of concepts from video
+  - **Timelines**: Chronological progression and historical sequences
+- **Contextual Title & Description Generation** using LLM to create meaningful, content-specific diagram metadata
+- **Interactive Fullscreen Experience** with responsive diagram scaling and robust DOM handling
+- **Advanced Error Handling** with detailed debugging, loading states, and fallback mechanisms
+- **Export & Sharing Capabilities** including diagram code copying, SVG download, and note-saving functionality
+- **LangSmith Integration** for comprehensive API call logging and monitoring of visual generation pipeline
+
+### 🔍 **Fact-Check Feature for Quiz Answers**
+- **Web-Powered Verification**: Uses OpenAI Responses API with web search to fact-check quiz answers
+- **Answer Comparison**: Compares user's answer against the quiz's expected answer using real-time web data
+- **Source Citations**: Provides links to authoritative sources with descriptions for verification
+- **Confidence Scoring**: Shows confidence levels (Low/Medium/High) for fact-check results
+- **Context-Aware Analysis**: Includes video transcript context for more accurate fact-checking
+- **Smart Button Integration**: Fact-check button appears contextually after answering questions
+- **Visual Presentation**: Results displayed in distinctive purple cards with structured information
+- **Edge Function Architecture**: Deployed as `fact-check-service` Supabase edge function
+- **LangSmith Integration**: All API calls logged for monitoring and debugging
+
+#### **Visual Generation Pipeline**
+- **Pattern-Based Detection**: Recognizes explicit visual requests ("create a flowchart", "show me a diagram")
+- **LLM-Enhanced Analysis**: Uses GPT-4o-mini to analyze complex queries for visual learning opportunities
+- **Conservative Generation**: High confidence threshold (0.8) ensures visuals only generated when truly beneficial
+- **Context-Rich Prompts**: Passes full video transcript context (up to 5000 chars) for accurate diagram generation
+- **Structured Output**: JSON responses with title, description, and Mermaid code for consistent frontend rendering
+- **Robust Fallback**: Multiple error recovery mechanisms with detailed logging for troubleshooting
+
+#### **Frontend Visual Components**
+- **VisualChatMessage Component**: Advanced React component for rendering chat messages with embedded diagrams
+- **Real-time Mermaid Rendering**: Dynamic SVG generation with responsive sizing and fullscreen capabilities
+- **Interactive Modal System**: Fullscreen diagram viewing with polling-based DOM readiness detection
+- **Loading States**: Professional spinner animations and status indicators during diagram generation
+- **Error Recovery**: Graceful error display with debug information and retry mechanisms
+- **Export Integration**: One-click copying, downloading, and note-saving functionality
+
 ### 📊 **Quality Assurance & Monitoring**
 - **Comprehensive error recovery** with multi-provider fallback
 - **Token usage tracking** and cost optimization
@@ -72,6 +117,213 @@ CourseBuild leverages dual LLM providers with full video transcription and intel
 - **Error Handling**: Multi-layer retry logic with JSON fixing capabilities
 - **Monitoring**: LangSmith integration for API call tracing and debugging
 - **Orchestration**: Backend-only segment processing with atomic claiming
+
+## 📊 Database Schema
+
+### Core Tables
+
+#### **courses**
+Primary table for course information.
+```sql
+- id: uuid (primary key)
+- title: text
+- description: text
+- youtube_url: text
+- thumbnail_url: text
+- channel_name: text
+- duration: integer (seconds)
+- published: boolean
+- created_at: timestamp
+- created_by: uuid (references auth.users)
+- is_segmented: boolean
+- total_segments: integer
+- segment_duration: integer
+```
+
+#### **questions**
+Stores all quiz questions generated for courses.
+```sql
+- id: uuid (primary key)
+- course_id: uuid (references courses)
+- segment_id: uuid (references course_segments)
+- timestamp: integer (video timestamp in seconds)
+- frame_timestamp: integer (specific frame for visual questions)
+- question: text
+- type: text (multiple-choice, true-false, hotspot, matching, sequencing)
+- options: jsonb (array of options for MCQ)
+- correct_answer: integer or jsonb
+- explanation: text
+- has_visual_asset: boolean
+- metadata: jsonb (includes bounding boxes, educational rationale, etc.)
+- generation_status: text (planned, generating, completed, failed)
+- accepted: boolean
+```
+
+#### **video_transcripts** ⚠️
+Stores full video transcripts with concept timelines.
+```sql
+- id: uuid (primary key)
+- course_id: uuid (references courses)
+- video_url: text
+- video_summary: text
+- total_duration: integer
+- full_transcript: jsonb (array of transcript segments)
+- key_concepts_timeline: jsonb (array of concept objects)
+- model_used: text
+- processing_time_ms: integer
+- metadata: jsonb
+- created_at: timestamp
+```
+
+**⚠️ Important Notes:**
+- **One-to-Many Relationship**: A course can have multiple transcripts (e.g., from segmented processing)
+- **Join Returns Array**: When joining with courses, `video_transcripts` returns as an array
+- **Key Concepts Structure**: `key_concepts_timeline` contains objects like:
+  ```json
+  {
+    "concept": "Black Hole Theory",
+    "first_mentioned": 120,
+    "explanation_timestamps": [120, 240, 360]
+  }
+  ```
+
+#### **course_segments**
+For videos processed in segments (>10 minutes).
+```sql
+- id: uuid (primary key)
+- course_id: uuid (references courses)
+- segment_index: integer
+- start_time: integer
+- end_time: integer
+- title: text
+- status: text (pending, processing, completed, failed)
+- worker_id: text (for atomic processing)
+- planning_status: text
+- question_plans_count: integer
+- cumulative_key_concepts: jsonb
+- retry_count: integer
+```
+
+#### **user_learning_profiles**
+AI-generated learning profiles for personalized recommendations.
+```sql
+- user_id: uuid (primary key, references auth.users)
+- learning_style: jsonb (preferences with scores 0-1)
+- struggling_concepts: jsonb (array with severity scores)
+- mastered_concepts: jsonb (array with confidence levels)
+- topic_interests: jsonb (map of topics to interest scores)
+- preferred_difficulty: jsonb
+- engagement_metrics: jsonb
+- profile_confidence: float (0-1)
+- total_insights_processed: integer
+- last_profile_update: timestamp
+```
+
+#### **user_question_responses**
+Tracks user answers to quiz questions.
+```sql
+- id: uuid (primary key)
+- user_id: uuid (references auth.users)
+- question_id: uuid (references questions)
+- selected_answer: integer (index for MCQ/TF)
+- response_text: text (actual answer text or JSON for complex types)
+- is_correct: boolean
+- time_taken: integer (seconds)
+- attempted_at: timestamp
+```
+
+#### **user_course_enrollments**
+Tracks course viewing and progress.
+```sql
+- user_id: uuid (references auth.users)
+- course_id: uuid (references courses)
+- enrolled_at: timestamp
+- last_accessed_at: timestamp
+- completion_percentage: float (0-100)
+- questions_answered: integer
+- time_spent_seconds: integer
+- PRIMARY KEY (user_id, course_id)
+```
+
+#### **chat_insights**
+Stores insights extracted from AI chat interactions.
+```sql
+- id: uuid (primary key)
+- user_id: uuid (references auth.users)
+- course_id: uuid (references courses)
+- session_id: text
+- message_id: text
+- insight_type: text
+- insight_content: jsonb
+- confidence_score: float
+- extracted_concepts: text[]
+- extracted_topics: text[]
+- sentiment_score: float
+- created_at: timestamp
+```
+
+#### **recommendation_history**
+Tracks AI-generated course recommendations.
+```sql
+- id: uuid (primary key)
+- user_id: uuid (references auth.users)
+- recommended_courses: jsonb (array of recommendations)
+- recommendation_context: jsonb
+- insights_snapshot: jsonb
+- performance_snapshot: jsonb
+- created_at: timestamp
+```
+
+### Common Query Patterns
+
+#### Getting Course with Transcript Data
+```javascript
+// ⚠️ Note: video_transcripts returns as an array!
+const { data } = await supabase
+  .from('courses')
+  .select(`
+    *,
+    video_transcripts (
+      video_summary,
+      key_concepts_timeline
+    )
+  `)
+  .eq('id', courseId)
+  .single();
+
+// Handle the array response
+const transcript = data.video_transcripts?.[0] || null;
+```
+
+#### Getting User's Wrong Questions
+```javascript
+const { data } = await supabase
+  .from('user_question_responses')
+  .select(`
+    *,
+    questions!inner(
+      question,
+      type,
+      options,
+      correct_answer,
+      explanation
+    )
+  `)
+  .eq('user_id', userId)
+  .eq('is_correct', false)
+  .order('attempted_at', { ascending: false });
+```
+
+### Key Relationships & Gotchas
+
+1. **Video Transcripts Join**: Always returns an array, even for single results
+2. **Question Types**: Different types store answers differently:
+   - MCQ/TF: `selected_answer` is index, `response_text` is actual text
+   - Hotspot: `response_text` contains clicked element and coordinates
+   - Matching/Sequencing: Complex JSON in `response_text`
+3. **Session Data**: Anonymous users tracked in localStorage, not database
+4. **Segmented Processing**: Each segment can have its own transcript entry
+5. **Profile Confidence**: Increases with more user data (capped at 1.0)
 
 ## 🚀 Getting Started
 
@@ -132,6 +384,7 @@ npm run demo:targeted-visual
 | Component | Status | Version | Features |
 |-----------|--------|---------|----------|
 | **Quiz Generation v5.0** | ✅ Live | Latest | Full transcript, LLM timing, base-60 conversion |
+| **AI Chat Assistant** | ✅ Live | Latest | Visual diagram generation, context-aware responses |
 | **Transcript Generation** | ✅ Production | - | Complete video analysis with visual descriptions |
 | **Timestamp Optimization** | ✅ Active | - | LLM-based placement after concepts explained |
 | **Database Schema** | ✅ Updated | - | Transcript storage and enhanced metrics |
@@ -143,6 +396,7 @@ npm run demo:targeted-visual
 The backend processing is powered by Quiz Generation v5.0 with advanced transcript-aware generation:
 
 - **`quiz-generation-v5`**: Main pipeline with full transcript generation and LLM timing
+- **`ai-chat-assistant`**: Intelligent chat assistant with visual diagram generation using Mermaid
 - **`course-suggestions`**: AI-powered course continuation recommendations
 - **`orchestrate-segment-processing`**: Backend orchestrator for reliable segment sequencing
 - **`process-video-segment`**: Individual segment processor with atomic claiming
@@ -151,6 +405,9 @@ The backend processing is powered by Quiz Generation v5.0 with advanced transcri
 ```bash
 # Deploy Quiz Generation v5.0
 cd supabase && npx supabase functions deploy quiz-generation-v5 --project-ref YOUR_PROJECT_ID
+
+# Deploy AI Chat Assistant
+npx supabase functions deploy ai-chat-assistant --project-ref YOUR_PROJECT_ID
 
 # Deploy Orchestrator
 npx supabase functions deploy orchestrate-segment-processing --project-ref YOUR_PROJECT_ID
@@ -245,6 +502,163 @@ curl -X POST https://YOUR_PROJECT_ID.supabase.co/functions/v1/quiz-generation-v5
 
 ### January 2025 - Major Architecture Improvements
 
+#### Fact-Check Feature for Quiz Answers (NEW)
+- **Web-Powered Answer Verification**: Implemented fact-checking using OpenAI Responses API with web search
+  - Compares user's answer against quiz's expected answer using real-time web data
+  - Provides authoritative source citations with clickable links
+  - Shows confidence levels (Low/Medium/High) for verification results
+- **Smart UI Integration**: Context-aware button that changes based on user state:
+  - Video watching: Blue "Explain this part of the video" button
+  - Question shown: Orange "Get a hint for this question" button  
+  - Answer submitted: Purple "Fact check the answer" button
+- **Answer Comparison Logic**: Enhanced to show both answers side-by-side:
+  - Displays user's selected answer and quiz's expected answer
+  - Provides individual evaluation for each answer
+  - Handles all question types (multiple choice, true/false, etc.)
+- **Bug Fixes**: 
+  - Fixed "0" display for multiple choice answers by handling string/number answer formats
+  - Fixed true/false evaluation to correctly identify when "False" is the right answer
+- **Technical Implementation**:
+  - New `fact-check-service` Supabase edge function
+  - `FactCheckMessage` React component for result display
+  - LangSmith integration for API monitoring
+- *See implementation details in Core Features section*
+
+#### Anonymous User Accuracy & Question Tracking Fix (NEW)
+- **Fixed Accuracy Calculation**: Anonymous users now see correct performance percentages
+  - Issue: System showed "0%" even when answers were correct
+  - Solution: Modified `buildFinalSelectionPrompt` to properly use session data for accuracy
+- **Fixed "Option NaN" Display**: Correct answers now show actual text instead of "Option NaN"
+  - Issue: `correct_answer` field was treated as always numeric but stored as strings for anonymous users
+  - Solution: Added type checking to handle both string and numeric answer formats
+- **Fixed Missing Explanations**: "Why it matters" now displays proper explanation text
+  - Issue: Explanations weren't being tracked for anonymous users
+  - Solution: Updated SessionManager to capture and store explanation field
+- **Enhanced Question Tracking**: Complete question data now stored in session
+  - Added `explanation` field to `WrongQuestion` interface
+  - Updated course page to pass explanations to SessionManager
+  - Modified edge function to properly retrieve and display all question data
+- *See: [Anonymous User Accuracy Fix](docs/ANONYMOUS_USER_ACCURACY_FIX.md)*
+
+#### Video Transcript Data Loading Fix (NEW)
+- **Fixed Accuracy Display**: Anonymous users now show correct accuracy (e.g., "67%" not "6667%")
+  - Issue: SessionManager stores accuracy as percentage (0-100) but edge function expected decimal (0-1)
+  - Solution: Added division by 100 in `createProfileFromSession`
+- **Fixed Transcript Loading**: Video summaries and key concepts now properly load from database
+  - Issue: `video_transcripts` join returns array but code expected single object
+  - Solution: Updated `getCourseContext` to handle array response and extract first transcript
+- **Key Concepts Extraction**: Properly parses `key_concepts_timeline` JSONB array to extract concept names
+- **Graceful Fallbacks**: System handles courses without transcript data (pre-v5 courses)
+- **Database Schema Documentation**: Added comprehensive schema section to README to prevent similar issues
+- *See: [Transcript Data Fix Deployment Checklist](docs/TRANSCRIPT_DATA_FIX_DEPLOYMENT.md)*
+
+#### Anonymous User Support for Enhanced Recommendations (NEW)
+- **Session-Based Tracking**: Non-logged-in users now get personalized recommendations
+- **Performance Tracking**: localStorage stores quiz performance and viewing history
+- **Wrong Answer Analysis**: Anonymous sessions track incorrect answers for targeted learning
+- **Seamless Experience**: Full recommendation features without requiring sign-up
+- **Data Migration**: Session data transfers to user profile upon registration
+- **30-Day Sessions**: Anonymous data persists for a month to support returning users
+- *See: [Anonymous User Implementation Plan](docs/ANONYMOUS_USER_RECOMMENDATIONS_PLAN.md)*
+
+#### Series Progression & Natural Learning Path (NEW)
+- **Intelligent Series Detection**: Automatically identifies video series (Part X, Episode Y, Chapter Z patterns)
+- **Performance-Based Progression**: 
+  - High performers (>80%) advance to next episode/advanced topics
+  - Medium performers (50-80%) get balanced progression + reinforcement
+  - Low performers (<50%) receive prerequisites and review content
+- **Natural Topic Flow**: Even non-series videos follow logical learning progressions
+- **Progression Types**: Each recommendation categorized as:
+  - `series_continuation`: Next in series
+  - `topic_advancement`: Natural next step
+  - `reinforcement`: Strengthen understanding
+  - `prerequisite`: Foundational content
+- **Smart Search Terms**: Generates series-specific searches with variations
+- **Adaptive Difficulty**: Content matches user's demonstrated ability
+- **See [SERIES_PROGRESSION_RECOMMENDATIONS.md](docs/SERIES_PROGRESSION_RECOMMENDATIONS.md) for details**
+
+#### Live Question Generation with Real-time Updates (NEW)
+- **Individual Question Processing**: Questions now generate and display individually as they complete
+- **Parallel Segment Planning**: Next segment planning begins as soon as previous segment's plan completes
+- **Real-time UI Updates**: Frontend subscribes to individual question insertions
+- **Progressive Loading**: Users see questions within seconds, not minutes
+- **Database Architecture**: 
+  - New `question_plans` table persists quiz plans for async processing
+  - Questions include `generation_status` and `segment_id` for tracking
+  - Segment planning decoupled from question generation
+- **Performance Benefits**:
+  - Faster time to first question (seconds vs minutes)
+  - Better resource utilization with parallel processing
+  - Improved fault tolerance - individual failures don't block segments
+- **User Experience**: 
+  - Live progress indicators show questions appearing in real-time
+  - Segment progress tracks both planning and generation status
+  - Questions appear progressively as video plays
+- **See [LIVE_QUESTION_GENERATION_IMPLEMENTATION.md](docs/LIVE_QUESTION_GENERATION_IMPLEMENTATION.md) for details**
+
+#### Enhanced Personalized Recommendations with AI Chat Insights (Algorithm v4.0)
+- **LLM-Powered Personalization**: Completely replaced hardcoded recommendation algorithms with AI-driven analysis
+- **Automatic Profile Initialization**: New users get comprehensive profiles built from:
+  - Course enrollment history and completion rates
+  - Question response patterns and accuracy by type
+  - Session behavior and time preferences
+  - Course creation and rating patterns
+  - All analyzed by GPT-4o-mini without hardcoded assumptions
+- **Dynamic Profile Evolution**: Profiles evolve intelligently based on:
+  - Weighted updates (15-35%) based on profile maturity
+  - Performance verification against actual quiz results
+  - Concept decay - old interests fade at 5% per update
+  - Struggling concepts validated with real performance data
+  - Profile confidence scoring that increases with more data
+- **Chat Insight Extraction**: Every AI chat interaction is analyzed to extract:
+  - Struggling concepts cross-referenced with quiz performance
+  - Learning style preferences (visual, sequential, conceptual, practical)
+  - Topic interests with dynamic scoring (-1 to +1)
+  - Engagement patterns including clarification rates and frustration events
+- **Enhanced Wrong Question Analysis**: Shows actual answer choices and user selections:
+  - Parses question options from JSON strings
+  - Displays all multiple choice options with correct/user indicators
+  - Handles both response_text and selected_answer fields
+  - Shows true/false answers clearly
+  - Provides detailed explanations for each mistake
+- **Real YouTube Video Search**: Multi-stage process finds actual YouTube content:
+  - LLM generates 7+ targeted search terms based on comprehensive user analysis
+  - SerpAPI searches YouTube for relevant educational videos
+  - YouTube oEmbed API fetches video metadata and thumbnails
+  - LLM selects best matches with detailed reasoning
+  - Prioritizes shorter videos (3-15 minutes ideal) for engagement
+- **Comprehensive Profile Components**:
+  - Learning styles with percentage scores
+  - Difficulty preferences (beginner/intermediate/advanced)
+  - Topic interests with weighted scores
+  - Struggling concepts with severity and performance accuracy
+  - Mastered concepts with confidence levels
+  - Engagement metrics and session patterns
+  - Time and content format preferences
+- **Zero-Placeholder Implementation**: No hardcoded logic or assumptions:
+  - All search terms generated by LLM analysis
+  - Profile initialization uses actual user data
+  - Dynamic weighting based on data availability
+  - Performance-based validation of insights
+- **Production Deployment**: Three edge functions working together:
+  - `initialize-learning-profile`: Creates profiles from existing data
+  - `ai-chat-assistant`: Enhanced with dynamic profile updates
+  - `enhanced-recommendations`: Automatic profile initialization for new users
+- **LangSmith Integration**: All LLM calls logged with descriptive names:
+  - `AI Chat Insight Extraction - [Course Name]`
+  - `Initialize Learning Profile - User [ID]`
+  - `Enhanced Recommendations - Video Selection ([n] candidates)`
+- **Bug Fixes and Improvements (v4.1-v4.2)**:
+  - **Fixed Wrong Questions Loading**: Resolved database queries and joins preventing mistake data from reaching AI
+  - **Course Publishing Fix**: Identified and fixed 5 courses marked as `published = false` despite having questions
+  - **Duration Filtering**: Added maximum 20-minute video limit with ideal range of 5-15 minutes
+  - **Current Course Context**: System now includes completed course details for better continuity
+  - **Meaningful Mistake Descriptors**: AI now generates specific descriptions like "Confused CRI with color temperature" instead of generic "mistake 1"
+  - **Improved LangSmith Titles**: Changed format to `<Function> - <Action> - <Model>` for better log visibility
+  - **Segment Update Fix**: UI now updates immediately when first segment completes (added polling + immediate fetch)
+  - **Video Player Grey Box Fix**: Fixed issue where video player showed grey box after questions generated
+- **See [ENHANCED_RECOMMENDATIONS_WITH_CHAT_INSIGHTS.md](docs/ENHANCED_RECOMMENDATIONS_WITH_CHAT_INSIGHTS.md) for implementation details**
+
 #### Video Title Integration
 - **YouTube Metadata Fetching**: Courses now automatically fetch real video titles and author information from YouTube's oEmbed API
 - **No More Placeholders**: Fixed issue where courses showed placeholder titles like "AI Generated Course" or "Video content analyzed successfully"
@@ -256,6 +670,19 @@ curl -X POST https://YOUR_PROJECT_ID.supabase.co/functions/v1/quiz-generation-v5
 - **Automatic Updates**: Generic descriptions are automatically replaced with meaningful summaries when transcripts are generated
 - **Segmented Processing Support**: Descriptions update automatically after all segments complete processing
 - **API Endpoint**: New `/api/course/update-summary` endpoint for on-demand description updates
+
+#### AI Chat Assistant with Visual Generation (NEW)
+- **Comprehensive Visual Learning Enhancement**: Integrated AI chat assistant with intelligent Mermaid diagram generation
+- **Context-Aware Responses**: Full video transcript integration enables contextually relevant answers and visual aids
+- **Smart Visual Detection**: Conservative LLM-based analysis determines when diagrams would enhance learning
+- **Five Specialized Diagram Types**: Flowcharts, mind maps, sequence diagrams, comparison charts, and timelines
+- **Dynamic Title & Description Generation**: LLM creates meaningful, content-specific metadata instead of placeholder text
+- **Robust Fullscreen Experience**: 
+  - Fixed diagram rendering issues with polling-based DOM readiness detection
+  - Enhanced error handling with detailed debugging information
+  - Professional loading states and smooth user experience
+- **Export & Sharing Features**: One-click code copying, SVG downloads, and note-saving functionality
+- **Production Ready**: Deployed `ai-chat-assistant` edge function with LangSmith integration for monitoring
 
 ### Complete Hotspot Metadata Fix for Segmented Processing (December 2024)
 - **Fixed Missing Metadata**: Segmented video processing now saves ALL hotspot metadata fields
@@ -478,6 +905,91 @@ Content-Type: application/json
 ### Key Timestamp Format Note
 
 Gemini uses base-60 timestamps where 100 = 1:00 = 60 seconds. The v5.0 system automatically converts these to standard seconds for consistency across the platform.
+
+### AI Chat Assistant API
+
+```http
+POST /functions/v1/ai-chat-assistant
+Authorization: Bearer <SUPABASE_KEY>
+Content-Type: application/json
+
+{
+  "course_id": "uuid",
+  "message": "Create a flowchart showing the main concepts from this video",
+  "request_type": "general_chat", // or "explain_video", "question_hint"
+  "video_context": {
+    "current_time": 125.5,
+    "played_segments": [...] // Optional: previously watched segments
+  }
+}
+```
+
+**Response with visual content:**
+```json
+{
+  "response": "Here's a flowchart showing the main concepts...",
+  "hasVisuals": true,
+  "visuals": [
+    {
+      "type": "mermaid",
+      "code": "flowchart TD\n    A[Concept 1] --> B[Concept 2]...",
+      "title": "Main Concepts from Video Analysis",
+      "description": "This flowchart illustrates the key concepts discussed in the video and their relationships...",
+      "interactionHints": [
+        "Follow the arrows to understand the flow",
+        "Decision points show different paths"
+      ]
+    }
+  ]
+}
+```
+
+**Visual Generation Features:**
+- **Smart Detection**: Only generates visuals when they enhance learning
+- **Context Awareness**: Uses full video transcript for accurate diagrams
+- **Five Diagram Types**: Flowcharts, mind maps, sequences, comparisons, timelines
+- **Quality Metadata**: LLM-generated titles and descriptions specific to content
+
+### Fact-Check API
+
+```http
+POST /functions/v1/fact-check-service
+Authorization: Bearer <SUPABASE_KEY>
+Content-Type: application/json
+
+{
+  "userAnswer": "The speed of light is 300,000 km/s",
+  "supposedAnswer": "The speed of light is 299,792 km/s",
+  "question": "What is the speed of light in a vacuum?",
+  "videoContext": "This video discusses fundamental physics constants...",
+  "courseId": "uuid"
+}
+```
+
+**Response:**
+```json
+{
+  "analysis": "Both answers are essentially correct. The user's answer of 300,000 km/s is the commonly used rounded value...",
+  "userAnswerCorrect": true,
+  "supposedAnswerCorrect": true,
+  "confidence": "high",
+  "reasoning": "The exact speed of light in vacuum is 299,792,458 m/s...",
+  "sources": [
+    {
+      "title": "Speed of light - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Speed_of_light",
+      "description": "Comprehensive article about the speed of light constant..."
+    }
+  ]
+}
+```
+
+**Fact-Check Features:**
+- **Answer Comparison**: Evaluates both user and quiz answers
+- **Web Search Integration**: Real-time verification using OpenAI's web search
+- **Source Citations**: Provides authoritative links for further reading
+- **Confidence Levels**: Returns low/medium/high confidence scores
+- **Context Awareness**: Uses video transcript for better accuracy
 
 ---
 

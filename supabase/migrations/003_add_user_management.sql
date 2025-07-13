@@ -25,8 +25,7 @@ CREATE TABLE IF NOT EXISTS user_course_enrollments (
     enrolled_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     last_accessed_at TIMESTAMP WITH TIME ZONE,
     completion_percentage FLOAT DEFAULT 0.0 CHECK (completion_percentage >= 0.0 AND completion_percentage <= 100.0),
-    completed_at TIMESTAMP WITH TIME ZONE,
-    enrollment_type VARCHAR(20) DEFAULT 'free' CHECK (enrollment_type IN ('free', 'purchased', 'gifted', 'admin')),
+    completed_at TIMESTAMP WITH TIME ZONE
     UNIQUE(user_id, course_id)
 );
 

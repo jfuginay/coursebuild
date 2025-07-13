@@ -8,6 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Play, BookOpen, Clock, Users, ExternalLink, Trash2, Filter, Star } from 'lucide-react';
 import { CompactStarRating } from '@/components/StarRating';
 import { useAnalytics } from '@/hooks/useAnalytics';
+import { BackgroundGradient } from '@/components/ui/background-gradient';
 
 interface Course {
   id: string;
@@ -38,6 +39,7 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
   const [error, setError] = useState<string | null>(null);
   const [deletingCourseId, setDeletingCourseId] = useState<string | null>(null);
   const [ratingFilter, setRatingFilter] = useState<RatingFilter>('all');
+  const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCourses();
@@ -58,6 +60,9 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
       const data = await response.json();
 
       if (data.success) {
+        // Debug: Log the number of courses fetched from database
+        console.log(`📊 Fetched ${data.courses.length} courses from database`);
+        
         // Debug: Log the fetched courses to see if questionCount is included
         console.log('🔍 Fetched courses:', data.courses.map((c: Course) => ({
           title: c.title,
@@ -216,7 +221,7 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
 
   if (isLoading) {
     return (
-      <div className="w-full max-w-6xl mx-auto space-y-8">
+      <div className="w-full space-y-8">
         <div className="text-center space-y-4">
           <h2 className="text-3xl font-bold tracking-tight">
             Featured Courses
@@ -227,7 +232,7 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[...Array(6)].map((_, index) => (
-            <Card key={index} className="animate-pulse">
+            <Card key={index} className="animate-pulse relative overflow-hidden">
               <CardHeader className="space-y-2">
                 <div className="h-4 bg-muted rounded w-3/4"></div>
                 <div className="h-3 bg-muted rounded w-1/2"></div>
@@ -248,7 +253,7 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
 
   if (error) {
     return (
-      <div className="w-full max-w-6xl mx-auto space-y-8">
+      <div className="w-full space-y-8">
         <div className="text-center space-y-4">
           <h2 className="text-3xl font-bold tracking-tight">
             Featured Courses
@@ -263,7 +268,7 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
 
   if (allCourses.length === 0) {
     return (
-      <div className="w-full max-w-6xl mx-auto space-y-8">
+      <div className="w-full space-y-8">
         <div className="text-center space-y-4">
           <h2 className="text-3xl font-bold tracking-tight">
             Featured Courses
@@ -277,46 +282,46 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
   }
 
   return (
-    <div className="w-full max-w-6xl mx-auto space-y-8">
-      <div className="text-center space-y-4">
-        <h2 className="text-3xl font-bold tracking-tight">
-          Featured Courses
-        </h2>
-        <p className="text-lg text-muted-foreground">
-          Explore Community Created Courses
-        </p>
-        
-        {/* Rating Filter */}
-        <div className="flex justify-center px-4">
-          <div className="flex items-center gap-2 w-full max-w-xs sm:w-auto">
-            <Filter className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+    <div className="w-full space-y-8 relative">
+      {/* Section with enhanced styling */}
+      <div className="relative mb-12">
+        <div className="flex items-center justify-between px-4">
+          <h2 className="text-4xl font-bold tracking-tight text-foreground">
+            Featured Courses
+          </h2>
+          
+          {/* Rating Filter with enhanced styling */}
+          <div className="flex items-center gap-2 w-auto bg-muted/20 backdrop-blur-sm rounded-lg p-1">
+            <div className="p-2">
+              <Filter className="h-4 w-4 text-[#02cced] flex-shrink-0" />
+            </div>
             <Select value={ratingFilter} onValueChange={handleRatingFilterChange}>
-              <SelectTrigger className="w-full sm:w-40 text-sm">
+              <SelectTrigger className="w-40 text-sm border-0 bg-transparent focus:ring-[#02cced]/50">
                 <SelectValue placeholder="Filter by rating" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Courses</SelectItem>
                 <SelectItem value="5">
                   <div className="flex items-center gap-2">
-                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                    <Star className="h-3 w-3 fill-[#fdd686] text-[#fdd686]" />
                     <span>5 Stars</span>
                   </div>
                 </SelectItem>
                 <SelectItem value="4+">
                   <div className="flex items-center gap-2">
-                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                    <Star className="h-3 w-3 fill-[#fdd686] text-[#fdd686]" />
                     <span>4+ Stars</span>
                   </div>
                 </SelectItem>
                 <SelectItem value="3+">
                   <div className="flex items-center gap-2">
-                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                    <Star className="h-3 w-3 fill-[#fdd686] text-[#fdd686]" />
                     <span>3+ Stars</span>
                   </div>
                 </SelectItem>
                 <SelectItem value="2+">
                   <div className="flex items-center gap-2">
-                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                    <Star className="h-3 w-3 fill-[#fdd686] text-[#fdd686]" />
                     <span>2+ Stars</span>
                   </div>
                 </SelectItem>
@@ -326,27 +331,42 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {displayedCourses.map((course) => {
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {displayedCourses.map((course, index) => {
           const videoId = extractVideoId(course.youtube_url);
           const thumbnailUrl = videoId 
             ? `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`
             : null;
 
           return (
-            <Card 
-              key={course.id} 
-              className="group hover:shadow-lg transition-all duration-300 cursor-pointer relative"
-              onClick={() => handleCourseClick(course.id)}
+            <BackgroundGradient
+              key={course.id}
+              className="rounded-[22px] bg-transparent"
+              containerClassName="w-full h-full"
+              animate={hoveredCardId === course.id}
             >
-              {/* Delete button in top right corner */}
+              <Card 
+                className="group hover:shadow-lg transition-all duration-300 cursor-pointer relative h-full flex flex-col bg-card shadow-md border-0 overflow-hidden rounded-[22px]"
+                onClick={() => handleCourseClick(course.id)}
+                onMouseEnter={() => setHoveredCardId(course.id)}
+                onMouseLeave={() => setHoveredCardId(null)}
+                style={{
+                  animationDelay: `${index * 100}ms`
+                }}
+              >
+              {/* Geometric accent */}
+              <div className="absolute top-0 right-0 w-16 h-16 opacity-5 group-hover:opacity-10 transition-opacity">
+                <div className="absolute top-2 right-2 w-12 h-12 border-2 border-muted rounded-full" />
+              </div>
+              {/* Delete button with enhanced styling - Hidden but preserved for future use */}
+              {/* 
               <div className="absolute top-3 right-3 z-10">
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-8 w-8 p-0 bg-red-500/10 hover:bg-red-500/20 text-red-600 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="h-8 w-8 p-0 bg-destructive/10 hover:bg-destructive/20 text-destructive hover:text-destructive/90 opacity-0 group-hover:opacity-100 transition-all rounded-full backdrop-blur-sm"
                       onClick={(e) => e.stopPropagation()}
                       disabled={deletingCourseId === course.id}
                     >
@@ -376,36 +396,27 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
                   </AlertDialogContent>
                 </AlertDialog>
               </div>
+              */}
 
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 pr-8">
-                    <CardTitle className="text-lg line-clamp-2 group-hover:text-primary transition-colors">
-                      {course.title}
-                    </CardTitle>
-                    {/* Rating Display - Prominent placement */}
-                    <div className="mt-2">
-                      <CompactStarRating 
-                        rating={course.averageRating || 0} 
-                        totalRatings={course.totalRatings || 0}
-                        showRatingText={true}
-                        size="sm"
-                        className="text-yellow-500"
-                      />
-                    </div>
-                  </div>
+              <CardHeader className="pb-4 flex-shrink-0 relative">
+                <div className="w-full text-center">
+                  <CardTitle className="text-lg line-clamp-2 text-foreground/90 group-hover:text-foreground transition-colors min-h-[3.5rem] flex items-center justify-center">
+                    {course.title}
+                  </CardTitle>
+                  {/* Rating Display with enhanced styling - only show if rating > 0 AND totalRatings > 0 */}
                 </div>
               </CardHeader>
               
-              <CardContent className="space-y-4">
-                {/* Video Thumbnail */}
-                <div className="relative aspect-video bg-muted rounded-lg overflow-hidden">
+              <CardContent className="flex-1 flex flex-col space-y-4">
+                {/* Video Thumbnail with overlay effects */}
+                <div className="relative aspect-video bg-muted/50 rounded-lg overflow-hidden flex-shrink-0">
                   {thumbnailUrl ? (
-                    <img 
-                      src={thumbnailUrl}
-                      alt={course.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      onError={(e) => {
+                    <>
+                      <img 
+                        src={thumbnailUrl}
+                        alt={course.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => {
                         // Fallback to smaller resolution thumbnails
                         const img = e.target as HTMLImageElement;
                         const currentSrc = img.src;
@@ -435,57 +446,73 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
                             `;
                           }
                         }
-                      }}
-                    />
+                        }}
+                      />
+                      {/* Gradient overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </>
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center">
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/5 to-secondary/5">
                       <Play className="h-8 w-8 text-muted-foreground" />
                     </div>
                   )}
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300 flex items-center justify-center">
-                    <div className="bg-white/90 group-hover:bg-white rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      <Play className="h-4 w-4 text-primary" />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300 flex items-center justify-center">
+                    <div className="bg-white/90 rounded-full p-3 opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:scale-110 shadow-lg">
+                      <Play className="h-5 w-5 text-black" />
                     </div>
                   </div>
                 </div>
 
-                {/* Course Info */}
-                <div className="space-y-2">
+                {/* Course Info - Flexible spacer */}
+                <div className="flex-1 flex flex-col justify-between">
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
                     <div className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      <span className="text-xs sm:text-sm">{formatDate(course.created_at)}</span>
+                      <Clock className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-xs sm:text-sm text-muted-foreground">{formatDate(course.created_at)}</span>
                     </div>
-                    <Badge variant="secondary" className="text-xs">
+                    <Badge variant="secondary" className="text-xs bg-muted/50 text-muted-foreground border-0 pointer-events-none">
                       {course.questionCount || 0} Questions
                     </Badge>
-                  </div>
+                  </div>    
+                  {/* Call to Action with gradient effect */}
+                  <Button 
+                    variant="secondary" 
+                    size="sm" 
+                    className={`w-full border-0 transition-all mt-4 font-medium ${
+                      hoveredCardId === course.id 
+                        ? 'bg-[#c73a3e]/20 text-[#c73a3e] hover:bg-[#c73a3e]/30' 
+                        : 'bg-[#02cced]/10 hover:bg-[#02cced]/20 text-[#02cced]'
+                    }`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCourseClick(course.id);
+                    }}
+                  >
+                    <span className="flex items-center justify-center">
+                      Start Learning
+                      <Play className="ml-2 h-3 w-3" />
+                    </span>
+                  </Button>
                 </div>
-
-                {/* Call to Action */}
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="w-full group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleCourseClick(course.id);
-                  }}
-                >
-                  Start Learning
-                  <Play className="ml-2 h-3 w-3" />
-                </Button>
               </CardContent>
-            </Card>
+              </Card>
+            </BackgroundGradient>
           );
         })}
       </div>
 
       {displayedCourses.length < filteredCourses.length && (
         <div className="text-center">
-          <Button variant="outline" size="lg" onClick={handleShowMore}>
-            Show More Courses
-            <ExternalLink className="ml-2 h-4 w-4" />
+          <Button 
+            variant="outline" 
+            size="lg" 
+            onClick={handleShowMore}
+            className="border-[#02cced]/20 hover:border-[#02cced]/40 hover:bg-[#02cced]/5 transition-all group"
+          >
+            <span className="group-hover:text-[#02cced] transition-colors flex items-center">
+              Show More Courses
+              <ExternalLink className="ml-2 h-4 w-4 group-hover:translate-y-0.5 transition-transform" />
+            </span>
           </Button>
         </div>
       )}

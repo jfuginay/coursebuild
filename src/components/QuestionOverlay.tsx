@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, XCircle, Play } from 'lucide-react';
+import { CheckCircle, XCircle, Play, ThumbsUp, ThumbsDown } from 'lucide-react';
 import VideoOverlayQuestion from '@/components/visual/VideoOverlayQuestion';
 import MatchingQuestion from '@/components/visual/MatchingQuestion';
 import SequencingQuestion from '@/components/visual/SequencingQuestion';
 import { useAuth } from '@/contexts/AuthContext';
+import { parseCorrectAnswer, isAnswerCorrect } from '@/utils/questionHelpers';
 
 interface Question {
   id?: string;
@@ -58,7 +59,32 @@ export default function QuestionOverlay({
   const [showExplanation, setShowExplanation] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [hasAnswered, setHasAnswered] = useState(false);
-
+  const [rating, setRating] = useState<number>(0); // 0 = no rating, 1 = thumbs up, -1 = thumbs down
+  const ratingRef = useRef<number>(0); // Store immediate rating value to avoid async state issues
+  const debounce = <T extends (...args: any[]) => void>(fn: T, delay = 50) => {
+    let timer: NodeJS.Timeout;
+    return (...args: Parameters<T>) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn(...args), delay);
+    };
+  };
+  
+  // Debounced function to commit rating changes to state
+  const commitRating = useCallback(
+    debounce((newRating: number) => {
+      setRating(newRating);
+    }, 50),
+    []
+  );
+  
+  // Toggle thumb rating and update both ref and state
+  const toggleThumb = useCallback((thumbValue: -1 | 1) => {
+    const newRating = ratingRef.current === thumbValue ? 0 : thumbValue;
+    ratingRef.current = newRating;
+    commitRating(newRating);
+  }, [commitRating]);
+  
+  
   // Define trackProgress function before it's used
   const trackProgress = async (questionAnswered: boolean, isCorrect: boolean) => {
     if (!user || !supabase || !courseId || segmentIndex === undefined) return;
@@ -80,13 +106,78 @@ export default function QuestionOverlay({
           questionId: question.id,
           selectedAnswer: selectedAnswer,
           isCorrect,
-          timeSpent: Math.floor((Date.now() - Date.now()) / 1000), // Could track start time
+          timeSpent: 0, // Default to 0 since we're not tracking start time here
           explanationViewed: showExplanation
         })
       });
     } catch (error) {
       console.error('Failed to track progress:', error);
     }
+  };
+
+  // Handle skipping a question
+  const handleSkip = async () => {
+    // Check if user needs to authenticate (same as handleSubmit)
+    if (!user && freeQuestionsRemaining !== undefined && freeQuestionsRemaining <= 0) {
+      if (onAuthRequired) {
+        onAuthRequired();
+        return;
+      }
+    }
+
+    // If user is authenticated, try to save the skip to database
+    if (user && supabase && question.id) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          // Mirror handleSubmit functionality with comprehensive data
+          const skipPayload = {
+            course_id: courseId,
+            question_id: question.id,
+            selected_answer: null, // No answer selected
+            response_text: 'skipped',
+            is_correct: null, // Skipped questions have null correctness
+            points_earned: 0,
+            max_points: 1,
+            is_skipped: true,
+            attempt_number: 1,
+            is_final_attempt: true,
+            response_time_ms: null, // Could track time if needed
+            rating: ratingRef.current // Use ref to get immediate value
+          };
+          
+          console.log('🚀 Frontend sending SKIP data:', {
+            is_skipped: skipPayload.is_skipped,
+            rating: skipPayload.rating,
+            ratingState: rating,
+            ratingRef: ratingRef.current,
+            question_id: skipPayload.question_id,
+            course_id: skipPayload.course_id
+          });
+          
+          await fetch('/api/user-question-responses', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`
+            },
+            body: JSON.stringify(skipPayload)
+          });
+
+          // Track progress for authenticated users
+          await trackProgress(true, false); // Track as answered but incorrect
+        }
+      } catch (error) {
+        console.error('Failed to record skipped question:', error);
+        // Don't return here - still allow continuing even if tracking fails
+      }
+    }
+
+    // Always allow skipping regardless of authentication status
+    setHasAnswered(true);
+    setShowExplanation(false); // Don't show explanation for skipped questions
+    onAnswer(false, 'skipped');
+    onContinue();
   };
 
   if (!isVisible) return null;
@@ -175,6 +266,14 @@ export default function QuestionOverlay({
                 </Button>
               </div>
             )}
+            {!hasAnswered && (
+              <div className="mt-4 flex justify-between items-center">
+                <Button variant="outline" onClick={handleSkip}>
+                  Skip Question
+                </Button>
+                <div></div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -226,6 +325,14 @@ export default function QuestionOverlay({
             </Button>
           </div>
         )}
+        {!hasAnswered && (
+          <div className="mt-4 flex justify-between items-center">
+            <Button variant="outline" onClick={handleSkip}>
+              Skip Question
+            </Button>
+            <div></div>
+          </div>
+        )}
       </div>
     );
 
@@ -273,6 +380,14 @@ export default function QuestionOverlay({
               <Play className="h-4 w-4" />
               Continue Video
             </Button>
+          </div>
+        )}
+        {!hasAnswered && (
+          <div className="mt-4 flex justify-between items-center">
+            <Button variant="outline" onClick={handleSkip}>
+              Skip Question
+            </Button>
+            <div></div>
           </div>
         )}
       </div>
@@ -333,18 +448,62 @@ export default function QuestionOverlay({
       }
     }
 
-    // Handle both formats: correct as index or correct_answer as value
-    // Support legacy 'correct' field from feature branch
-    const correctIndex = question.correct !== undefined ? question.correct : 
-                        question.correct_answer !== undefined ? 
-                        (typeof question.correct_answer === 'number' ? 
-                          question.correct_answer : 
-                          parseInt(question.correct_answer as string)) : 0;
+    // Use the helper function to parse correct_answer properly
+    const correctIndex = question.correct !== undefined 
+      ? question.correct 
+      : parseCorrectAnswer(question.correct_answer, question.type);
 
     const correct = selectedAnswer === correctIndex;
     setIsCorrect(correct);
     setShowExplanation(true);
     setHasAnswered(true);
+    
+    // Send the response with rating to the API
+    if (user && supabase && question.id) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          const selectedAnswerText = finalOptions[selectedAnswer] || `Option ${selectedAnswer + 1}`;
+          const submitPayload = {
+            course_id: courseId,
+            question_id: question.id,
+            selected_answer: selectedAnswer,
+            response_text: selectedAnswerText,
+            is_correct: correct,
+            points_earned: correct ? 1 : 0,
+            max_points: 1,
+            is_skipped: false,
+            attempt_number: 1,
+            is_final_attempt: true,
+            response_time_ms: null,
+            rating: ratingRef.current // Use ref to get immediate value
+          };
+          
+          console.log('🚀 Frontend sending SUBMIT data:', {
+            is_skipped: submitPayload.is_skipped,
+            rating: submitPayload.rating,
+            ratingState: rating,
+            ratingRef: ratingRef.current,
+            question_id: submitPayload.question_id,
+            course_id: submitPayload.course_id,
+            is_correct: submitPayload.is_correct,
+            selected_answer: submitPayload.selected_answer
+          });
+          
+          await fetch('/api/user-question-responses', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`
+            },
+            body: JSON.stringify(submitPayload)
+          });
+        }
+      } catch (error) {
+        console.error('Failed to record question response:', error);
+      }
+    }
+    
     await trackProgress(true, correct);
     // Pass the selected answer text
     const selectedAnswerText = finalOptions[selectedAnswer] || `Option ${selectedAnswer + 1}`;
@@ -356,10 +515,14 @@ export default function QuestionOverlay({
     setShowExplanation(false);
     setIsCorrect(false);
     setHasAnswered(false);
+    setRating(0); // Reset rating for next question
+    ratingRef.current = 0; // Reset ref as well
     onContinue();
   };
 
-  const correctIndex = question.correct !== undefined ? question.correct : question.correct_answer;
+  const correctIndex = question.correct !== undefined 
+    ? question.correct 
+    : parseCorrectAnswer(question.correct_answer, question.type);
 
   const formatTimestamp = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -450,7 +613,33 @@ export default function QuestionOverlay({
 
   // Standard multiple choice / true-false question UI
   const questionCard = (
-    <Card className={isInline ? "w-full" : "w-full max-w-2xl mx-auto"}>
+    <Card className={isInline ? "w-full relative" : "w-full max-w-2xl mx-auto relative"}>
+      {/* Rating buttons positioned at top right */}
+      <div className="absolute top-4 right-4 flex gap-2 z-0">
+        <button
+          onClick={() => toggleThumb(1)}
+          className={`p-2 rounded-lg transition-colors ${
+            rating === 1 
+              ? 'bg-green-100 text-green-600 dark:bg-green-900/20 dark:text-green-400' 
+              : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
+          }`}
+          title="Thumbs up"
+        >
+          <ThumbsUp className="h-4 w-4" />
+        </button>
+        <button
+          onClick={() => toggleThumb(-1)}
+          className={`p-2 rounded-lg transition-colors ${
+            rating === -1 
+              ? 'bg-red-100 text-red-600 dark:bg-red-900/20 dark:text-red-400' 
+              : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
+          }`}
+          title="Thumbs down"
+        >
+          <ThumbsDown className="h-4 w-4" />
+        </button>
+      </div>
+      
       <CardContent className="space-y-6 pt-6">
         {/* Show free questions remaining banner for unauthenticated users */}
         {!user && freeQuestionsRemaining !== undefined && freeQuestionsRemaining > 0 && (
@@ -520,20 +709,30 @@ export default function QuestionOverlay({
           </Alert>
         )}
 
-        <div className="flex justify-end gap-3 pt-4">
-          {!showExplanation ? (
-            <Button
-              onClick={handleSubmit}
-              disabled={selectedAnswer === null}
-            >
-              Submit Answer
-            </Button>
-          ) : (
-            <Button onClick={handleContinue} className="flex items-center gap-2">
-              <Play className="h-4 w-4" />
-              Continue Watching
-            </Button>
-          )}
+        <div className="flex justify-between items-center gap-3 pt-4">
+          <div className="flex gap-3">
+            {!showExplanation && (
+              <Button variant="outline" onClick={handleSkip}>
+                Skip Question
+              </Button>
+            )}
+          </div>
+          
+          <div className="flex gap-3">
+            {!showExplanation ? (
+              <Button
+                onClick={handleSubmit}
+                disabled={selectedAnswer === null}
+              >
+                Submit Answer
+              </Button>
+            ) : (
+              <Button onClick={handleContinue} className="flex items-center gap-2">
+                <Play className="h-4 w-4" />
+                Continue Watching
+              </Button>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
