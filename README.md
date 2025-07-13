@@ -69,6 +69,17 @@ CourseBuild leverages dual LLM providers with full video transcription and intel
 - **Export & Sharing Capabilities** including diagram code copying, SVG download, and note-saving functionality
 - **LangSmith Integration** for comprehensive API call logging and monitoring of visual generation pipeline
 
+### 🔍 **Fact-Check Feature for Quiz Answers**
+- **Web-Powered Verification**: Uses OpenAI Responses API with web search to fact-check quiz answers
+- **Answer Comparison**: Compares user's answer against the quiz's expected answer using real-time web data
+- **Source Citations**: Provides links to authoritative sources with descriptions for verification
+- **Confidence Scoring**: Shows confidence levels (Low/Medium/High) for fact-check results
+- **Context-Aware Analysis**: Includes video transcript context for more accurate fact-checking
+- **Smart Button Integration**: Fact-check button appears contextually after answering questions
+- **Visual Presentation**: Results displayed in distinctive purple cards with structured information
+- **Edge Function Architecture**: Deployed as `fact-check-service` Supabase edge function
+- **LangSmith Integration**: All API calls logged for monitoring and debugging
+
 #### **Visual Generation Pipeline**
 - **Pattern-Based Detection**: Recognizes explicit visual requests ("create a flowchart", "show me a diagram")
 - **LLM-Enhanced Analysis**: Uses GPT-4o-mini to analyze complex queries for visual learning opportunities
@@ -490,6 +501,28 @@ curl -X POST https://YOUR_PROJECT_ID.supabase.co/functions/v1/quiz-generation-v5
 ## 🚀 Recent Updates
 
 ### January 2025 - Major Architecture Improvements
+
+#### Fact-Check Feature for Quiz Answers (NEW)
+- **Web-Powered Answer Verification**: Implemented fact-checking using OpenAI Responses API with web search
+  - Compares user's answer against quiz's expected answer using real-time web data
+  - Provides authoritative source citations with clickable links
+  - Shows confidence levels (Low/Medium/High) for verification results
+- **Smart UI Integration**: Context-aware button that changes based on user state:
+  - Video watching: Blue "Explain this part of the video" button
+  - Question shown: Orange "Get a hint for this question" button  
+  - Answer submitted: Purple "Fact check the answer" button
+- **Answer Comparison Logic**: Enhanced to show both answers side-by-side:
+  - Displays user's selected answer and quiz's expected answer
+  - Provides individual evaluation for each answer
+  - Handles all question types (multiple choice, true/false, etc.)
+- **Bug Fixes**: 
+  - Fixed "0" display for multiple choice answers by handling string/number answer formats
+  - Fixed true/false evaluation to correctly identify when "False" is the right answer
+- **Technical Implementation**:
+  - New `fact-check-service` Supabase edge function
+  - `FactCheckMessage` React component for result display
+  - LangSmith integration for API monitoring
+- *See implementation details in Core Features section*
 
 #### Anonymous User Accuracy & Question Tracking Fix (NEW)
 - **Fixed Accuracy Calculation**: Anonymous users now see correct performance percentages
@@ -916,6 +949,47 @@ Content-Type: application/json
 - **Context Awareness**: Uses full video transcript for accurate diagrams
 - **Five Diagram Types**: Flowcharts, mind maps, sequences, comparisons, timelines
 - **Quality Metadata**: LLM-generated titles and descriptions specific to content
+
+### Fact-Check API
+
+```http
+POST /functions/v1/fact-check-service
+Authorization: Bearer <SUPABASE_KEY>
+Content-Type: application/json
+
+{
+  "userAnswer": "The speed of light is 300,000 km/s",
+  "supposedAnswer": "The speed of light is 299,792 km/s",
+  "question": "What is the speed of light in a vacuum?",
+  "videoContext": "This video discusses fundamental physics constants...",
+  "courseId": "uuid"
+}
+```
+
+**Response:**
+```json
+{
+  "analysis": "Both answers are essentially correct. The user's answer of 300,000 km/s is the commonly used rounded value...",
+  "userAnswerCorrect": true,
+  "supposedAnswerCorrect": true,
+  "confidence": "high",
+  "reasoning": "The exact speed of light in vacuum is 299,792,458 m/s...",
+  "sources": [
+    {
+      "title": "Speed of light - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Speed_of_light",
+      "description": "Comprehensive article about the speed of light constant..."
+    }
+  ]
+}
+```
+
+**Fact-Check Features:**
+- **Answer Comparison**: Evaluates both user and quiz answers
+- **Web Search Integration**: Real-time verification using OpenAI's web search
+- **Source Citations**: Provides authoritative links for further reading
+- **Confidence Levels**: Returns low/medium/high confidence scores
+- **Context Awareness**: Uses video transcript for better accuracy
 
 ---
 

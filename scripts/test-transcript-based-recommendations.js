@@ -126,6 +126,42 @@ async function testTranscriptRecommendations() {
 
     console.log('\n📝 Step 2: Testing recommendations with transcript data...');
     
+    // Test with course completion - use a course that has transcript data
+    const testRequest = {
+      userId: null, // Anonymous user
+      courseId: 'af7776cb-74aa-4e64-b1dd-3da8edc7bbe9', // "What if the moon turned into a black hole?" - has transcript
+      trigger: 'course_completion',
+      requestedCount: 5,
+      sessionData: {
+        sessionId: 'anon_test_' + Date.now(),
+        currentCourse: {
+          id: 'af7776cb-74aa-4e64-b1dd-3da8edc7bbe9',
+          title: 'What if the moon turned into a black hole?',
+          youtube_url: 'https://www.youtube.com/watch?v=example',
+          completionPercentage: 100
+        },
+        performance: {
+          totalQuestionsAnswered: 3,
+          totalQuestionsCorrect: 2,
+          accuracy: 66.67,
+          wrongQuestions: [
+            {
+              question: 'What would happen to the event horizon if the moon became a black hole?',
+              userAnswer: 'It would be visible from Earth',
+              correctAnswer: 'It would be too small to see',
+              type: 'multiple-choice',
+              concept: 'Event Horizon',
+              explanation: 'The event horizon of a moon-mass black hole would be incredibly tiny - only about the size of a sand grain, making it impossible to see from Earth with any current technology.'
+            }
+          ],
+          questionsByType: {
+            'multiple-choice': { answered: 3, correct: 2 }
+          }
+        },
+        recentCourses: []
+      }
+    };
+
     // Call enhanced recommendations
     const { data, error } = await supabase.functions.invoke('enhanced-recommendations', {
       body: {

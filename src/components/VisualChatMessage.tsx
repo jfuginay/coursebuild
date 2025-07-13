@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { FactCheckMessage } from './FactCheckMessage';
 
 interface VisualContent {
   type: 'mermaid' | 'chart' | 'table' | 'mindmap';
@@ -25,6 +26,7 @@ interface EnhancedChatMessage {
   isUser: boolean;
   timestamp: Date;
   visuals?: VisualContent[];
+  factCheckResult?: any; // For fact check messages
 }
 
 interface VisualChatMessageProps {
@@ -288,6 +290,25 @@ Error: ${error instanceof Error ? error.stack : error}
     });
     onVisualInteraction?.(visual, 'save_to_notes');
   };
+
+  // Handle fact check messages
+  if (message.factCheckResult) {
+    return (
+      <div className={`flex justify-start`}>
+        <div className="max-w-[85%]">
+          <FactCheckMessage 
+            result={message.factCheckResult}
+            question={message.factCheckResult.question}
+            supposedAnswer={message.factCheckResult.supposedAnswer}
+            userAnswer={message.factCheckResult.userAnswer}
+          />
+          <time className="text-xs text-muted-foreground mt-1 block">
+            {new Date(message.timestamp).toLocaleTimeString()}
+          </time>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

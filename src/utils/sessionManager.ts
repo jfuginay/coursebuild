@@ -10,6 +10,7 @@ export interface WrongQuestion {
   type: string;
   timestamp?: number;
   concept?: string;
+  explanation?: string;
 }
 
 export interface CourseProgress {
@@ -157,7 +158,7 @@ export class SessionManager {
     isCorrect: boolean,
     type: string,
     timestamp?: number,
-    concept?: string
+    explanation?: string
   ): void {
     const session = this.getOrCreateSession();
 
@@ -173,7 +174,8 @@ export class SessionManager {
         correctAnswer,
         type,
         timestamp,
-        concept
+        concept: undefined, // Keep for backwards compatibility
+        explanation
       });
 
       // Keep only last 50 wrong questions

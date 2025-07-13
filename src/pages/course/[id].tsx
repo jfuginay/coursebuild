@@ -65,6 +65,9 @@ export default function CoursePage() {
  const [expandedExplanations, setExpandedExplanations] = useState<Set<string>>(new Set());
  const [showLoginModal, setShowLoginModal] = useState(false);
   const [isEnrolled, setIsEnrolled] = useState(false);
+  const [isAnswerIncorrect, setIsAnswerIncorrect] = useState(false); // NEW: Track incorrect answers
+  const [lastUserAnswer, setLastUserAnswer] = useState<string>(''); // NEW: Track user's last answer
+  const [hasJustAnswered, setHasJustAnswered] = useState(false); // NEW: Track if user just answered
  
  // Rating state
  const [showRatingModal, setShowRatingModal] = useState(false);
@@ -346,6 +349,10 @@ export default function CoursePage() {
  };
 
  const handleAnswer = (correct: boolean, selectedAnswer?: string) => {
+   setIsAnswerIncorrect(!correct); // Track if answer was incorrect
+   setLastUserAnswer(selectedAnswer || ''); // Track the user's answer
+   setHasJustAnswered(true); // User just answered
+   
    if (correct) {
      setCorrectAnswers(prev => prev + 1);
      
@@ -393,7 +400,7 @@ export default function CoursePage() {
          correct,
          question.type,
          question.timestamp,
-         undefined // No key concept available in Question type
+         question.explanation // Pass explanation instead of undefined
        );
      }
    }
@@ -402,6 +409,9 @@ export default function CoursePage() {
  const handleContinueVideo = () => {
    setAnsweredQuestions(prev => new Set(prev).add(currentQuestionIndex));
    setShowQuestion(false);
+   setIsAnswerIncorrect(false); // Reset when continuing
+   setLastUserAnswer(''); // Reset user answer
+   setHasJustAnswered(false); // Reset answered state
    
    // For hotspot questions, seek back to the original question timestamp
    const currentQuestion = questions[currentQuestionIndex];
@@ -632,25 +642,35 @@ export default function CoursePage() {
    };
  };
 
- // Get active question data for chat bubble
- const getActiveQuestion = () => {
-   if (!showQuestion || !questions[currentQuestionIndex]) {
-     return null;
-   }
+  // Get active question data for chat bubble
+  const getActiveQuestion = () => {
+    if (!showQuestion || !questions[currentQuestionIndex]) {
+      return null;
+    }
 
-   const question = questions[currentQuestionIndex];
+    const question = questions[currentQuestionIndex];
 
-   const parsedOptions = parseOptions(question.options || []);
-   const finalOptions = parsedOptions.length === 0 && (question.type === 'true-false' || question.type === 'true_false') 
-     ? ['True', 'False'] 
-     : parsedOptions;
+    const parsedOptions = parseOptions(question.options || []);
+    const finalOptions = parsedOptions.length === 0 && (question.type === 'true-false' || question.type === 'true_false') 
+      ? ['True', 'False'] 
+      : parsedOptions;
 
-   return {
-     question: question.question,
-     type: question.type,
-     options: finalOptions
-   };
- };
+    // Cast to any to access all possible properties
+    const questionAny = question as any;
+
+    return {
+      question: question.question,
+      type: question.type,
+      options: finalOptions,
+      correct_answer: question.correct_answer,
+      explanation: question.explanation,
+      // Include all properties needed for different question types
+      sequence_items: questionAny.sequence_items,
+      matching_pairs: questionAny.matching_pairs,
+      bounding_boxes: questionAny.bounding_boxes,
+      target_objects: questionAny.target_objects
+    };
+  };
 
  // Convert answeredQuestions Set<number> to Set<string> format expected by curriculum card
  const getAnsweredQuestionsForCurriculum = (): Set<string> => {
@@ -873,6 +893,9 @@ export default function CoursePage() {
        courseId={id as string}
        currentVideoTime={currentTime}
        activeQuestion={getActiveQuestion()}
+       isAnswerIncorrect={isAnswerIncorrect}
+       userAnswer={lastUserAnswer}
+       hasJustAnswered={hasJustAnswered}
      />
    </div>
  );

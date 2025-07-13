@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Minus, Send, Bot, HelpCircle, Video } from 'lucide-react';
+import { Bot, MessageCircle, X, Send, Minus, HelpCircle, Video, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -21,6 +21,7 @@ interface ChatMessage {
   isUser: boolean;
   timestamp: Date;
   visuals?: VisualContent[];
+  factCheckResult?: any; // For fact check messages
 }
 
 interface ChatBubbleProps {
@@ -31,10 +32,36 @@ interface ChatBubbleProps {
     question: string;
     type: string;
     options: string[];
+    correct_answer: string | number;
+    explanation: string;
+    // Additional properties for different question types
+    sequence_items?: string[];
+    matching_pairs?: Array<{
+      left?: string;
+      left_item?: string;
+      right?: string;
+      right_item?: string;
+    }>;
+    bounding_boxes?: Array<{
+      isCorrectAnswer: boolean;
+      label?: string;
+    }>;
+    target_objects?: string[];
   } | null;
+  isAnswerIncorrect?: boolean; // NEW: Track if user just answered incorrectly
+  userAnswer?: string; // NEW: The user's answer
+  hasJustAnswered?: boolean; // NEW: Track if user just answered (right or wrong)
 }
 
-export default function ChatBubble({ className, courseId, currentVideoTime, activeQuestion }: ChatBubbleProps) {
+export default function ChatBubble({ 
+  className, 
+  courseId, 
+  currentVideoTime, 
+  activeQuestion,
+  isAnswerIncorrect,
+  userAnswer,
+  hasJustAnswered
+}: ChatBubbleProps) {
   const { user, session } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -258,6 +285,168 @@ Options: ${activeQuestion.options.join(', ')}`;
     handlePredefinedMessage(apiMessage, userDisplayMessage);
   };
 
+  const handleFactCheck = async () => {
+    if (!activeQuestion || !courseId) return;
+
+    const userDisplayMessage = "🔍 Fact check the answer";
+    
+    // Add user message
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      text: userDisplayMessage,
+      isUser: true,
+      timestamp: new Date()
+    };
+    
+    setMessages(prev => [...prev, userMessage]);
+    setIsLoading(true);
+    
+    // Open chat if it's not already open
+    if (!isOpen) {
+      setIsOpen(true);
+    }
+    
+    // Unminimize if minimized
+    if (isMinimized) {
+      setIsMinimized(false);
+    }
+    
+    try {
+      // Extract the correct answer based on question type
+      let correctAnswerText = '';
+      
+      switch (activeQuestion.type) {
+        case 'true-false':
+        case 'true_false':
+          // For true/false, correct_answer is 0 (True) or 1 (False)
+          // Handle both string and number values
+          const tfAnswer = typeof activeQuestion.correct_answer === 'number' 
+            ? activeQuestion.correct_answer 
+            : parseInt(String(activeQuestion.correct_answer), 10);
+            
+          correctAnswerText = tfAnswer === 0 ? 'True' : 'False';
+          break;
+          
+        case 'multiple-choice':
+        case 'multiple_choice':
+          // For multiple choice, correct_answer is an index into options array
+          // Handle both string and number values for correct_answer
+          const correctIndex = typeof activeQuestion.correct_answer === 'number' 
+            ? activeQuestion.correct_answer 
+            : parseInt(String(activeQuestion.correct_answer), 10);
+            
+          if (Array.isArray(activeQuestion.options) && !isNaN(correctIndex) && correctIndex >= 0 && correctIndex < activeQuestion.options.length) {
+            correctAnswerText = activeQuestion.options[correctIndex];
+          } else {
+            // Fallback if index is invalid
+            correctAnswerText = `Option ${correctIndex + 1}`;
+          }
+          break;
+          
+        case 'sequencing':
+        case 'sequence':
+          // For sequencing, the correct answer is the entire sequence in order
+          if (activeQuestion.sequence_items && Array.isArray(activeQuestion.sequence_items)) {
+            correctAnswerText = activeQuestion.sequence_items.join(' → ');
+          } else if (Array.isArray(activeQuestion.options)) {
+            // Fallback if sequence_items isn't available
+            correctAnswerText = activeQuestion.options.join(' → ');
+          } else {
+            correctAnswerText = 'Correct sequence not available';
+          }
+          break;
+          
+        case 'matching':
+          // For matching, show all correct pairs
+          if (activeQuestion.matching_pairs && Array.isArray(activeQuestion.matching_pairs)) {
+            const pairs = activeQuestion.matching_pairs.map((pair: any) => 
+              `${pair.left || pair.left_item || 'Item'} ↔ ${pair.right || pair.right_item || 'Match'}`
+            );
+            correctAnswerText = pairs.join('; ');
+          } else {
+            correctAnswerText = 'Correct matches not available';
+          }
+          break;
+          
+        case 'hotspot':
+          // For hotspot, identify the correct clickable areas
+          if (activeQuestion.bounding_boxes && Array.isArray(activeQuestion.bounding_boxes)) {
+            const correctBoxes = activeQuestion.bounding_boxes
+              .filter((box: any) => box.isCorrectAnswer)
+              .map((box: any) => box.label || 'Correct area');
+            correctAnswerText = correctBoxes.length > 0 
+              ? `Click on: ${correctBoxes.join(', ')}`
+              : 'Correct hotspot area';
+          } else if (activeQuestion.target_objects && Array.isArray(activeQuestion.target_objects)) {
+            // Fallback to target_objects if available
+            correctAnswerText = `Click on: ${activeQuestion.target_objects.join(', ')}`;
+          } else {
+            correctAnswerText = 'Correct hotspot area';
+          }
+          break;
+          
+        default:
+          // Fallback for unknown types
+          correctAnswerText = String(activeQuestion.correct_answer);
+      }
+
+      console.log('📋 Fact checking:', {
+        questionType: activeQuestion.type,
+        correctAnswer: correctAnswerText
+      });
+
+      const response = await fetch('/api/fact-check', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          question: activeQuestion.question,
+          userAnswer: userAnswer || 'N/A',
+          correctAnswer: correctAnswerText,
+          explanation: activeQuestion.explanation,
+          courseId: courseId
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fact check');
+      }
+
+      const data = await response.json();
+      
+      // The API returns the fact check result directly
+      if (data) {
+        // Add fact check result as a special message
+        const factCheckMessage: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          text: '', // Empty text since we'll use a custom component
+          isUser: false,
+          timestamp: new Date(),
+          factCheckResult: {
+            ...data,
+            question: activeQuestion.question,
+            supposedAnswer: correctAnswerText,
+            userAnswer: userAnswer || 'N/A'
+          }
+        };
+        
+        setMessages(prev => [...prev, factCheckMessage]);
+      }
+    } catch (error) {
+      console.error('Error during fact check:', error);
+      const errorMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        text: "Sorry, I couldn't perform the fact check right now. Please try again later.",
+        isUser: false,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
@@ -359,29 +548,46 @@ Options: ${activeQuestion.options.join(', ')}`;
 
       {/* Action Buttons */}
       <div className="flex flex-col items-end space-y-2 mb-4">
-                 {/* Help with Question Button - Only visible when there's an active question */}
-         {activeQuestion && (
-           <Button
-             onClick={handleHelpWithQuestion}
-             disabled={isLoading}
-             className="rounded-full w-12 h-12 shadow-lg hover:shadow-xl transition-all duration-300 bg-orange-500 hover:bg-orange-600 text-white"
-             size="lg"
-             title="Help me with this question"
-           >
-             <HelpCircle className="h-5 w-5" />
-           </Button>
-         )}
-
-         {/* Explain Video Button */}
-         <Button
-           onClick={handleExplainVideo}
-           disabled={isLoading}
-           className="rounded-full w-12 h-12 shadow-lg hover:shadow-xl transition-all duration-300 bg-blue-500 hover:bg-blue-600 text-white"
-           size="lg"
-           title="Explain what's happened in the video"
-         >
-           <Video className="h-5 w-5" />
-         </Button>
+        {/* Single Context-Aware Action Button */}
+        <Button
+          onClick={() => {
+            // Determine which action to take based on context
+            if (hasJustAnswered && activeQuestion) {
+              // User has answered a question (right or wrong) - show fact check
+              handleFactCheck();
+            } else if (activeQuestion) {
+              // Question is shown but not answered - show help
+              handleHelpWithQuestion();
+            } else {
+              // Just watching video - show video explanation
+              handleExplainVideo();
+            }
+          }}
+          disabled={isLoading}
+          className={`rounded-full w-12 h-12 shadow-lg hover:shadow-xl transition-all duration-300 ${
+            hasJustAnswered && activeQuestion
+              ? 'bg-purple-500 hover:bg-purple-600'
+              : activeQuestion
+              ? 'bg-orange-500 hover:bg-orange-600'
+              : 'bg-blue-500 hover:bg-blue-600'
+          } text-white`}
+          size="lg"
+          title={
+            hasJustAnswered && activeQuestion
+              ? 'Fact check the answer'
+              : activeQuestion
+              ? 'Help me with this question'
+              : "Explain what's happened in the video"
+          }
+        >
+          {hasJustAnswered && activeQuestion ? (
+            <Search className="h-5 w-5" />
+          ) : activeQuestion ? (
+            <HelpCircle className="h-5 w-5" />
+          ) : (
+            <Video className="h-5 w-5" />
+          )}
+        </Button>
       </div>
 
       {/* Main Chat Bubble Button */}

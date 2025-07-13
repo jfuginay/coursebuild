@@ -31,6 +31,7 @@ interface SessionPerformanceData {
       type: string;
       timestamp?: number;
       concept?: string;
+      explanation?: string;
     }>;
     questionsByType: {
       [type: string]: {
@@ -185,7 +186,8 @@ serve(async (req) => {
       videoOptions: detailedVideos,
       searchTerms,
       requestedCount,
-      currentCourseContext: courseId ? await getCourseContext(supabaseClient, courseId) : null
+      currentCourseContext: courseId ? await getCourseContext(supabaseClient, courseId) : null,
+      sessionData: sessionData
     });
 
     // Store recommendation history only for logged-in users
@@ -342,15 +344,24 @@ async function generateSearchTermsWithLLM(context: any): Promise<string[]> {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
     
-    const { data: courseData, error: courseError } = await supabaseClient
-      .from('courses')
-      .select('*')
-      .eq('id', currentCourseId)
-      .single();
+    currentCourseContext = await getCourseContext(supabaseClient, currentCourseId);
+    
+    if (currentCourseContext) {
+      console.log(`📚 Current course context: ${currentCourseContext.title}`);
       
-    if (!courseError && courseData) {
-      currentCourseContext = courseData;
-      console.log(`📚 Current course context: ${courseData.title}`);
+      // Log transcript data availability
+      const hasTranscript = !!currentCourseContext.video_transcripts;
+      const hasSummary = hasTranscript && !!currentCourseContext.video_transcripts.video_summary;
+      const hasKeyConcepts = hasTranscript && currentCourseContext.video_transcripts.key_concepts && currentCourseContext.video_transcripts.key_concepts.length > 0;
+      
+      console.log(`   📄 Has transcript: ${hasTranscript}`);
+      console.log(`   📝 Has summary: ${hasSummary}`);
+      console.log(`   🔑 Has key concepts: ${hasKeyConcepts} (${hasKeyConcepts ? currentCourseContext.video_transcripts.key_concepts.length : 0})`);
+      
+      // If no transcript data, log a warning
+      if (!hasTranscript) {
+        console.warn(`   ⚠️  No transcript data found - course may have been generated before v5 pipeline`);
+      }
     }
   }
 
@@ -554,7 +565,8 @@ async function selectFinalRecommendations(context: any): Promise<CourseRecommend
     videoOptions,
     searchTerms,
     requestedCount,
-    currentCourseContext
+    currentCourseContext,
+    sessionData
   } = context;
 
   const selectionPrompt = buildFinalSelectionPrompt(
@@ -564,7 +576,8 @@ async function selectFinalRecommendations(context: any): Promise<CourseRecommend
     videoOptions,
     searchTerms,
     requestedCount,
-    currentCourseContext
+    currentCourseContext,
+    sessionData
   );
 
   // Call OpenAI for final selection using LangSmith logger
@@ -1056,7 +1069,8 @@ function buildFinalSelectionPrompt(
   videoOptions: YouTubeVideoDetails[],
   searchTerms: string[],
   requestedCount: number,
-  currentCourseContext: any | null
+  currentCourseContext: any | null,
+  sessionData: SessionPerformanceData | undefined
 ): string {
   const wrongQuestionDetails = wrongQuestions.map(wq => {
     const q = wq.questions;
@@ -1067,12 +1081,30 @@ function buildFinalSelectionPrompt(
     if (q?.type === 'multiple-choice' && q?.options && Array.isArray(q.options)) {
       // Use response_text first (actual text), then try to get from options array
       userAnswerText = wq.response_text || q.options[wq.selected_answer] || `Option ${wq.selected_answer + 1}`;
-      correctAnswerText = q.options[q.correct_answer] || `Option ${q.correct_answer + 1}`;
+      
+      // Handle correct_answer which might be a string or number
+      if (typeof q.correct_answer === 'string') {
+        // If it's already the answer text, use it directly
+        correctAnswerText = q.correct_answer;
+      } else if (typeof q.correct_answer === 'number' && q.options[q.correct_answer]) {
+        // If it's an index, get from options
+        correctAnswerText = q.options[q.correct_answer];
+      } else {
+        correctAnswerText = q.correct_answer || 'Unknown';
+      }
     } else if (q?.type === 'true-false') {
       const tfOptions = ['True', 'False'];
       // Use response_text first, then fallback to index lookup
       userAnswerText = wq.response_text || tfOptions[wq.selected_answer] || 'Unknown';
-      correctAnswerText = tfOptions[q.correct_answer === 0 ? 0 : 1];
+      
+      // Handle correct_answer for true/false
+      if (typeof q.correct_answer === 'string') {
+        correctAnswerText = q.correct_answer;
+      } else if (typeof q.correct_answer === 'number') {
+        correctAnswerText = tfOptions[q.correct_answer === 0 ? 0 : 1];
+      } else {
+        correctAnswerText = 'Unknown';
+      }
     } else if (q?.type === 'matching') {
       userAnswerText = 'Incorrect matching of pairs';
       correctAnswerText = 'See explanation for correct pairs';
@@ -1135,8 +1167,23 @@ function buildFinalSelectionPrompt(
   });
 
   // Calculate user's performance on this course
-  const questionsAttempted = wrongQuestions.length > 0 ? wrongQuestions[0].total_questions || wrongQuestions.length : 0;
-  const accuracy = questionsAttempted > 0 ? ((questionsAttempted - wrongQuestions.length) / questionsAttempted * 100).toFixed(0) : null;
+  let questionsAttempted = 0;
+  let questionsCorrect = 0;
+  let accuracy: string | null = null;
+  
+  // For anonymous users with session data
+  if (sessionData) {
+    questionsAttempted = sessionData.performance.totalQuestionsAnswered;
+    questionsCorrect = sessionData.performance.totalQuestionsCorrect;
+    accuracy = questionsAttempted > 0 ? ((questionsCorrect / questionsAttempted) * 100).toFixed(0) : null;
+  } 
+  // For logged-in users, calculate from wrong questions
+  else if (wrongQuestions.length > 0) {
+    // We only have wrong questions, so we need more context to calculate total
+    // This is a limitation - we can only show the number of mistakes
+    questionsAttempted = wrongQuestions.length; // This is minimum questions attempted
+    accuracy = null; // Can't calculate without total questions
+  }
 
   let prompt = `Select and rank the ${requestedCount} best YouTube videos from these options for personalized learning.
 
@@ -1152,7 +1199,11 @@ function buildFinalSelectionPrompt(
 - Title: "${currentCourseContext.title}"
 - Topic Summary: ${videoSummary?.substring(0, 300)}...
 ${keyConcepts.length > 0 ? `- Key Concepts: ${keyConcepts.join(', ')}` : ''}
-- User Performance: ${accuracy ? `${accuracy}% accuracy (${wrongQuestions.length} mistakes out of ${questionsAttempted} questions)` : 'No questions attempted'}
+- User Performance: ${accuracy !== null ? 
+    `${accuracy}% accuracy (${wrongQuestions.length} mistakes out of ${questionsAttempted} questions)` : 
+    wrongQuestions.length > 0 ? 
+    `${wrongQuestions.length} mistakes identified` : 
+    'No questions attempted'}
 
 SERIES/PROGRESSION DETECTION:
 Analyze if this video is part of a series by looking for:
@@ -1426,11 +1477,17 @@ async function getCourseContext(supabaseClient: any, courseId: string) {
     return null;
   }
   
+  // Handle the array response - get the first transcript if available
+  let transcriptData = null;
+  if (data.video_transcripts && Array.isArray(data.video_transcripts) && data.video_transcripts.length > 0) {
+    transcriptData = data.video_transcripts[0];
+  }
+  
   // Extract key concepts from the timeline
   let keyConcepts: string[] = [];
-  if (data.video_transcripts?.key_concepts_timeline) {
+  if (transcriptData?.key_concepts_timeline) {
     try {
-      const timeline = data.video_transcripts.key_concepts_timeline;
+      const timeline = transcriptData.key_concepts_timeline;
       if (Array.isArray(timeline)) {
         keyConcepts = timeline.map((item: any) => item.concept).filter(Boolean);
       }
@@ -1443,17 +1500,19 @@ async function getCourseContext(supabaseClient: any, courseId: string) {
     title: data.title,
     description: data.description,
     youtube_url: data.youtube_url,
-    hasTranscript: !!data.video_transcripts,
+    hasTranscript: !!transcriptData,
+    hasSummary: !!transcriptData?.video_summary,
     keyConcepts: keyConcepts.length
   });
   
-  // Return the data with parsed key concepts
+  // Return the data with parsed key concepts and normalized transcript structure
   return {
     ...data,
-    video_transcripts: {
-      ...data.video_transcripts,
+    video_transcripts: transcriptData ? {
+      video_summary: transcriptData.video_summary,
+      key_concepts_timeline: transcriptData.key_concepts_timeline,
       key_concepts: keyConcepts // Add parsed concepts for easier access
-    }
+    } : null
   };
 }
 
@@ -1519,7 +1578,7 @@ function createProfileFromSession(sessionData: SessionPerformanceData): any {
   
   return {
     user_id: sessionData.sessionId,
-    overall_accuracy: performance.accuracy,
+    overall_accuracy: performance.accuracy / 100, // Convert percentage to decimal
     total_questions_answered: performance.totalQuestionsAnswered,
     total_questions_correct: performance.totalQuestionsCorrect,
     profile_confidence: Math.min(performance.totalQuestionsAnswered / 50, 1), // Build confidence based on questions answered
@@ -1554,7 +1613,10 @@ function convertSessionWrongQuestions(sessionData: SessionPerformanceData): any[
       question: wq.question,
       type: wq.type,
       timestamp: wq.timestamp,
-      options: [] // Options not stored in session data
+      options: [], // Options not stored in session data
+      correct_answer: wq.correctAnswer, // Add the correct answer from session
+      explanation: wq.explanation || wq.concept || '', // Use explanation or concept as fallback
+      metadata: {} // Empty metadata for anonymous users
     },
     selected_answer: wq.userAnswer,
     response_text: wq.userAnswer,

@@ -26,28 +26,12 @@ const mockSessionData = {
     accuracy: 0.8, // 80% accuracy
     wrongQuestions: [
       {
-        question: 'What is the difference between let and var?',
-        userAnswer: 'No difference',
-        correctAnswer: 'let is block-scoped, var is function-scoped',
+        question: 'Which statement best explains why money is considered an idea or agreement rather than just physical currency?',
+        userAnswer: 'Physical currency represents only a small fraction of the world\'s wealth, most of which is non-physical assets.',
+        correctAnswer: 'Money works because everyone agrees it has value, and this agreement is what makes the system function.',
         type: 'multiple-choice',
-        timestamp: 120,
-        concept: 'variable scope'
-      },
-      {
-        question: 'What is hoisting in JavaScript?',
-        userAnswer: 'Moving code to the top of the file',
-        correctAnswer: 'Declaration is moved to the top of the scope during compilation',
-        type: 'multiple-choice',
-        timestamp: 240,
-        concept: 'hoisting'
-      },
-      {
-        question: 'Can arrow functions be used as constructors?',
-        userAnswer: 'True',
-        correctAnswer: 'False',
-        type: 'true-false',
-        timestamp: 360,
-        concept: 'arrow functions'
+        timestamp: 45,
+        explanation: 'Money is fundamentally a social construct that relies on collective agreement about value, not just the physical objects we use to represent it.'
       }
     ],
     questionsByType: {
