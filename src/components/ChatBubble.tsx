@@ -387,13 +387,19 @@ Options: ${activeQuestion.options.join(', ')}`;
       {/* Main Chat Bubble Button */}
       <Button
         onClick={() => setIsOpen(!isOpen)}
-        className="rounded-full w-14 h-14 shadow-lg hover:shadow-xl transition-all duration-300 bg-primary hover:bg-primary/90"
+        className="rounded-full w-40 h-40 shadow-lg hover:shadow-xl transition-all duration-300 bg-transparent hover:bg-transparent p-0 border-0 overflow-hidden"
         size="lg"
       >
-        {isOpen ? (
-          <X className="h-6 w-6" />
+                  {isOpen ? (
+            <div className="w-full h-full flex items-center justify-center bg-primary rounded-full">
+              <X className="h-6 w-6 text-primary-foreground" />
+            </div>
         ) : (
-          <MessageCircle className="h-6 w-6" />
+          <img 
+            src="/Curio.gif" 
+            alt="Curio AI Assistant" 
+            className="w-full h-full object-cover rounded-full"
+          />
         )}
       </Button>
     </div>
