@@ -107,6 +107,213 @@ CourseBuild leverages dual LLM providers with full video transcription and intel
 - **Monitoring**: LangSmith integration for API call tracing and debugging
 - **Orchestration**: Backend-only segment processing with atomic claiming
 
+## 📊 Database Schema
+
+### Core Tables
+
+#### **courses**
+Primary table for course information.
+```sql
+- id: uuid (primary key)
+- title: text
+- description: text
+- youtube_url: text
+- thumbnail_url: text
+- channel_name: text
+- duration: integer (seconds)
+- published: boolean
+- created_at: timestamp
+- created_by: uuid (references auth.users)
+- is_segmented: boolean
+- total_segments: integer
+- segment_duration: integer
+```
+
+#### **questions**
+Stores all quiz questions generated for courses.
+```sql
+- id: uuid (primary key)
+- course_id: uuid (references courses)
+- segment_id: uuid (references course_segments)
+- timestamp: integer (video timestamp in seconds)
+- frame_timestamp: integer (specific frame for visual questions)
+- question: text
+- type: text (multiple-choice, true-false, hotspot, matching, sequencing)
+- options: jsonb (array of options for MCQ)
+- correct_answer: integer or jsonb
+- explanation: text
+- has_visual_asset: boolean
+- metadata: jsonb (includes bounding boxes, educational rationale, etc.)
+- generation_status: text (planned, generating, completed, failed)
+- accepted: boolean
+```
+
+#### **video_transcripts** ⚠️
+Stores full video transcripts with concept timelines.
+```sql
+- id: uuid (primary key)
+- course_id: uuid (references courses)
+- video_url: text
+- video_summary: text
+- total_duration: integer
+- full_transcript: jsonb (array of transcript segments)
+- key_concepts_timeline: jsonb (array of concept objects)
+- model_used: text
+- processing_time_ms: integer
+- metadata: jsonb
+- created_at: timestamp
+```
+
+**⚠️ Important Notes:**
+- **One-to-Many Relationship**: A course can have multiple transcripts (e.g., from segmented processing)
+- **Join Returns Array**: When joining with courses, `video_transcripts` returns as an array
+- **Key Concepts Structure**: `key_concepts_timeline` contains objects like:
+  ```json
+  {
+    "concept": "Black Hole Theory",
+    "first_mentioned": 120,
+    "explanation_timestamps": [120, 240, 360]
+  }
+  ```
+
+#### **course_segments**
+For videos processed in segments (>10 minutes).
+```sql
+- id: uuid (primary key)
+- course_id: uuid (references courses)
+- segment_index: integer
+- start_time: integer
+- end_time: integer
+- title: text
+- status: text (pending, processing, completed, failed)
+- worker_id: text (for atomic processing)
+- planning_status: text
+- question_plans_count: integer
+- cumulative_key_concepts: jsonb
+- retry_count: integer
+```
+
+#### **user_learning_profiles**
+AI-generated learning profiles for personalized recommendations.
+```sql
+- user_id: uuid (primary key, references auth.users)
+- learning_style: jsonb (preferences with scores 0-1)
+- struggling_concepts: jsonb (array with severity scores)
+- mastered_concepts: jsonb (array with confidence levels)
+- topic_interests: jsonb (map of topics to interest scores)
+- preferred_difficulty: jsonb
+- engagement_metrics: jsonb
+- profile_confidence: float (0-1)
+- total_insights_processed: integer
+- last_profile_update: timestamp
+```
+
+#### **user_question_responses**
+Tracks user answers to quiz questions.
+```sql
+- id: uuid (primary key)
+- user_id: uuid (references auth.users)
+- question_id: uuid (references questions)
+- selected_answer: integer (index for MCQ/TF)
+- response_text: text (actual answer text or JSON for complex types)
+- is_correct: boolean
+- time_taken: integer (seconds)
+- attempted_at: timestamp
+```
+
+#### **user_course_enrollments**
+Tracks course viewing and progress.
+```sql
+- user_id: uuid (references auth.users)
+- course_id: uuid (references courses)
+- enrolled_at: timestamp
+- last_accessed_at: timestamp
+- completion_percentage: float (0-100)
+- questions_answered: integer
+- time_spent_seconds: integer
+- PRIMARY KEY (user_id, course_id)
+```
+
+#### **chat_insights**
+Stores insights extracted from AI chat interactions.
+```sql
+- id: uuid (primary key)
+- user_id: uuid (references auth.users)
+- course_id: uuid (references courses)
+- session_id: text
+- message_id: text
+- insight_type: text
+- insight_content: jsonb
+- confidence_score: float
+- extracted_concepts: text[]
+- extracted_topics: text[]
+- sentiment_score: float
+- created_at: timestamp
+```
+
+#### **recommendation_history**
+Tracks AI-generated course recommendations.
+```sql
+- id: uuid (primary key)
+- user_id: uuid (references auth.users)
+- recommended_courses: jsonb (array of recommendations)
+- recommendation_context: jsonb
+- insights_snapshot: jsonb
+- performance_snapshot: jsonb
+- created_at: timestamp
+```
+
+### Common Query Patterns
+
+#### Getting Course with Transcript Data
+```javascript
+// ⚠️ Note: video_transcripts returns as an array!
+const { data } = await supabase
+  .from('courses')
+  .select(`
+    *,
+    video_transcripts (
+      video_summary,
+      key_concepts_timeline
+    )
+  `)
+  .eq('id', courseId)
+  .single();
+
+// Handle the array response
+const transcript = data.video_transcripts?.[0] || null;
+```
+
+#### Getting User's Wrong Questions
+```javascript
+const { data } = await supabase
+  .from('user_question_responses')
+  .select(`
+    *,
+    questions!inner(
+      question,
+      type,
+      options,
+      correct_answer,
+      explanation
+    )
+  `)
+  .eq('user_id', userId)
+  .eq('is_correct', false)
+  .order('attempted_at', { ascending: false });
+```
+
+### Key Relationships & Gotchas
+
+1. **Video Transcripts Join**: Always returns an array, even for single results
+2. **Question Types**: Different types store answers differently:
+   - MCQ/TF: `selected_answer` is index, `response_text` is actual text
+   - Hotspot: `response_text` contains clicked element and coordinates
+   - Matching/Sequencing: Complex JSON in `response_text`
+3. **Session Data**: Anonymous users tracked in localStorage, not database
+4. **Segmented Processing**: Each segment can have its own transcript entry
+5. **Profile Confidence**: Increases with more user data (capped at 1.0)
+
 ## 🚀 Getting Started
 
 1. Clone this repository
@@ -283,6 +490,34 @@ curl -X POST https://YOUR_PROJECT_ID.supabase.co/functions/v1/quiz-generation-v5
 ## 🚀 Recent Updates
 
 ### January 2025 - Major Architecture Improvements
+
+#### Anonymous User Accuracy & Question Tracking Fix (NEW)
+- **Fixed Accuracy Calculation**: Anonymous users now see correct performance percentages
+  - Issue: System showed "0%" even when answers were correct
+  - Solution: Modified `buildFinalSelectionPrompt` to properly use session data for accuracy
+- **Fixed "Option NaN" Display**: Correct answers now show actual text instead of "Option NaN"
+  - Issue: `correct_answer` field was treated as always numeric but stored as strings for anonymous users
+  - Solution: Added type checking to handle both string and numeric answer formats
+- **Fixed Missing Explanations**: "Why it matters" now displays proper explanation text
+  - Issue: Explanations weren't being tracked for anonymous users
+  - Solution: Updated SessionManager to capture and store explanation field
+- **Enhanced Question Tracking**: Complete question data now stored in session
+  - Added `explanation` field to `WrongQuestion` interface
+  - Updated course page to pass explanations to SessionManager
+  - Modified edge function to properly retrieve and display all question data
+- *See: [Anonymous User Accuracy Fix](docs/ANONYMOUS_USER_ACCURACY_FIX.md)*
+
+#### Video Transcript Data Loading Fix (NEW)
+- **Fixed Accuracy Display**: Anonymous users now show correct accuracy (e.g., "67%" not "6667%")
+  - Issue: SessionManager stores accuracy as percentage (0-100) but edge function expected decimal (0-1)
+  - Solution: Added division by 100 in `createProfileFromSession`
+- **Fixed Transcript Loading**: Video summaries and key concepts now properly load from database
+  - Issue: `video_transcripts` join returns array but code expected single object
+  - Solution: Updated `getCourseContext` to handle array response and extract first transcript
+- **Key Concepts Extraction**: Properly parses `key_concepts_timeline` JSONB array to extract concept names
+- **Graceful Fallbacks**: System handles courses without transcript data (pre-v5 courses)
+- **Database Schema Documentation**: Added comprehensive schema section to README to prevent similar issues
+- *See: [Transcript Data Fix Deployment Checklist](docs/TRANSCRIPT_DATA_FIX_DEPLOYMENT.md)*
 
 #### Anonymous User Support for Enhanced Recommendations (NEW)
 - **Session-Based Tracking**: Non-logged-in users now get personalized recommendations
