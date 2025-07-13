@@ -662,9 +662,9 @@ export default function QuestionOverlay({
               
               if (showExplanation) {
                 if (isThisCorrect) {
-                  buttonClass += "bg-green-50 border-green-200 text-green-800 dark:bg-green-950/20 dark:border-green-800";
+                  buttonClass += "bg-green-50 border-green-200 text-green-800 dark:bg-green-950/20 dark:border-green-800 dark:text-green-200";
                 } else if (isSelected && !isThisCorrect) {
-                  buttonClass += "bg-red-50 border-red-200 text-red-800 dark:bg-red-950/20 dark:border-red-800";
+                  buttonClass += "bg-red-50 border-red-200 text-red-800 dark:bg-red-950/20 dark:border-red-800 dark:text-red-200";
                 } else {
                   buttonClass += "bg-muted/50 border-border opacity-60";
                 }

@@ -197,3 +197,489 @@
     animation-delay: 400ms;
   }
 }
+
+/* Dark mode fixes for question components */
+/* These overrides ensure proper dark mode styling for quiz questions */
+
+/* Incorrect answer highlighting */
+.dark .bg-red-50 {
+  background-color: rgb(127 29 29 / 0.2) !important; /* red-900/20 */
+}
+
+.dark .border-red-200 {
+  border-color: rgb(127 29 29 / 0.3) !important; /* red-800/30 */
+}
+
+.dark .text-red-800 {
+  color: rgb(252 165 165) !important; /* red-300 */
+}
+
+/* Correct answer highlighting */
+.dark .bg-green-50 {
+  background-color: rgb(20 83 45 / 0.2) !important; /* green-900/20 */
+}
+
+.dark .border-green-200 {
+  border-color: rgb(20 83 45 / 0.3) !important; /* green-800/30 */
+}
+
+.dark .text-green-800 {
+  color: rgb(187 247 208) !important; /* green-200 */
+}
+
+/* Additional colors for verdict text and icons */
+.dark .text-red-600 {
+  color: rgb(248 113 113) !important; /* red-400 */
+}
+
+.dark .text-green-600 {
+  color: rgb(74 222 128) !important; /* green-400 */
+}
+
+/* Icon colors in answer section */
+.dark .text-green-600 svg {
+  color: rgb(74 222 128) !important; /* green-400 */
+}
+
+.dark .text-red-600 svg {
+  color: rgb(248 113 113) !important; /* red-400 */
+}
+
+/* Alternative dark mode classes used in QuestionOverlay */
+.dark .dark\:bg-red-950\/20 {
+  background-color: rgb(127 29 29 / 0.2) !important;
+}
+
+.dark .dark\:bg-green-950\/20 {
+  background-color: rgb(20 83 45 / 0.2) !important;
+}
+
+.dark .dark\:border-red-800 {
+  border-color: rgb(127 29 29 / 0.5) !important;
+}
+
+.dark .dark\:border-green-800 {
+  border-color: rgb(20 83 45 / 0.5) !important;
+}
+
+.dark .dark\:text-red-200 {
+  color: rgb(252 165 165) !important;
+}
+
+.dark .dark\:text-green-200 {
+  color: rgb(187 247 208) !important;
+}
+
+/* Ensure question cards have proper dark mode background */
+.dark .bg-card {
+  background-color: hsl(var(--card)) !important;
+}
+
+/* More specific selectors for question answer buttons */
+.dark button.bg-red-50 {
+  background-color: rgb(127 29 29 / 0.2) !important;
+  border-color: rgb(127 29 29 / 0.3) !important;
+  color: rgb(252 165 165) !important;
+}
+
+.dark button.bg-green-50 {
+  background-color: rgb(20 83 45 / 0.2) !important;
+  border-color: rgb(20 83 45 / 0.3) !important;
+  color: rgb(187 247 208) !important;
+}
+
+/* Alert component borders in dark mode */
+.dark .border-red-500 {
+  border-color: rgb(239 68 68 / 0.5) !important;
+}
+
+.dark .border-green-500 {
+  border-color: rgb(34 197 94 / 0.5) !important;
+}
+
+/* Force dark mode styles for question answer buttons with high specificity */
+html.dark .space-y-3 button[class*="bg-red-50"],
+html.dark .space-y-3 button[class*="border-red-200"] {
+  background-color: rgb(127 29 29 / 0.2) !important;
+  border-color: rgb(127 29 29 / 0.5) !important;
+  color: rgb(252 165 165) !important;
+}
+
+html.dark .space-y-3 button[class*="bg-green-50"],
+html.dark .space-y-3 button[class*="border-green-200"] {
+  background-color: rgb(20 83 45 / 0.2) !important;
+  border-color: rgb(20 83 45 / 0.5) !important;
+  color: rgb(187 247 208) !important;
+}
+
+/* Dark mode overrides for all color variants used in matching questions */
+.dark .bg-blue-100 {
+  background-color: rgb(30 58 138 / 0.2) !important;
+}
+
+.dark .bg-purple-100 {
+  background-color: rgb(88 28 135 / 0.2) !important;
+}
+
+.dark .bg-orange-100 {
+  background-color: rgb(154 52 18 / 0.2) !important;
+}
+
+.dark .bg-pink-100 {
+  background-color: rgb(131 24 67 / 0.2) !important;
+}
+
+.dark .bg-cyan-100 {
+  background-color: rgb(22 78 99 / 0.2) !important;
+}
+
+.dark .bg-indigo-100 {
+  background-color: rgb(55 48 163 / 0.2) !important;
+}
+
+.dark .text-blue-800 {
+  color: rgb(191 219 254) !important;
+}
+
+.dark .text-purple-800 {
+  color: rgb(233 213 255) !important;
+}
+
+.dark .text-orange-800 {
+  color: rgb(254 215 170) !important;
+}
+
+.dark .text-pink-800 {
+  color: rgb(252 182 203) !important;
+}
+
+.dark .text-cyan-800 {
+  color: rgb(165 243 252) !important;
+}
+
+.dark .text-indigo-800 {
+  color: rgb(199 210 254) !important;
+}
+
+.dark .border-blue-500 {
+  border-color: rgb(59 130 246 / 0.5) !important;
+}
+
+.dark .border-purple-500 {
+  border-color: rgb(147 51 234 / 0.5) !important;
+}
+
+.dark .border-orange-500 {
+  border-color: rgb(249 115 22 / 0.5) !important;
+}
+
+.dark .border-pink-500 {
+  border-color: rgb(236 72 153 / 0.5) !important;
+}
+
+.dark .border-cyan-500 {
+  border-color: rgb(6 182 212 / 0.5) !important;
+}
+
+.dark .border-indigo-500 {
+  border-color: rgb(99 102 241 / 0.5) !important;
+}
+
+.dark .bg-amber-100 {
+  background-color: rgb(120 53 15 / 0.2) !important;
+}
+
+.dark .text-amber-800 {
+  color: rgb(254 215 170) !important;
+}
+
+.dark .border-amber-500 {
+  border-color: rgb(245 158 11 / 0.5) !important;
+}
+
+/* Fact check video context section */
+.dark .fact-check-video-context {
+  background-color: rgb(31 41 55 / 0.5) !important; /* gray-800/50 */
+}
+
+/* Background colors for emphasis boxes in dark mode (used in fact-check and other components) */
+.dark .bg-blue-50 {
+  background-color: rgb(30 58 138 / 0.2) !important; /* blue-900/20 */
+}
+
+.dark .bg-purple-50 {
+  background-color: rgb(88 28 135 / 0.2) !important; /* purple-900/20 */
+}
+
+.dark .bg-amber-50 {
+  background-color: rgb(120 53 15 / 0.2) !important; /* amber-900/20 */
+}
+
+/* Text colors for emphasis boxes in dark mode */
+.dark .text-blue-800 {
+  color: rgb(191 219 254) !important; /* blue-200 */
+}
+
+.dark .text-blue-700 {
+  color: rgb(191 219 254) !important; /* blue-200 */
+}
+
+.dark .text-purple-800 {
+  color: rgb(233 213 255) !important; /* purple-200 */
+}
+
+.dark .text-purple-700 {
+  color: rgb(233 213 255) !important; /* purple-200 */
+}
+
+.dark .text-amber-800 {
+  color: rgb(254 215 170) !important; /* amber-200 */
+}
+
+.dark .text-amber-700 {
+  color: rgb(254 215 170) !important; /* amber-200 */
+}
+
+/* Border colors for emphasis boxes in dark mode */
+.dark .border-blue-200 {
+  border-color: rgb(30 58 138 / 0.3) !important; /* blue-800/30 */
+}
+
+.dark .border-purple-200 {
+  border-color: rgb(88 28 135 / 0.3) !important; /* purple-800/30 */
+}
+
+.dark .border-amber-200 {
+  border-color: rgb(120 53 15 / 0.3) !important; /* amber-800/30 */
+}
+
+/* Citation link and other text colors in dark mode */
+.dark .text-blue-600 {
+  color: rgb(96 165 250) !important; /* blue-400 */
+}
+
+.dark .text-blue-900 {
+  color: rgb(191 219 254) !important; /* blue-200 */
+}
+
+.dark .text-purple-600 {
+  color: rgb(196 181 253) !important; /* purple-400 */
+}
+
+.dark .text-purple-700 {
+  color: rgb(221 214 254) !important; /* purple-300 */
+}
+
+/* More specific selectors for text that might be in nested containers */
+html.dark .text-gray-900 {
+  color: rgb(243 244 246) !important; /* gray-100 */
+}
+
+html.dark .text-gray-700 {
+  color: rgb(209 213 219) !important; /* gray-300 */
+}
+
+html.dark .text-gray-600 {
+  color: rgb(156 163 175) !important; /* gray-400 */
+}
+
+html.dark .text-gray-800 {
+  color: rgb(209 213 219) !important; /* gray-300 */
+}
+
+/* Force dark mode styles for unmatched items in matching questions */
+.dark .bg-white {
+  background-color: rgb(31 41 55) !important; /* gray-800 */
+}
+
+/* Force dark mode styles for answer/explanation sections */
+.dark .bg-gray-50 {
+  background-color: rgb(31 41 55) !important; /* gray-800 */
+}
+
+.dark .border-gray-200 {
+  border-color: rgb(75 85 99) !important; /* gray-600 */
+}
+
+/* More specific selector for the answer state section */
+.dark .mt-6.p-4.bg-gray-50 {
+  background-color: rgb(31 41 55) !important; /* gray-800 */
+  border-color: rgb(75 85 99) !important; /* gray-600 */
+}
+
+/* Ensure dark:bg-gray-800 class works */
+.dark .dark\:bg-gray-800 {
+  background-color: rgb(31 41 55) !important; /* gray-800 */
+}
+
+/* Target explanation sections specifically */
+.dark div[class*="bg-gray-50"][class*="dark:bg-gray-800"] {
+  background-color: rgb(31 41 55) !important; /* gray-800 */
+}
+
+/* Most specific override for explanation section */
+html.dark .mt-6.p-4.bg-gray-50 {
+  background-color: rgb(31 41 55) !important; /* gray-800 */
+}
+
+html.dark .bg-gray-50 {
+  background-color: rgb(31 41 55) !important; /* gray-800 */
+}
+
+/* More specific selectors for nested elements */
+.dark .space-y-4 .bg-white {
+  background-color: rgb(31 41 55) !important; /* gray-800 */
+}
+
+.dark div[class*="bg-white"][class*="text-gray-800"] {
+  background-color: rgb(31 41 55) !important; /* gray-800 */
+  color: rgb(209 213 219) !important; /* gray-300 */
+}
+
+/* Force text colors in Current Matches section */
+.dark .bg-blue-50 .grid span[class*="text-gray-800"] {
+  color: rgb(209 213 219) !important; /* gray-300 */
+}
+
+/* Force text colors in How to Match instructions */
+.dark .bg-purple-50 ul li {
+  color: rgb(209 213 219) !important; /* gray-300 */
+}
+
+/* Override dark mode classes that aren't working */
+.dark span.dark\:text-gray-200 {
+  color: rgb(209 213 219) !important; /* gray-300 */
+}
+
+.dark ul.dark\:text-gray-200 {
+  color: rgb(209 213 219) !important; /* gray-300 */
+}
+
+/* Specific fixes for Current Matches content */
+.dark div[class*="bg-blue-50"] span:not([class*="text-white"]) {
+  color: rgb(209 213 219) !important; /* gray-300 */
+}
+
+/* Specific fixes for How to Match content */
+.dark div[class*="bg-purple-50"] span:not([class*="font-bold"]) {
+  color: rgb(209 213 219) !important; /* gray-300 */
+}
+
+/* Target the actual dark mode elements */
+.dark .dark\:bg-blue-950\/20 .grid span {
+  color: rgb(209 213 219) !important; /* gray-300 */
+}
+
+.dark .dark\:bg-gray-800 ul li {
+  color: rgb(209 213 219) !important; /* gray-300 */
+}
+
+.dark .dark\:bg-gray-800 ul li span {
+  color: inherit !important;
+}
+
+/* Force all text-gray-800 to be light in dark mode, regardless of context */
+html.dark [class*="text-gray-800"] {
+  color: rgb(209 213 219) !important; /* gray-300 */
+}
+
+/* Specific overrides for sequencing question elements */
+html.dark .mt-6.p-4 p.text-gray-800 {
+  color: rgb(209 213 219) !important; /* gray-300 */
+}
+
+html.dark span[class*="bg-gray-100"] {
+  background-color: rgb(55 65 81) !important; /* gray-700 */
+  color: rgb(229 231 235) !important; /* gray-200 */
+}
+
+/* Override dark mode variants that aren't working */
+.dark .dark\:text-gray-200 {
+  color: rgb(209 213 219) !important; /* gray-300 */
+}
+
+.dark .dark\:bg-gray-700 {
+  background-color: rgb(55 65 81) !important; /* gray-700 */
+}
+
+/* Specific fix for explanation paragraphs */
+.dark p.text-sm.text-gray-800 {
+  color: rgb(209 213 219) !important; /* gray-300 */
+}
+
+/* Force item number styling in correct sequence display */
+.dark .text-xs.text-gray-800 {
+  color: rgb(209 213 219) !important; /* gray-300 */
+}
+
+/* Target the actual dark mode bg-gray-800 elements */
+.dark .dark\:bg-gray-800 {
+  background-color: rgb(31 41 55) !important; /* gray-800 */
+}
+
+/* Ensure proper styling for sequence answer display */
+.dark .mt-6.p-4 .text-gray-800 {
+  color: rgb(209 213 219) !important; /* gray-300 */
+}
+
+.dark .mt-6.p-4 .bg-gray-100 {
+  background-color: rgb(55 65 81) !important; /* gray-700 */
+}
+
+/* Most specific override for explanation and sequence text */
+html.dark div[class*="mt-6"][class*="p-4"] p,
+html.dark div[class*="mt-6"][class*="p-4"] span {
+  color: rgb(209 213 219) !important; /* gray-300 */
+}
+
+/* Override for numbered badges in sequences */
+html.dark span.font-medium.text-gray-900 {
+  color: rgb(229 231 235) !important; /* gray-200 */
+}
+
+/* Force instructions box to be dark */
+html.dark .mt-6.text-sm.bg-orange-50 {
+  background-color: rgb(154 52 18 / 0.2) !important; /* orange-900/20 */
+}
+
+html.dark .mt-6.text-sm ul {
+  color: rgb(209 213 219) !important; /* gray-300 */
+}
+
+
+
+/* Ensure nested spans inherit proper color */
+html.dark span:not([class]) {
+  color: inherit;
+}
+
+/* Final overrides for stubborn sequencing question elements */
+html.dark .p-4.bg-gray-50 {
+  background-color: rgb(31 41 55) !important; /* gray-800 */
+}
+
+html.dark .px-2.py-1.bg-gray-100 {
+  background-color: rgb(55 65 81) !important; /* gray-700 */
+  color: rgb(229 231 235) !important; /* gray-200 */
+}
+
+/* Force orange backgrounds to be dark in dark mode */
+.dark .bg-orange-50 {
+  background-color: rgb(154 52 18 / 0.2) !important; /* orange-900/20 */
+}
+
+.dark .text-orange-600 {
+  color: rgb(251 146 60) !important; /* orange-400 */
+}
+
+.dark .border-orange-200 {
+  border-color: rgb(154 52 18 / 0.3) !important; /* orange-800/30 */
+}
+
+.dark .text-red-700 {
+  color: rgb(252 165 165) !important; /* red-300 */
+}
+
+.dark .text-green-700 {
+  color: rgb(134 239 172) !important; /* green-300 */
+}

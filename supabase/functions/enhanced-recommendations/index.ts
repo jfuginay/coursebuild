@@ -124,12 +124,12 @@ serve(async (req) => {
     if (userId) {
       // Logged-in user: gather data from database
       [userProfile, recentInsights, performanceData, courseHistory, wrongQuestions] = await Promise.all([
-        getUserLearningProfile(supabaseClient, userId),
-        getRecentChatInsights(supabaseClient, userId),
-        getUserPerformanceData(supabaseClient, userId),
-        getUserCourseHistory(supabaseClient, userId),
-        courseId ? getWrongQuestionsFromCourse(supabaseClient, userId, courseId) : Promise.resolve([])
-      ]);
+      getUserLearningProfile(supabaseClient, userId),
+      getRecentChatInsights(supabaseClient, userId),
+      getUserPerformanceData(supabaseClient, userId),
+      getUserCourseHistory(supabaseClient, userId),
+      courseId ? getWrongQuestionsFromCourse(supabaseClient, userId, courseId) : Promise.resolve([])
+    ]);
     } else if (sessionData) {
       // Anonymous user: convert session data to the expected format
       userProfile = createProfileFromSession(sessionData);
@@ -194,17 +194,17 @@ serve(async (req) => {
     let recommendationId = 'anonymous-session';
     if (userId) {
       recommendationId = await storeRecommendation(
-        supabaseClient,
-        userId,
-        recommendations,
-        {
-          trigger,
-          userProfile,
-          insightsUsed: recentInsights.length,
-          wrongQuestionsUsed: wrongQuestions.length,
-          performanceSnapshot: performanceData
-        }
-      );
+      supabaseClient,
+      userId,
+      recommendations,
+      {
+        trigger,
+        userProfile,
+        insightsUsed: recentInsights.length,
+        wrongQuestionsUsed: wrongQuestions.length,
+        performanceSnapshot: performanceData
+      }
+    );
     }
 
     const response: RecommendationResponse = {
@@ -1101,7 +1101,7 @@ function buildFinalSelectionPrompt(
       if (typeof q.correct_answer === 'string') {
         correctAnswerText = q.correct_answer;
       } else if (typeof q.correct_answer === 'number') {
-        correctAnswerText = tfOptions[q.correct_answer === 0 ? 0 : 1];
+      correctAnswerText = tfOptions[q.correct_answer === 0 ? 0 : 1];
       } else {
         correctAnswerText = 'Unknown';
       }

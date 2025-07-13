@@ -53,14 +53,14 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
 
   // Generate match colors for visual distinction
   const matchColors = [
-    'bg-blue-100 border-blue-500 text-blue-800',
-    'bg-green-100 border-green-500 text-green-800', 
-    'bg-purple-100 border-purple-500 text-purple-800',
-    'bg-orange-100 border-orange-500 text-orange-800',
-    'bg-pink-100 border-pink-500 text-pink-800',
-    'bg-cyan-100 border-cyan-500 text-cyan-800',
-    'bg-amber-100 border-amber-500 text-amber-800',
-    'bg-indigo-100 border-indigo-500 text-indigo-800'
+    'bg-blue-100 border-blue-500 text-blue-800 dark:bg-blue-950/20 dark:border-blue-600 dark:text-blue-200',
+    'bg-green-100 border-green-500 text-green-800 dark:bg-green-950/20 dark:border-green-600 dark:text-green-200', 
+    'bg-purple-100 border-purple-500 text-purple-800 dark:bg-purple-950/20 dark:border-purple-600 dark:text-purple-200',
+    'bg-orange-100 border-orange-500 text-orange-800 dark:bg-orange-950/20 dark:border-orange-600 dark:text-orange-200',
+    'bg-pink-100 border-pink-500 text-pink-800 dark:bg-pink-950/20 dark:border-pink-600 dark:text-pink-200',
+    'bg-cyan-100 border-cyan-500 text-cyan-800 dark:bg-cyan-950/20 dark:border-cyan-600 dark:text-cyan-200',
+    'bg-amber-100 border-amber-500 text-amber-800 dark:bg-amber-950/20 dark:border-amber-600 dark:text-amber-200',
+    'bg-indigo-100 border-indigo-500 text-indigo-800 dark:bg-indigo-950/20 dark:border-indigo-600 dark:text-indigo-200'
   ];
 
   const matchLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
@@ -316,17 +316,17 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
 
     // Add drag state styling
     if (draggedItem?.id === item.id && draggedFromSide === side) {
-      baseClass += " opacity-50 scale-95 shadow-lg";
+      baseClass += " opacity-50 scale-95 shadow-lg border-primary bg-primary/10";
     }
 
     // Add hover state when dragging
     if (hoveredItem?.item.id === item.id && hoveredItem?.side === side && draggedFromSide !== side) {
-      baseClass += " border-blue-500 bg-blue-100 text-blue-800 shadow-lg ring-2 ring-blue-300 scale-105";
+      baseClass += " border-primary bg-primary/10 shadow-lg ring-2 ring-primary/50 scale-105";
     }
 
     // Add selected state styling (for click-to-match)
     if (selectedItem?.item.id === item.id && selectedItem?.side === side && !isDragging) {
-      baseClass += " border-purple-500 bg-purple-100 text-purple-800 shadow-lg ring-2 ring-purple-300";
+      baseClass += " border-primary bg-primary/10 shadow-lg ring-2 ring-primary/50";
     }
 
     if (showAnswer || isSubmitted) {
@@ -344,12 +344,12 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
           : userMatches[item.id];
         
         if (correctMatch === userMatch) {
-          baseClass += " border-green-500 bg-green-50 text-green-800 shadow-md";
+          baseClass += " border-green-200 bg-green-50 text-green-800 dark:bg-green-950/20 dark:border-green-800 dark:text-green-200 shadow-md";
         } else {
-          baseClass += " border-red-500 bg-red-50 text-red-800 shadow-md";
+          baseClass += " border-red-200 bg-red-50 text-red-800 dark:bg-red-950/20 dark:border-red-800 dark:text-red-200 shadow-md";
         }
       } else {
-        baseClass += " border-gray-300 bg-gray-50 text-gray-600";
+        baseClass += " border-gray-300 bg-gray-50 text-gray-600 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400";
       }
     } else {
       // Check if this item is matched
@@ -366,7 +366,7 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
         const colorClass = getMatchColor(leftId, rightId);
         baseClass += ` ${colorClass} shadow-md transform scale-105`;
       } else if (!hoveredItem || hoveredItem.item.id !== item.id) {
-        baseClass += " border-gray-300 bg-white text-gray-800 hover:border-blue-400 hover:bg-blue-50 hover:shadow-md";
+        baseClass += " bg-background border-border hover:bg-muted/50 hover:border-primary/50 hover:shadow-md";
       }
     }
 
@@ -406,7 +406,7 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
       
       if (label) {
         return (
-          <div className="absolute -top-2 -right-2 w-6 h-6 bg-white border-2 border-current rounded-full flex items-center justify-center text-xs font-bold shadow-lg">
+                        <div className="absolute -top-2 -right-2 w-6 h-6 bg-white dark:bg-gray-800 border-2 border-current rounded-full flex items-center justify-center text-xs font-bold shadow-lg">
             {label}
           </div>
         );
@@ -431,8 +431,8 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
       : userMatches[item.id];
     
     return correctMatch === userMatch 
-      ? <CheckCircle className="w-5 h-5 text-green-600 absolute -top-2 -right-2 bg-white rounded-full shadow-lg" />
-      : <XCircle className="w-5 h-5 text-red-600 absolute -top-2 -right-2 bg-white rounded-full shadow-lg" />;
+                ? <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 absolute -top-2 -right-2 bg-white dark:bg-gray-800 rounded-full shadow-lg" />
+          : <XCircle className="w-5 h-5 text-red-600 dark:text-red-400 absolute -top-2 -right-2 bg-white dark:bg-gray-800 rounded-full shadow-lg" />;
   };
 
   // Render connection lines between matched items
@@ -549,7 +549,7 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
         <div className="grid grid-cols-2 gap-8">
           {/* Left Column */}
             <div ref={leftColumnRef} className="space-y-4">
-              <h4 className="font-medium text-gray-700 mb-4 flex items-center gap-2">
+              <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
               <span>Items to Match</span>
               <Badge variant="secondary" className="text-xs">{leftItems.length}</Badge>
             </h4>
@@ -575,9 +575,9 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
             ))}
           </div>
 
-          {/* Right Column */}
-            <div ref={rightColumnRef} className="space-y-4">
-              <h4 className="font-medium text-gray-700 mb-4 flex items-center gap-2">
+                    {/* Right Column */}
+          <div ref={rightColumnRef} className="space-y-4">
+            <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
               <span>Match Targets</span>
               <Badge variant="secondary" className="text-xs">{rightItems.length}</Badge>
             </h4>
@@ -607,10 +607,10 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
 
         {/* Match Summary */}
         {Object.keys(userMatches).length > 0 && !isSubmitted && !showAnswer && (
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <div className="mt-6 p-4 bg-muted/50 rounded-lg border">
             <div className="flex items-center gap-2 mb-3">
-              <Link2 className="w-4 h-4 text-blue-600" />
-              <span className="font-medium text-blue-900">Current Matches ({Object.keys(userMatches).length}/{pairs.length})</span>
+              <Link2 className="w-4 h-4 text-muted-foreground" />
+              <span className="font-medium">Current Matches ({Object.keys(userMatches).length}/{pairs.length})</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               {Object.keys(userMatches).map(rightItemId => {
@@ -623,12 +623,12 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
                 
                 return (
                   <div key={`${leftItemId}-${rightItemId}`} className="flex items-center gap-2 text-sm">
-                    <div className="w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                    <div className="w-5 h-5 bg-blue-600 dark:bg-blue-700 text-white rounded-full flex items-center justify-center text-xs font-bold">
                       {label}
                     </div>
-                    <span className="text-gray-800">{leftItem.content}</span>
-                    <ArrowRight className="w-3 h-3 text-blue-600" />
-                    <span className="text-gray-800">{rightItem.content}</span>
+                    <span className="text-gray-800 dark:text-gray-200">{leftItem.content}</span>
+                    <ArrowRight className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                    <span className="text-gray-800 dark:text-gray-200">{rightItem.content}</span>
                   </div>
                 );
               })}
@@ -652,37 +652,37 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
 
         {/* Answer State */}
         {(showAnswer || isSubmitted) && (
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+          <div className="mt-6 p-4 bg-muted/50 rounded-lg border">
             <div className="flex items-start gap-3">
               <div className="flex-shrink-0 mt-0.5">
                 {Object.keys(userMatches).length === pairs.length && 
                  pairs.every(pair => userMatches[pair.right.id] === pair.left.id) ? (
-                  <CheckCircle className="w-5 h-5 text-green-600" />
+                  <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
                 ) : (
-                  <XCircle className="w-5 h-5 text-red-600" />
+                  <XCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
                 )}
               </div>
               <div>
-                <p className="font-medium text-sm mb-2 text-gray-900">
+                <p className="font-medium text-sm mb-2 text-gray-900 dark:text-gray-100">
                   {Object.keys(userMatches).length === pairs.length && 
                    pairs.every(pair => userMatches[pair.right.id] === pair.left.id)
                     ? 'All matches correct!' 
                     : 'Some matches are incorrect'}
                 </p>
-                <p className="text-sm text-gray-800 mb-3">{explanation}</p>
+                <p className="text-sm text-gray-800 dark:text-gray-200 mb-3">{explanation}</p>
                 
                 {/* Show correct answers */}
                 <div className="text-sm">
-                  <p className="font-medium text-gray-900 mb-2">Correct matches:</p>
+                  <p className="font-medium text-gray-900 dark:text-gray-100 mb-2">Correct matches:</p>
                   <div className="space-y-2">
                     {pairs.map((pair, index) => (
                       <div key={pair.id} className="flex items-center gap-3 text-sm">
-                        <div className="w-6 h-6 bg-green-600 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                        <div className="w-6 h-6 bg-green-600 dark:bg-green-700 text-white rounded-full flex items-center justify-center text-xs font-bold">
                           {matchLabels[index]}
                         </div>
-                        <span className="font-medium text-gray-900">{pair.left.content}</span>
-                        <ArrowRight className="w-4 h-4 text-green-600" />
-                        <span className="text-gray-800">{pair.right.content}</span>
+                        <span className="font-medium text-gray-900 dark:text-gray-100">{pair.left.content}</span>
+                        <ArrowRight className="w-4 h-4 text-green-600 dark:text-green-400" />
+                        <span className="text-gray-800 dark:text-gray-200">{pair.right.content}</span>
                       </div>
                     ))}
                   </div>
@@ -694,26 +694,26 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
 
         {/* Instructions */}
         {!isSubmitted && !showAnswer && (
-          <div className="mt-6 text-sm text-gray-700 bg-purple-50 p-4 rounded-lg border border-purple-200">
+          <div className="mt-6 text-sm bg-muted/50 p-4 rounded-lg border">
             <div className="flex items-center gap-2 mb-3">
-              <Shuffle className="w-4 h-4 text-purple-600" />
-              <span className="font-medium text-gray-900">How to match:</span>
+              <Shuffle className="w-4 h-4 text-muted-foreground" />
+              <span className="font-medium">How to match:</span>
             </div>
-            <ul className="space-y-2 text-sm text-gray-800">
+            <ul className="space-y-2 text-sm">
               <li className="flex items-start gap-2">
-                <span className="text-purple-600 font-bold">•</span>
-                <span><strong className="text-gray-900">Drag & Drop:</strong> Touch and drag on mobile or click and drag on desktop to connect items</span>
+                <span className="text-muted-foreground font-bold">•</span>
+                <span><strong>Drag & Drop:</strong> Touch and drag on mobile or click and drag on desktop to connect items</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-purple-600 font-bold">•</span>
-                <span><strong className="text-gray-900">Click to Match:</strong> Click an item to select it (purple border), then click an item in the other column</span>
+                <span className="text-muted-foreground font-bold">•</span>
+                <span><strong>Click to Match:</strong> Click an item to select it (cyan border), then click an item in the other column</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-purple-600 font-bold">•</span>
-                <span><strong className="text-gray-900">Visual Connections:</strong> Watch for colored arrows, match labels (A, B, C...), and connection lines</span>
+                <span className="text-muted-foreground font-bold">•</span>
+                <span><strong>Visual Connections:</strong> Watch for colored arrows, match labels (A, B, C...), and connection lines</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-purple-600 font-bold">•</span>
+                <span className="text-muted-foreground font-bold">•</span>
                 <span>Submit when all {pairs.length} items are paired</span>
               </li>
             </ul>
@@ -731,10 +731,10 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
             transform: 'translateX(-50%)'
           }}
         >
-          <div className="p-3 bg-blue-100 border-2 border-blue-500 rounded-lg shadow-lg max-w-xs">
+          <div className="p-3 bg-primary/10 border-2 border-primary rounded-lg shadow-lg max-w-xs">
             <div className="flex items-center gap-2">
-              <Move className="w-4 h-4 text-blue-600" />
-              <span className="text-sm font-medium text-blue-800 truncate">
+              <Move className="w-4 h-4 text-primary" />
+              <span className="text-sm font-medium text-primary truncate">
                 {draggedItem.content}
               </span>
             </div>

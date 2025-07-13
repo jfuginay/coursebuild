@@ -336,9 +336,9 @@ export const assessSequencingQuality = (question: SequencingQuestion): {
   
   // Items quantity assessment
   const itemCount = question.sequence_items.length;
-  if (itemCount >= 4 && itemCount <= 6) {
+  if (itemCount >= 3 && itemCount <= 6) {
     strengths.push(`Optimal number of items (${itemCount}) for sequencing`);
-  } else if (itemCount < 4) {
+  } else if (itemCount < 3) {
     improvements.push('Too few items - may not provide sufficient sequencing challenge');
     score -= 15;
   } else {

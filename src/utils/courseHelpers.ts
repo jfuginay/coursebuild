@@ -99,7 +99,7 @@ export const getPlayerStateName = (state: number): string => {
     [5]: 'CUED'
   };
   return states[state] || `UNKNOWN(${state})`;
-};
+}; 
 
 // Format user answer for session tracking
 export function formatUserAnswer(answer: any, question: Question): string {
