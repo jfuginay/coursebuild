@@ -354,6 +354,31 @@ async function generateSearchTermsWithLLM(context: any): Promise<string[]> {
     }
   }
 
+  // Calculate performance on current course if available
+  let currentCoursePerformance = null;
+  let questionsAnsweredCount = 0;
+  
+  // For logged-in users, check database performance data
+  if (currentCourseId && performanceData.length > 0) {
+    const currentCourseQuestions = performanceData.filter(p => 
+      p.questions?.course_id === currentCourseId
+    );
+    if (currentCourseQuestions.length > 0) {
+      questionsAnsweredCount = currentCourseQuestions.length;
+      const correct = currentCourseQuestions.filter(p => p.is_correct).length;
+      currentCoursePerformance = (correct / currentCourseQuestions.length * 100).toFixed(0);
+    }
+  }
+  
+  // For anonymous users or when no performance data, check session/profile data
+  if (currentCoursePerformance === null && userProfile) {
+    // Check if we have overall performance data
+    if (userProfile.total_questions_answered > 0) {
+      questionsAnsweredCount = userProfile.total_questions_answered;
+      currentCoursePerformance = (userProfile.overall_accuracy * 100).toFixed(0);
+    }
+  }
+
   // Build comprehensive prompt for search term generation
   const prompt = buildSearchTermPrompt(
     userProfile,
@@ -626,13 +651,26 @@ function buildSearchTermPrompt(
 
   // Calculate performance on current course if available
   let currentCoursePerformance = null;
+  let questionsAnsweredCount = 0;
+  
+  // For logged-in users, check database performance data
   if (currentCourseId && performanceData.length > 0) {
     const currentCourseQuestions = performanceData.filter(p => 
       p.questions?.course_id === currentCourseId
     );
     if (currentCourseQuestions.length > 0) {
+      questionsAnsweredCount = currentCourseQuestions.length;
       const correct = currentCourseQuestions.filter(p => p.is_correct).length;
       currentCoursePerformance = (correct / currentCourseQuestions.length * 100).toFixed(0);
+    }
+  }
+  
+  // For anonymous users or when no performance data, check session/profile data
+  if (currentCoursePerformance === null && userProfile) {
+    // Check if we have overall performance data
+    if (userProfile.total_questions_answered > 0) {
+      questionsAnsweredCount = userProfile.total_questions_answered;
+      currentCoursePerformance = (userProfile.overall_accuracy * 100).toFixed(0);
     }
   }
 
@@ -644,11 +682,16 @@ TRIGGER: ${trigger}
 
   // Current video context - critical for continuity and series detection
   if (currentCourseContext) {
+    // Use video transcript data if available
+    const videoSummary = currentCourseContext.video_transcripts?.video_summary || currentCourseContext.description;
+    const keyConcepts = currentCourseContext.video_transcripts?.key_concepts || [];
+    
     prompt += `JUST COMPLETED VIDEO:
 Title: "${currentCourseContext.title}"
-Description: ${currentCourseContext.description?.substring(0, 300)}...
+Topic Summary: ${videoSummary?.substring(0, 500)}...
+${keyConcepts.length > 0 ? `Key Concepts: ${keyConcepts.join(', ')}` : ''}
 YouTube URL: ${currentCourseContext.youtube_url}
-User Performance: ${currentCoursePerformance ? `${currentCoursePerformance}% accuracy` : 'Not available'}
+User Performance: ${currentCoursePerformance ? `${currentCoursePerformance}% accuracy on ${questionsAnsweredCount} questions` : questionsAnsweredCount > 0 ? `Answered ${questionsAnsweredCount} questions` : 'No questions attempted'}
 
 CRITICAL SERIES/PROGRESSION DETECTION:
 1. Check if the title contains series indicators (Part X, Episode Y, Chapter Z, #N, etc.)
@@ -1101,9 +1144,14 @@ function buildFinalSelectionPrompt(
 
   // Add current course context with performance
   if (currentCourseContext) {
+    // Use video transcript data if available
+    const videoSummary = currentCourseContext.video_transcripts?.video_summary || currentCourseContext.description;
+    const keyConcepts = currentCourseContext.video_transcripts?.key_concepts || [];
+    
     prompt += `JUST COMPLETED VIDEO:
 - Title: "${currentCourseContext.title}"
-- Topic: ${currentCourseContext.description?.substring(0, 150)}...
+- Topic Summary: ${videoSummary?.substring(0, 300)}...
+${keyConcepts.length > 0 ? `- Key Concepts: ${keyConcepts.join(', ')}` : ''}
 - User Performance: ${accuracy ? `${accuracy}% accuracy (${wrongQuestions.length} mistakes out of ${questionsAttempted} questions)` : 'No questions attempted'}
 
 SERIES/PROGRESSION DETECTION:
@@ -1359,9 +1407,17 @@ async function getUserCourseHistory(supabaseClient: any, userId: string) {
 
 async function getCourseContext(supabaseClient: any, courseId: string) {
   console.log(`🔍 Fetching context for course: ${courseId}`);
+  
+  // Fetch course with video transcript data
   const { data, error } = await supabaseClient
     .from('courses')
-    .select('*')
+    .select(`
+      *,
+      video_transcripts (
+        video_summary,
+        key_concepts_timeline
+      )
+    `)
     .eq('id', courseId)
     .single();
 
@@ -1369,12 +1425,36 @@ async function getCourseContext(supabaseClient: any, courseId: string) {
     console.error('❌ Error fetching course context:', error);
     return null;
   }
+  
+  // Extract key concepts from the timeline
+  let keyConcepts: string[] = [];
+  if (data.video_transcripts?.key_concepts_timeline) {
+    try {
+      const timeline = data.video_transcripts.key_concepts_timeline;
+      if (Array.isArray(timeline)) {
+        keyConcepts = timeline.map((item: any) => item.concept).filter(Boolean);
+      }
+    } catch (e) {
+      console.warn('Failed to parse key_concepts_timeline:', e);
+    }
+  }
+  
   console.log(`✅ Found course context:`, {
     title: data.title,
     description: data.description,
-    youtube_url: data.youtube_url
+    youtube_url: data.youtube_url,
+    hasTranscript: !!data.video_transcripts,
+    keyConcepts: keyConcepts.length
   });
-  return data;
+  
+  // Return the data with parsed key concepts
+  return {
+    ...data,
+    video_transcripts: {
+      ...data.video_transcripts,
+      key_concepts: keyConcepts // Add parsed concepts for easier access
+    }
+  };
 }
 
 async function storeRecommendation(

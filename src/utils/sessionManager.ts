@@ -235,11 +235,35 @@ export class SessionManager {
     const session = this.getSession();
     if (!session) return null;
 
+    // Include current course if active with question performance
+    const recentCourses = [...session.viewingHistory];
+    
+    // If we have a current course, add it to the front with the current performance data
+    if (session.currentCourse) {
+      // Calculate questions for current course from overall performance
+      // This assumes questions answered in this session are for the current course
+      const questionsAnswered = session.performance.totalQuestionsAnswered;
+      const questionsCorrect = session.performance.totalQuestionsCorrect;
+      
+      const currentCourseProgress: CourseProgress = {
+        courseId: session.currentCourse.id,
+        title: session.currentCourse.title,
+        youtube_url: session.currentCourse.youtube_url,
+        watchedAt: session.currentCourse.startedAt,
+        completionPercentage: session.currentCourse.completionPercentage,
+        questionsAnswered,
+        questionsCorrect
+      };
+      
+      // Add current course to the front
+      recentCourses.unshift(currentCourseProgress);
+    }
+
     return {
       sessionId: session.sessionId,
       currentCourse: session.currentCourse,
       performance: session.performance,
-      recentCourses: session.viewingHistory.slice(0, 5)
+      recentCourses: recentCourses.slice(0, 5)
     };
   }
 

@@ -374,13 +374,13 @@ export default function CoursePage() {
      
      if (user) {
        // Existing tracking for logged-in users
-       trackQuestionResponse(
-         question.id,
-         answer,
-         correct,
-         question.type,
-         responseTimeMs
-       );
+     trackQuestionResponse(
+       question.id,
+       answer,
+       correct,
+       question.type,
+       responseTimeMs
+     );
      } else {
        // Track for anonymous users
        const userAnswer = formatUserAnswer(answer, question);
