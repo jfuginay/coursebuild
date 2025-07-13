@@ -71,10 +71,15 @@ Using the transcript and visual analysis from Phase 1, create strategic question
 **Quality Indicators**: Educational connections, clear categories, relationship explanation
 
 ### Sequencing Questions
-**Educational Purpose**: Test understanding of processes, chronology, and logical progression
+**Educational Purpose**: Test understanding of ESSENTIAL processes, causal chains, and logical dependencies where order is CRUCIAL to concept mastery
 **Bloom's Targets**: Understand, Apply, Analyze
-**Design Focus**: Logical dependencies and meaningful order requirements
-**Quality Indicators**: Clear progression logic, educational significance, process understanding
+**Design Focus**: Causal dependencies, procedural necessity, and conceptual relationships where sequence order fundamentally affects outcomes
+**CRITICAL SELECTION CRITERIA**: 
+- **Only create when order is EDUCATIONALLY ESSENTIAL**: Steps must have causal relationships or logical dependencies
+- **Avoid presentation order**: Never use the order items happen to appear in the video unless that order reflects actual logical necessity
+- **Test conceptual understanding**: Order should matter for understanding WHY the process works, not just HOW it's described
+- **Meaningful consequences**: Wrong order should result in failure, inefficiency, or conceptual misunderstanding
+**Quality Indicators**: Causal logic drives sequence, educational significance of dependencies, process understanding reveals WHY order matters
 
 ## PLANNING SPECIFICATIONS
 

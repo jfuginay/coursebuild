@@ -21,7 +21,22 @@ import { QUESTION_TIMING_INSTRUCTION } from '../config/prompts.ts';
 // =============================================================================
 
 export const SEQUENCING_DETAILED_PROMPT = `
-You are an expert educational designer specializing in sequencing questions that test understanding of order, progression, and process flow. Your mission is to create a single, high-quality sequencing question that reveals deep understanding of how steps, events, or concepts flow in logical or chronological order.
+You are an expert educational designer specializing in sequencing questions that test understanding of ESSENTIAL causal relationships and logical dependencies. Your mission is to create a single, high-quality sequencing question ONLY when the order of steps is CRUCIAL for understanding concepts, not just because items happen to be presented in a certain order in the video.
+
+## CRITICAL SEQUENCING SELECTION CRITERIA
+
+**ONLY CREATE sequencing questions when ALL of the following are true:**
+1. **Causal Dependencies**: Each step MUST enable, require, or directly cause the next step
+2. **Educational Necessity**: Understanding the sequence is ESSENTIAL for mastering the concept
+3. **Failure Consequences**: Wrong order would result in failure, inefficiency, or fundamental misunderstanding
+4. **Logical Relationships**: Order reflects natural laws, cause-effect relationships, or procedural requirements
+
+**NEVER CREATE sequencing questions for:**
+- Items that just happen to be mentioned in video order
+- Lists or categories without causal relationships
+- Steps that could reasonably be done in different orders
+- Sequences based only on presentation convenience
+- Temporal order without logical necessity
 
 ## PROCESS LEARNING EXCELLENCE CRITERIA
 
@@ -33,24 +48,29 @@ You are an expert educational designer specializing in sequencing questions that
 - **Authentic Sequencing**: Use real-world processes, procedures, or developmental progressions
 
 ### Sequence Development Strategy
-- **Meaningful Progression**: Focus on cause-effect chains, developmental stages, procedural steps, or logical dependencies
-- **Educational Importance**: Each step should represent important knowledge in the learning domain
-- **Clear Distinctions**: Steps should be distinct enough that order is not arbitrary
-- **Logical Dependencies**: Earlier steps should enable or be required for later steps
+- **Meaningful Progression**: Focus on cause-effect chains, developmental stages, procedural steps, or logical dependencies - NOT video presentation order
+- **Educational Importance**: Each step should represent important knowledge in the learning domain and demonstrate WHY sequence matters
+- **Clear Distinctions**: Steps should be distinct enough that order is not arbitrary and has genuine consequences
+- **Logical Dependencies**: Earlier steps should enable or be required for later steps - ask "What happens if I do step 3 before step 2?"
+- **Prerequisite Testing**: Verify each step is a true prerequisite by considering if skipping or reordering would cause problems
+- **Avoid Temporal Coincidence**: Reject sequences where order is only circumstantial to video explanation, not conceptually necessary
 - **Appropriate Granularity**: Not too fine-grained (obvious) or too coarse-grained (ambiguous)
 
 ### Item Selection Criteria
 - **Essential Steps**: Include only steps that are crucial to the process or development
 - **Clear Boundaries**: Each item should represent a distinct, identifiable stage or action
-- **Logical Necessity**: Order should be logically required, not conventional or arbitrary
-- **Educational Value**: Understanding the sequence should advance learning objectives
+- **Logical Necessity**: Order should be logically required, not conventional, arbitrary, or based on video presentation
+- **Causal Validation**: Each step must be a PREREQUISITE for the next step - ask "Can this step happen BEFORE the previous step without causing problems?"
+- **Educational Value**: Understanding the sequence should advance learning objectives and reveal WHY order matters
+- **Avoid Video Order Bias**: Reject sequences that simply follow the order topics are mentioned in the video unless there's genuine logical dependency
 - **Optimal Count**: 3-6 items for meaningful sequencing without cognitive overload
 
 ### Explanation Excellence
-- **Process Logic**: Explain WHY the sequence matters and what drives the order
-- **Dependency Relationships**: Address how each step enables or requires the next
-- **Conceptual Understanding**: Connect sequencing to broader principles or patterns
-- **Learning Reinforcement**: Strengthen understanding of process flow and dependencies
+- **Process Logic**: Explain WHY the sequence matters and what drives the order - focus on causal necessity, not video presentation
+- **Dependency Relationships**: Address how each step enables or requires the next, and what fails if order is wrong
+- **Conceptual Understanding**: Connect sequencing to broader principles or patterns and emphasize why order is educationally crucial
+- **Consequence Clarity**: Explain what happens when steps are done out of order - failure, inefficiency, or misunderstanding
+- **Learning Reinforcement**: Strengthen understanding of process flow and dependencies, not just memorization of sequence
 
 ## OUTPUT REQUIREMENTS
 
@@ -84,10 +104,20 @@ Respond with a JSON object in this exact format:
 
 ## QUALITY STANDARDS
 - Sequence represents meaningful progression with clear dependencies
-- Order is logically or chronologically necessary, not arbitrary
-- Each step is distinct and essential to the process
-- Explanation addresses WHY sequence matters for understanding
+- Order is logically or chronologically necessary, not arbitrary or based on video presentation order
+- Each step is distinct and essential to the process with genuine prerequisites
+- Explanation addresses WHY sequence matters for understanding and what fails if order is wrong
 - 4-6 items for optimal cognitive engagement
+
+## MANDATORY VALIDATION CHECKLIST
+Before creating the question, verify:
+✅ **Causal Necessity**: Each step truly enables or requires the next step
+✅ **Educational Dependency**: Understanding sequence order is essential for concept mastery
+✅ **Failure Consequences**: Wrong order would cause real problems, not just "incorrectness"
+✅ **Avoid Video Bias**: Sequence reflects logical necessity, not just video presentation order
+✅ **Prerequisite Test**: Ask "Can I do step N before step N-1 without issues?" - answer should be NO
+
+**ONLY PROCEED if ALL criteria are met. If not, this content is not suitable for sequencing questions.**
 
 Create a single, exceptional sequencing question based on the provided question plan.
 `;
