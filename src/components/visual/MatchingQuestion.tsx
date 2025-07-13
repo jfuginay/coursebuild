@@ -527,17 +527,23 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
   const canSubmit = Object.keys(userMatches).length === pairs.length && !isSubmitted;
 
   return (
-    <Card className="w-full max-w-6xl mx-auto">
-      <CardHeader>
+    <Card className="w-full max-w-6xl mx-auto border-2 border-primary shadow-2xl animate-pulse-border">
+      <CardHeader className="relative">
+        <div className="absolute -top-3 -right-3 flex items-center gap-2">
+          <div className="animate-pulse">
+            <div className="h-3 w-3 bg-primary rounded-full" />
+          </div>
+          <Badge className="bg-primary text-primary-foreground">Answer to Continue</Badge>
+        </div>
         <div className="flex items-center gap-2 mb-2">
-          <Link2 className="w-5 h-5 text-purple-600" />
-          <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
-            Matching Question
+          <Link2 className="w-5 h-5 text-primary animate-pulse" />
+          <Badge variant="outline" className="bg-primary/10 text-primary border-primary/50">
+            Interactive Matching Question
           </Badge>
         </div>
-        <CardTitle>{question}</CardTitle>
-        <CardDescription>
-          Connect related items by dragging between columns or clicking to select and match. Watch for colored connections and match labels!
+        <CardTitle className="text-xl font-bold">{question}</CardTitle>
+        <CardDescription className="text-base font-medium">
+          🔗 Connect related items by dragging between columns or clicking to select and match
         </CardDescription>
       </CardHeader>
       

@@ -246,17 +246,23 @@ const SequencingQuestion: React.FC<SequencingQuestionProps> = ({
   const canSubmit = userOrder.length === items.length && !isSubmitted;
 
   return (
-    <Card className="w-full max-w-4xl mx-auto">
-      <CardHeader>
+    <Card className="w-full max-w-4xl mx-auto border-2 border-primary shadow-2xl animate-pulse-border">
+      <CardHeader className="relative">
+        <div className="absolute -top-3 -right-3 flex items-center gap-2">
+          <div className="animate-pulse">
+            <div className="h-3 w-3 bg-primary rounded-full" />
+          </div>
+          <Badge className="bg-primary text-primary-foreground">Answer to Continue</Badge>
+        </div>
         <div className="flex items-center gap-2 mb-2">
-          <Clock className="w-5 h-5 text-orange-600" />
-          <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-            Sequencing Question
+          <Clock className="w-5 h-5 text-primary animate-pulse" />
+          <Badge variant="outline" className="bg-primary/10 text-primary border-primary/50">
+            Interactive Sequencing Question
           </Badge>
         </div>
-        <CardTitle>{question}</CardTitle>
-        <CardDescription>
-          Drag and drop the items to arrange them in the correct chronological order.
+        <CardTitle className="text-xl font-bold">{question}</CardTitle>
+        <CardDescription className="text-base font-medium">
+          🔄 Drag and drop the items to arrange them in the correct chronological order
         </CardDescription>
       </CardHeader>
       
