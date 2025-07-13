@@ -99,4 +99,47 @@ export const getPlayerStateName = (state: number): string => {
     [5]: 'CUED'
   };
   return states[state] || `UNKNOWN(${state})`;
-}; 
+};
+
+// Format user answer for session tracking
+export function formatUserAnswer(answer: any, question: Question): string {
+  switch (question.type) {
+    case 'multiple-choice':
+      if (typeof answer === 'number') {
+        return question.options[answer] || `Option ${answer + 1}`;
+      }
+      return String(answer);
+    case 'true-false':
+    case 'true_false':
+      return answer === 0 ? 'True' : 'False';
+    case 'matching':
+      return 'Matching pairs submitted';
+    case 'hotspot':
+      return answer.label || 'Clicked location';
+    case 'sequencing':
+      return 'Sequence submitted';
+    default:
+      return String(answer);
+  }
+}
+
+// Format correct answer for session tracking
+export function formatCorrectAnswer(question: Question): string {
+  switch (question.type) {
+    case 'multiple-choice':
+      return question.options[question.correct] || `Option ${question.correct + 1}`;
+    case 'true-false':
+    case 'true_false':
+      return question.correct === 0 ? 'True' : 'False';
+    case 'matching':
+      return 'Correct pairs';
+    case 'hotspot':
+      // Check detected_objects for correct answers
+      const targets = question.detected_objects?.filter((obj: any) => obj.is_correct_answer).map((obj: any) => obj.label) || [];
+      return targets.length > 0 ? targets.join(', ') : 'Target objects';
+    case 'sequencing':
+      return 'Correct sequence';
+    default:
+      return String(question.correct);
+  }
+} 

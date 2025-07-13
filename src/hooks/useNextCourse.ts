@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Course, Question } from '@/types/course';
 import { parseOptionsWithTrueFalse, extractVideoId } from '@/utils/courseHelpers';
 import { useAuth } from '@/contexts/AuthContext';
+import { SessionManager } from '@/utils/sessionManager';
 
 interface UseNextCourseProps {
   currentCourseId: string | undefined;
@@ -78,6 +79,18 @@ export function useNextCourse({
     setNextCourseApiCalled(true); // Mark API as called
     
     try {
+      // Get session data for anonymous users
+      const sessionData = !user ? SessionManager.getSessionData() : null;
+      
+      // Log session data if available
+      if (sessionData) {
+        console.log('📊 Anonymous session data:', {
+          accuracy: sessionData.performance.accuracy,
+          questionsAnswered: sessionData.performance.totalQuestionsAnswered,
+          wrongQuestions: sessionData.performance.wrongQuestions.length
+        });
+      }
+      
       // Get wrong answers from questionResults
       const wrongAnswers = Object.entries(questionResults)
         .filter(([questionId, isCorrect]) => !isCorrect)
@@ -89,7 +102,7 @@ export function useNextCourse({
 
       console.log('📊 Sending wrong answers to next course API:', wrongAnswers);
 
-      // Step 1: Get course suggestions (enhanced if user is logged in)
+      // Step 1: Get course suggestions (enhanced if user is logged in OR has session data)
       const suggestionsResponse = await fetch('/api/course/suggestions', {
         method: 'POST',
         headers: {
@@ -99,7 +112,8 @@ export function useNextCourse({
           videoUrl: currentCourse?.youtube_url,
           userId: user?.id, // Pass user ID for enhanced recommendations
           courseId: currentCourseId as string, // Pass current course ID
-          trigger: 'course_completion' // Indicate this is triggered by course completion
+          trigger: 'course_completion', // Indicate this is triggered by course completion
+          sessionData: sessionData // Pass session data for anonymous users
         })
       });
       

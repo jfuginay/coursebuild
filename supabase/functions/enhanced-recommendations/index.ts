@@ -12,11 +12,49 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
 };
 
+interface SessionPerformanceData {
+  sessionId: string;
+  currentCourse: {
+    id: string;
+    title: string;
+    youtube_url: string;
+    completionPercentage: number;
+  } | null;
+  performance: {
+    totalQuestionsAnswered: number;
+    totalQuestionsCorrect: number;
+    accuracy: number;
+    wrongQuestions: Array<{
+      question: string;
+      userAnswer: string;
+      correctAnswer: string;
+      type: string;
+      timestamp?: number;
+      concept?: string;
+    }>;
+    questionsByType: {
+      [type: string]: {
+        answered: number;
+        correct: number;
+      };
+    };
+  };
+  recentCourses: Array<{
+    courseId: string;
+    title: string;
+    youtube_url: string;
+    completionPercentage: number;
+    questionsAnswered: number;
+    questionsCorrect: number;
+  }>;
+}
+
 interface RecommendationRequest {
-  userId: string;
-  courseId?: string; // Optional: current or just completed course
+  userId?: string; // Now optional to support anonymous users
+  courseId?: string;
   trigger: 'course_completion' | 'manual_request' | 'chat_conversation' | 'dashboard_load';
   requestedCount?: number;
+  sessionData?: SessionPerformanceData; // New field for anonymous users
 }
 
 interface CourseRecommendation {
@@ -62,13 +100,15 @@ serve(async (req) => {
   }
 
   try {
-    const { userId, courseId, trigger, requestedCount = 5 }: RecommendationRequest = await req.json();
+    const { userId, courseId, trigger, requestedCount = 5, sessionData }: RecommendationRequest = await req.json();
     
     console.log('🎯 Generating enhanced recommendations:', {
       userId,
       courseId,
       trigger,
-      requestedCount
+      requestedCount,
+      hasSessionData: !!sessionData,
+      sessionAccuracy: sessionData?.performance?.accuracy
     });
 
     // Initialize Supabase client
@@ -77,14 +117,35 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Gather all relevant data for recommendation including wrong questions
-    const [userProfile, recentInsights, performanceData, courseHistory, wrongQuestions] = await Promise.all([
-      getUserLearningProfile(supabaseClient, userId),
-      getRecentChatInsights(supabaseClient, userId),
-      getUserPerformanceData(supabaseClient, userId),
-      getUserCourseHistory(supabaseClient, userId),
-      courseId ? getWrongQuestionsFromCourse(supabaseClient, userId, courseId) : Promise.resolve([])
-    ]);
+    // Handle anonymous users with session data
+    let userProfile, recentInsights, performanceData, courseHistory, wrongQuestions;
+    
+    if (userId) {
+      // Logged-in user: gather data from database
+      [userProfile, recentInsights, performanceData, courseHistory, wrongQuestions] = await Promise.all([
+        getUserLearningProfile(supabaseClient, userId),
+        getRecentChatInsights(supabaseClient, userId),
+        getUserPerformanceData(supabaseClient, userId),
+        getUserCourseHistory(supabaseClient, userId),
+        courseId ? getWrongQuestionsFromCourse(supabaseClient, userId, courseId) : Promise.resolve([])
+      ]);
+    } else if (sessionData) {
+      // Anonymous user: convert session data to the expected format
+      userProfile = createProfileFromSession(sessionData);
+      recentInsights = [];
+      performanceData = convertSessionPerformance(sessionData);
+      courseHistory = sessionData.recentCourses || [];
+      wrongQuestions = convertSessionWrongQuestions(sessionData);
+      
+      console.log('📊 Anonymous user data prepared:', {
+        accuracy: userProfile.overall_accuracy,
+        wrongQuestionsCount: wrongQuestions.length,
+        coursesViewed: courseHistory.length
+      });
+    } else {
+      // No user data available
+      throw new Error('Either userId or sessionData must be provided');
+    }
 
     console.log('📊 Data gathered:', {
       hasProfile: !!userProfile,
@@ -127,19 +188,22 @@ serve(async (req) => {
       currentCourseContext: courseId ? await getCourseContext(supabaseClient, courseId) : null
     });
 
-    // Store recommendation history
-    const recommendationId = await storeRecommendation(
-      supabaseClient,
-      userId,
-      recommendations,
-      {
-        trigger,
-        userProfile,
-        insightsUsed: recentInsights.length,
-        wrongQuestionsUsed: wrongQuestions.length,
-        performanceSnapshot: performanceData
-      }
-    );
+    // Store recommendation history only for logged-in users
+    let recommendationId = 'anonymous-session';
+    if (userId) {
+      recommendationId = await storeRecommendation(
+        supabaseClient,
+        userId,
+        recommendations,
+        {
+          trigger,
+          userProfile,
+          insightsUsed: recentInsights.length,
+          wrongQuestionsUsed: wrongQuestions.length,
+          performanceSnapshot: performanceData
+        }
+      );
+    }
 
     const response: RecommendationResponse = {
       recommendations,
@@ -1366,4 +1430,54 @@ function calculateEngagementLevel(performanceData: any[]): number {
   const avgTimePerQuestion = performanceData.reduce((sum, p) => sum + (p.time_taken || 0), 0) / performanceData.length;
   const engagementScore = Math.min(1, avgTimePerQuestion / 30);
   return engagementScore;
+}
+
+// Helper functions to convert session data to the expected format
+
+function createProfileFromSession(sessionData: SessionPerformanceData): any {
+  const { performance } = sessionData;
+  
+  return {
+    user_id: sessionData.sessionId,
+    overall_accuracy: performance.accuracy,
+    total_questions_answered: performance.totalQuestionsAnswered,
+    total_questions_correct: performance.totalQuestionsCorrect,
+    profile_confidence: Math.min(performance.totalQuestionsAnswered / 50, 1), // Build confidence based on questions answered
+    learning_style: {
+      visual_preference: 0.5, // Default values for anonymous users
+      reading_preference: 0.5,
+      interactive_preference: 0.7, // Higher since they're using interactive quizzes
+      structured_learning: 0.6
+    },
+    performance_by_type: performance.questionsByType,
+    updated_at: new Date().toISOString()
+  };
+}
+
+function convertSessionPerformance(sessionData: SessionPerformanceData): any[] {
+  // Convert recent courses to performance data format
+  return sessionData.recentCourses.map(course => ({
+    course_id: course.courseId,
+    course_title: course.title,
+    questions_answered: course.questionsAnswered,
+    questions_correct: course.questionsCorrect,
+    accuracy: course.questionsCorrect / Math.max(course.questionsAnswered, 1),
+    completion_percentage: course.completionPercentage,
+    created_at: new Date().toISOString() // Anonymous sessions don't have timestamps
+  }));
+}
+
+function convertSessionWrongQuestions(sessionData: SessionPerformanceData): any[] {
+  return sessionData.performance.wrongQuestions.map((wq, index) => ({
+    id: `session-wrong-${index}`,
+    questions: {
+      question: wq.question,
+      type: wq.type,
+      timestamp: wq.timestamp,
+      options: [] // Options not stored in session data
+    },
+    selected_answer: wq.userAnswer,
+    response_text: wq.userAnswer,
+    is_correct: false
+  }));
 }

@@ -27,7 +27,8 @@ import { supabase } from '@/lib/supabase';
 
 // Types and utilities
 import { Course, CourseData, Segment, Question } from '@/types/course';
-import { formatTime, adjustEndOfVideoQuestions, parseOptions } from '@/utils/courseHelpers';
+import { formatTime, adjustEndOfVideoQuestions, parseOptions, formatUserAnswer, formatCorrectAnswer } from '@/utils/courseHelpers';
+import { SessionManager } from '@/utils/sessionManager';
 
 export default function CoursePage() {
  const router = useRouter();
@@ -98,6 +99,16 @@ export default function CoursePage() {
         console.warn('Failed to track course completion:', error);
       }
       
+      // Track completion for anonymous users
+      if (!user) {
+        const questionsAnswered = answeredQuestions.size;
+        const questionsCorrect = Array.from(answeredQuestions)
+          .filter(idx => questionResults[`0-${idx}`])
+          .length;
+        
+        SessionManager.completeCourse(questionsAnswered, questionsCorrect);
+      }
+      
       // Trigger rating modal on completion
       triggerRatingModal();
     }
@@ -124,6 +135,25 @@ export default function CoursePage() {
     onPlayerStateChange: handlePlayerStateChange,
     onVideoEnd: handleVideoEnd
   });
+
+  // Track course start for anonymous users
+  useEffect(() => {
+    if (!user && course && id) {
+      SessionManager.setCurrentCourse(
+        id as string,
+        course.title,
+        course.youtube_url
+      );
+    }
+  }, [user, course, id]);
+
+  // Update viewing progress for anonymous users
+  useEffect(() => {
+    if (!user && duration > 0 && id) {
+      const percentage = (currentTime / duration) * 100;
+      SessionManager.updateViewingProgress(id as string, percentage);
+    }
+  }, [user, currentTime, duration, id]);
 
   // Next course management
   const {
@@ -342,13 +372,30 @@ export default function CoursePage() {
      const responseTimeMs = questionStartTime.current ? Date.now() - questionStartTime.current : undefined;
      const answer = selectedAnswer || (correct ? 'correct' : 'incorrect'); // Fallback if selectedAnswer not provided
      
-     trackQuestionResponse(
-       question.id,
-       answer,
-       correct,
-       question.type,
-       responseTimeMs
-     );
+     if (user) {
+       // Existing tracking for logged-in users
+       trackQuestionResponse(
+         question.id,
+         answer,
+         correct,
+         question.type,
+         responseTimeMs
+       );
+     } else {
+       // Track for anonymous users
+       const userAnswer = formatUserAnswer(answer, question);
+       const correctAnswer = formatCorrectAnswer(question);
+       
+       SessionManager.trackQuestionResult(
+         question.question,
+         userAnswer,
+         correctAnswer,
+         correct,
+         question.type,
+         question.timestamp,
+         undefined // No key concept available in Question type
+       );
+     }
    }
  };
 

@@ -12,15 +12,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { videoUrl, userId, courseId, trigger = 'course_completion' } = req.body;
+    const { videoUrl, userId, courseId, trigger = 'course_completion', sessionData } = req.body;
 
     if (!videoUrl) {
       return res.status(400).json({ error: 'Video URL is required' });
     }
 
-    // Check if we should use enhanced recommendations (when userId is provided)
-    if (userId) {
-      console.log('🎯 Using enhanced recommendations for user:', userId);
+    // Use enhanced recommendations for both logged-in and anonymous users
+    if (userId || sessionData) {
+      console.log('🎯 Using enhanced recommendations:', {
+        hasUser: !!userId,
+        hasSession: !!sessionData,
+        sessionAccuracy: sessionData?.performance?.accuracy
+      });
       
       // Call the enhanced recommendations edge function
       const { data, error } = await supabase.functions.invoke('enhanced-recommendations', {
@@ -28,7 +32,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           userId,
           courseId,
           trigger,
-          requestedCount: 5
+          requestedCount: 5,
+          sessionData // Pass session data for anonymous users
         },
       });
 
@@ -56,7 +61,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Fall back to original course-suggestions for users without profiles
-    console.log('📚 Using basic course suggestions (no user profile)');
+    console.log('📚 Using basic course suggestions (no user profile or session data)');
     const { data, error } = await supabase.functions.invoke('course-suggestions', {
       body: {
         videoUrl: videoUrl,

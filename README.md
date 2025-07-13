@@ -284,6 +284,15 @@ curl -X POST https://YOUR_PROJECT_ID.supabase.co/functions/v1/quiz-generation-v5
 
 ### January 2025 - Major Architecture Improvements
 
+#### Anonymous User Support for Enhanced Recommendations (NEW)
+- **Session-Based Tracking**: Non-logged-in users now get personalized recommendations
+- **Performance Tracking**: localStorage stores quiz performance and viewing history
+- **Wrong Answer Analysis**: Anonymous sessions track incorrect answers for targeted learning
+- **Seamless Experience**: Full recommendation features without requiring sign-up
+- **Data Migration**: Session data transfers to user profile upon registration
+- **30-Day Sessions**: Anonymous data persists for a month to support returning users
+- *See: [Anonymous User Implementation Plan](docs/ANONYMOUS_USER_RECOMMENDATIONS_PLAN.md)*
+
 #### Series Progression & Natural Learning Path (NEW)
 - **Intelligent Series Detection**: Automatically identifies video series (Part X, Episode Y, Chapter Z patterns)
 - **Performance-Based Progression**: 
