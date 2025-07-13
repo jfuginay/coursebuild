@@ -8,6 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Play, BookOpen, Clock, Users, ExternalLink, Trash2, Filter, Star } from 'lucide-react';
 import { CompactStarRating } from '@/components/StarRating';
 import { useAnalytics } from '@/hooks/useAnalytics';
+import { BackgroundGradient } from '@/components/ui/background-gradient';
 
 interface Course {
   id: string;
@@ -38,6 +39,7 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
   const [error, setError] = useState<string | null>(null);
   const [deletingCourseId, setDeletingCourseId] = useState<string | null>(null);
   const [ratingFilter, setRatingFilter] = useState<RatingFilter>('all');
+  const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCourses();
@@ -230,7 +232,7 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[...Array(6)].map((_, index) => (
-            <Card key={index} className="animate-pulse">
+            <Card key={index} className="animate-pulse relative overflow-hidden">
               <CardHeader className="space-y-2">
                 <div className="h-4 bg-muted rounded w-3/4"></div>
                 <div className="h-3 bg-muted rounded w-1/2"></div>
@@ -282,22 +284,19 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
   return (
     <div className="w-full space-y-8 relative">
       {/* Section with enhanced styling */}
-      <div className="text-center space-y-4 relative">
-        <h2 className="text-3xl font-bold tracking-tight text-foreground">
-          Featured Courses
-        </h2>
-        <p className="text-lg text-muted-foreground">
-          Explore AI-Enhanced Learning Experiences Created by Our Community
-        </p>
-        
-        {/* Rating Filter with enhanced styling */}
-        <div className="flex justify-center px-4">
-          <div className="flex items-center gap-2 w-full max-w-xs sm:w-auto bg-muted/20 backdrop-blur-sm rounded-lg p-1">
+      <div className="relative mb-12">
+        <div className="flex items-center justify-between px-4">
+          <h2 className="text-4xl font-bold tracking-tight text-foreground">
+            Featured Courses
+          </h2>
+          
+          {/* Rating Filter with enhanced styling */}
+          <div className="flex items-center gap-2 w-auto bg-muted/20 backdrop-blur-sm rounded-lg p-1">
             <div className="p-2">
-              <Filter className="h-4 w-4 text-primary flex-shrink-0" />
+              <Filter className="h-4 w-4 text-cyan-500 flex-shrink-0" />
             </div>
             <Select value={ratingFilter} onValueChange={handleRatingFilterChange}>
-              <SelectTrigger className="w-full sm:w-40 text-sm border-0 bg-transparent focus:ring-primary/50">
+              <SelectTrigger className="w-40 text-sm border-0 bg-transparent focus:ring-cyan-500/50">
                 <SelectValue placeholder="Filter by rating" />
               </SelectTrigger>
               <SelectContent>
@@ -332,7 +331,7 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {displayedCourses.map((course, index) => {
           const videoId = extractVideoId(course.youtube_url);
           const thumbnailUrl = videoId 
@@ -340,14 +339,21 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
             : null;
 
           return (
-            <Card 
-              key={course.id} 
-              className="group hover:shadow-lg transition-all duration-300 cursor-pointer relative h-full flex flex-col bg-card/50 backdrop-blur-sm border-border/20 hover:border-border/40 overflow-hidden"
-              onClick={() => handleCourseClick(course.id)}
-              style={{
-                animationDelay: `${index * 100}ms`
-              }}
+            <BackgroundGradient
+              key={course.id}
+              className="rounded-[22px] bg-transparent"
+              containerClassName="w-full h-full"
+              animate={hoveredCardId === course.id}
             >
+              <Card 
+                className="group hover:shadow-lg transition-all duration-300 cursor-pointer relative h-full flex flex-col bg-card shadow-md border-0 overflow-hidden rounded-[22px]"
+                onClick={() => handleCourseClick(course.id)}
+                onMouseEnter={() => setHoveredCardId(course.id)}
+                onMouseLeave={() => setHoveredCardId(null)}
+                style={{
+                  animationDelay: `${index * 100}ms`
+                }}
+              >
               {/* Geometric accent */}
               <div className="absolute top-0 right-0 w-16 h-16 opacity-5 group-hover:opacity-10 transition-opacity">
                 <div className="absolute top-2 right-2 w-12 h-12 border-2 border-muted rounded-full" />
@@ -396,16 +402,18 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
                     <CardTitle className="text-lg line-clamp-2 text-foreground/90 group-hover:text-foreground transition-colors min-h-[3.5rem] flex items-start">
                       {course.title}
                     </CardTitle>
-                    {/* Rating Display with enhanced styling */}
-                    <div className="mt-3">
-                      <CompactStarRating 
-                        rating={course.averageRating || 0} 
-                        totalRatings={course.totalRatings || 0}
-                        showRatingText={true}
-                        size="sm"
-                        className="text-muted-foreground"
-                      />
-                    </div>
+                    {/* Rating Display with enhanced styling - only show if rating > 0 */}
+                    {course.averageRating && course.averageRating > 0 && (
+                      <div className="mt-3">
+                        <CompactStarRating 
+                          rating={course.averageRating} 
+                          totalRatings={course.totalRatings || 0}
+                          showRatingText={true}
+                          size="sm"
+                          className="text-muted-foreground"
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardHeader>
@@ -473,7 +481,7 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
                       <Clock className="h-3 w-3 text-muted-foreground" />
                       <span className="text-xs sm:text-sm text-muted-foreground">{formatDate(course.created_at)}</span>
                     </div>
-                    <Badge variant="secondary" className="text-xs bg-muted/50 text-muted-foreground border-0">
+                    <Badge variant="secondary" className="text-xs bg-muted/50 text-muted-foreground border-0 pointer-events-none">
                       {course.questionCount || 0} Questions
                     </Badge>
                   </div>
@@ -482,7 +490,11 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
                   <Button 
                     variant="secondary" 
                     size="sm" 
-                    className="w-full bg-secondary/80 hover:bg-secondary text-secondary-foreground border-0 transition-all mt-4"
+                    className={`w-full border-0 transition-all mt-4 font-medium ${
+                      hoveredCardId === course.id 
+                        ? 'bg-orange-500/20 text-orange-600 hover:bg-orange-500/30' 
+                        : 'bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-600'
+                    }`}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleCourseClick(course.id);
@@ -495,7 +507,8 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
                   </Button>
                 </div>
               </CardContent>
-            </Card>
+              </Card>
+            </BackgroundGradient>
           );
         })}
       </div>
@@ -506,9 +519,9 @@ export default function CoursesShowcase({ limit = 6 }: CoursesShowcaseProps) {
             variant="outline" 
             size="lg" 
             onClick={handleShowMore}
-            className="border-primary/20 hover:border-primary/40 hover:bg-primary/5 transition-all group"
+            className="border-cyan-500/20 hover:border-cyan-500/40 hover:bg-cyan-500/5 transition-all group"
           >
-            <span className="group-hover:text-primary transition-colors flex items-center">
+            <span className="group-hover:text-cyan-500 transition-colors flex items-center">
               Show More Courses
               <ExternalLink className="ml-2 h-4 w-4 group-hover:translate-y-0.5 transition-transform" />
             </span>

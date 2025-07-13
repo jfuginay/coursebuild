@@ -18,6 +18,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGuidedTour, hasTourBeenCompleted } from '@/hooks/useGuidedTour';
 import { newcomerTourSteps } from '@/config/tours';
+import { BorderTrail } from '@/components/ui/border-trail';
+import { HoverBorderTrail, useHoverBorderTrail } from '@/components/ui/hover-border-trail';
 
 // YouTube URL validation schema
 const courseGenerationSchema = z.object({
@@ -100,6 +102,8 @@ export default function Home() {
   const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [concepts, setConcepts] = useState<ConceptData[]>([]);
+  const [isMainCardHovered, setIsMainCardHovered] = useState(false);
+  const [mainCardRandomStart, setMainCardRandomStart] = useState<number | null>(null);
   const [tips, setTips] = useState([
     {
       title: "Did you know?",
@@ -434,7 +438,7 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>CourseBuild - Transform YouTube Videos into Interactive Courses</title>
+        <title>Curio - Transform YouTube Videos into Interactive Courses</title>
         <meta name="description" content="Transform any YouTube video into an interactive, structured course with AI-powered analysis, timestamps, and quiz questions" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
@@ -468,7 +472,7 @@ export default function Home() {
               
               {/* Fun facts or tips while waiting */}
               {tips && tips.length > 0 && currentTipIndex < tips.length ? (
-                <Card className="max-w-3xl mx-auto mb-8 transition-all duration-500">
+                <Card className="max-w-3xl mx-auto mb-8 transition-all duration-500 relative overflow-hidden">
                   <CardHeader>
                     <CardTitle className="text-lg transition-opacity duration-500">
                       {tips[currentTipIndex].title}
@@ -561,7 +565,7 @@ export default function Home() {
               {/* Preview skeleton */}
               <div className="grid lg:grid-cols-2 gap-6">
                 {/* Video Player Skeleton */}
-                <Card>
+                <Card className="relative overflow-hidden">
                   <CardHeader>
                     <Skeleton className="h-5 w-32" />
                     <Skeleton className="h-4 w-full mt-2" />
@@ -572,7 +576,7 @@ export default function Home() {
                 </Card>
                 
                 {/* Course Structure Skeleton */}
-                <Card>
+                <Card className="relative overflow-hidden">
                   <CardHeader>
                     <Skeleton className="h-5 w-40" />
                     <Skeleton className="h-4 w-full mt-2" />
@@ -596,77 +600,75 @@ export default function Home() {
         </div>
       ) : (
         /* Normal home page content */
-        <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 relative overflow-hidden">
+        <div className="min-h-screen bg-gradient-to-b from-background to-background relative overflow-hidden">
           {/* Network pattern background */}
-          <div className="absolute inset-0 network-pattern opacity-30" />
+          <div className="absolute inset-0 network-pattern opacity-10" />
           
           <Header />
           
-          <div className="container mx-auto px-4 py-8 relative">
-            <div className="max-w-6xl mx-auto space-y-8">
+          <div className="container mx-auto px-6 pt-24 relative">
+            <div className="max-w-6xl mx-auto">
               {/* Hero Section - Single Column */}
-              <div className="relative mb-12">
+              <div className="relative mb-16">
                 {/* Main Content */}
-                <div className="text-center space-y-6 mb-8">
-                  <h1 id="main-headline" className="text-4xl font-bold tracking-tight lg:text-5xl">
-                    Transform YouTube Videos into 
-                    <span className="gradient-text"> Interactive Courses</span>
+                <div className="text-center space-y-6 mb-4">
+                  <h1 id="main-headline" className="text-5xl font-bold tracking-tight lg:text-7xl">
+                  YouTube, 
+                    <span className="text-cyan-500"> meet Curio</span>
                   </h1>
-                  <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-                    Harness the power of AI to create engaging, interactive learning experiences 
-                    from any YouTube video in seconds.
-                  </p>
                 </div>
 
                 {/* Course Generation Form */}
-                <Card className="relative overflow-hidden border-primary/20 cyan-glow max-w-3xl mx-auto">
+                <Card 
+                  className="relative overflow-hidden border-cyan-500/20 max-w-3xl mx-auto shadow-lg"
+                  onMouseEnter={() => {
+                    setIsMainCardHovered(true);
+                    // Generate random start position if not already set
+                    if (mainCardRandomStart === null) {
+                      setMainCardRandomStart(Math.random());
+                    }
+                  }}
+                  onMouseLeave={() => setIsMainCardHovered(false)}
+                >
+                  {/* Border trail animation - only on hover */}
+                  {isMainCardHovered && (
+                    <BorderTrail 
+                      className="bg-red-500"
+                      size={150}
+                      delay={0}
+                      initialProgress={mainCardRandomStart || 0}
+                    />
+                  )}
                   {/* Geometric pattern overlay */}
                   <div className="absolute inset-0 opacity-5">
-                    <div className="absolute top-0 right-0 w-32 h-32 border-4 border-accent rounded-full -translate-y-1/2 translate-x-1/2" />
-                    <div className="absolute bottom-0 left-0 w-24 h-24 border-4 border-secondary rounded-full translate-y-1/2 -translate-x-1/2" />
+                    <div className="absolute top-0 right-0 w-32 h-32 border-4 border-cyan-500/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+                    <div className="absolute bottom-0 left-0 w-24 h-24 border-4 border-cyan-500/10 rounded-full translate-y-1/2 -translate-x-1/2" />
                   </div>
-                  
+
                   <CardHeader className="relative">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="flex items-center gap-2">
-                        <div className="p-2 bg-primary/10 rounded-lg">
-                          <Play className="h-5 w-5 text-primary" />
-                        </div>
-                        <span className="bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-                          Generate Course from YouTube
-                        </span>
-                      </CardTitle>
-                      <div className="flex items-center gap-2">
-                        <Zap className="h-4 w-4 text-secondary animate-pulse" />
-                        <Switch
-                          id="use-cache"
-                          checked={useCache}
-                          onCheckedChange={setUseCache}
-                          disabled={isLoading}
-                          className="data-[state=checked]:bg-secondary"
-                        />
-                      </div>
+                  <div className="text-center mb-1">
+                    <p className="text-muted-foreground">
+                        Curio takes any youtube video and transforms it into an interactive learning experience
+                      </p>
                     </div>
-                    <CardDescription className="text-muted-foreground/80">
-                      Transform any educational video into an interactive learning experience
-                    </CardDescription>
                   </CardHeader>
                   <CardContent className="relative">
                     <form onSubmit={handleSubmit(handleGenerateCourse)} className="space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="youtubeUrl" className="text-foreground/90 font-medium">
+                        <Label htmlFor="youtubeUrl" className="text-foreground/90 font-medium flex items-center gap-2">
+                          <Zap className="h-4 w-4 text-cyan-500 animate-pulse" />
                           YouTube URL
                         </Label>
                         <div className="relative group">
                           <Input
                             id="youtube-url-input"
                             type="url"
-                            placeholder="https://www.youtube.com/watch?v=..."
+                            placeholder="Paste any YouTube URL…"
                             {...register('youtubeUrl')}
                             disabled={isLoading}
-                            className="border-border/50 focus:border-primary bg-background/50 backdrop-blur-sm transition-all focus:cyan-glow"
+                            className="border-border/50 focus:border-cyan-500 bg-background transition-all placeholder:text-foreground/60 placeholder:font-medium text-base"
                           />
-                          <div className="absolute inset-0 rounded-md bg-gradient-to-r from-primary/0 via-primary/5 to-primary/0 opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none" />
+                          <div className="absolute inset-0 rounded-md bg-gradient-to-r from-cyan-500/0 via-cyan-500/5 to-cyan-500/0 opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none" />
                         </div>
                         {errors.youtubeUrl && (
                           <p className="text-sm text-destructive flex items-center gap-1">
@@ -681,37 +683,36 @@ export default function Home() {
                           id="generate-course-button"
                           type="button"
                           onClick={handleSubmit(handleGenerateCoursePro)}
-                          className="flex-1 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground pulse-on-hover transition-all" 
+                          className="flex-1 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold transition-all" 
                           disabled={isLoading}
                           size="lg"
                         >
                           <BookOpen className="mr-2 h-4 w-4" />
-                          Generate Interactive Course
+                          Turn Video Into a Course →
                         </Button>
                       </div>
 
-                      {/* Quick Access Concept Buttons - Enhanced with gradients */}
+                      {/* Quick Access Concept Buttons - Infinite Scroll */}
                       {concepts.length > 0 && (
-                        <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-transparent via-muted/20 to-transparent p-2">
-                          <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-card to-transparent z-10" />
-                          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-card to-transparent z-10" />
+                        <div className="relative overflow-hidden">
                           <div className="flex gap-2 animate-infinite-scroll">
                             {/* First set of buttons */}
                             {concepts.map((conceptData) => (
+                              
                               <Button
+                    
                                 key={`first-${conceptData.concept}`}
                                 type="button"
                                 variant="outline"
                                 size="sm"
                                 disabled={isLoading}
                                 onClick={() => handleQuickConceptClick(conceptData)}
-                                className="whitespace-nowrap flex-shrink-0 border-primary/20 hover:border-primary/40 hover:bg-primary/5 transition-all group"
+                                className="whitespace-nowrap flex-shrink-0"
                                 title={`${conceptData.count} courses with this concept`}
                               >
-                                <span className="group-hover:text-primary transition-colors">
-                                  {conceptData.concept}
-                                </span>
+                                {conceptData.concept}
                               </Button>
+                              
                             ))}
                             {/* Duplicate set for seamless loop */}
                             {concepts.map((conceptData) => (
@@ -722,12 +723,10 @@ export default function Home() {
                                 size="sm"
                                 disabled={isLoading}
                                 onClick={() => handleQuickConceptClick(conceptData)}
-                                className="whitespace-nowrap flex-shrink-0 border-primary/20 hover:border-primary/40 hover:bg-primary/5 transition-all group"
+                                className="whitespace-nowrap flex-shrink-0"
                                 title={`${conceptData.count} courses with this concept`}
                               >
-                                <span className="group-hover:text-primary transition-colors">
-                                  {conceptData.concept}
-                                </span>
+                                {conceptData.concept}
                               </Button>
                             ))}
                           </div>
@@ -741,7 +740,7 @@ export default function Home() {
                 <div className="hidden lg:block absolute -right-20 bottom-0 translate-y-8">
                   <div className="relative">
                     {/* Glow effect behind Curio */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-primary/20 via-secondary/20 to-accent/20 blur-2xl scale-110" />
+                    <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 via-cyan-500/10 to-cyan-500/20 blur-2xl scale-110" />
                     
                     {/* Curio image - 30% smaller */}
                     <img 
@@ -751,16 +750,13 @@ export default function Home() {
                     />
                     
                     {/* Floating elements around Curio */}
-                    <div className="absolute top-8 -right-2 w-6 h-6 bg-secondary rounded-full animate-pulse" />
-                    <div className="absolute bottom-20 -left-2 w-5 h-5 bg-primary rounded-full animate-pulse animation-delay-200" />
-                    <div className="absolute top-1/3 -left-4 w-3 h-3 bg-accent rounded-full animate-pulse animation-delay-400" />
+                    <div className="absolute top-8 -right-2 w-6 h-6 bg-cyan-500 rounded-full animate-pulse" />
+                    <div className="absolute bottom-20 -left-2 w-5 h-5 bg-cyan-500 rounded-full animate-pulse animation-delay-200" />
+                    <div className="absolute top-1/3 -left-4 w-3 h-3 bg-cyan-500 rounded-full animate-pulse animation-delay-400" />
                     
                     {/* Speech bubble - positioned above Curio */}
-                    <div className="absolute -top-16 left-8 bg-card/90 backdrop-blur-sm border border-primary/20 rounded-lg p-3 max-w-[200px] animate-bounce">
-                      <p className="text-xs text-foreground/80">
-                        "Let's turn any video into an interactive learning adventure!"
-                      </p>
-                      <div className="absolute -bottom-2 left-12 w-4 h-4 bg-card/90 border-r border-b border-primary/20 transform rotate-45" />
+                    <div className="absolute -top-16 left-8 bg-card/90 backdrop-blur-sm border border-cyan-500/20 rounded-lg p-3 max-w-[200px] animate-bounce shadow-lg">
+                      <div className="absolute -bottom-2 left-12 w-4 h-4 bg-card/90 border-r border-b border-cyan-500/20 transform rotate-45" />
                     </div>
                   </div>
                 </div>
@@ -777,7 +773,9 @@ export default function Home() {
               )}
 
               {/* Courses Showcase */}
-              <CoursesShowcase limit={6} />
+              <div className="mt-16 mb-24">
+                <CoursesShowcase limit={6} />
+              </div>
             </div>
           </div>
         </div>
