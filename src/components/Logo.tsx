@@ -24,17 +24,17 @@ const Logo: React.FC<LogoProps> = ({ variant = 'full', size = 'md' }) => {
         >
           <defs>
             <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" className="stop-color-blue-600" />
-              <stop offset="50%" className="stop-color-purple-600" />
-              <stop offset="100%" className="stop-color-indigo-700" />
+              <stop offset="0%" className="stop-color-cyan-400" />
+              <stop offset="50%" className="stop-color-cyan-500" />
+              <stop offset="100%" className="stop-color-cyan-600" />
             </linearGradient>
             <linearGradient id="playGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" className="stop-color-orange-400" />
-              <stop offset="100%" className="stop-color-red-500" />
+              <stop offset="0%" className="stop-color-cyan-300" />
+              <stop offset="100%" className="stop-color-cyan-500" />
             </linearGradient>
             <linearGradient id="capGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" className="stop-color-emerald-400" />
-              <stop offset="100%" className="stop-color-teal-500" />
+              <stop offset="0%" className="stop-color-cyan-500" />
+              <stop offset="100%" className="stop-color-cyan-600" />
             </linearGradient>
           </defs>
           
@@ -42,7 +42,7 @@ const Logo: React.FC<LogoProps> = ({ variant = 'full', size = 'md' }) => {
           <circle cx="20" cy="20" r="18" fill="url(#bgGradient)" opacity="0.1" />
           
           {/* Circuit lines - subtle AI theme */}
-          <g stroke="currentColor" strokeWidth="0.5" opacity="0.3" className="text-blue-400">
+          <g stroke="currentColor" strokeWidth="0.5" opacity="0.3" className="text-cyan-400">
             <line x1="8" y1="12" x2="32" y2="12" />
             <line x1="8" y1="28" x2="32" y2="28" />
             <circle cx="8" cy="12" r="1" fill="currentColor" />
@@ -75,10 +75,10 @@ const Logo: React.FC<LogoProps> = ({ variant = 'full', size = 'md' }) => {
           
           {/* AI/Tech accent dots */}
           <g className="animate-pulse">
-            <circle cx="14" cy="8" r="0.5" fill="currentColor" className="text-blue-400" />
-            <circle cx="26" cy="8" r="0.5" fill="currentColor" className="text-purple-400" />
-            <circle cx="14" cy="32" r="0.5" fill="currentColor" className="text-indigo-400" />
-            <circle cx="26" cy="32" r="0.5" fill="currentColor" className="text-teal-400" />
+            <circle cx="14" cy="8" r="0.5" fill="currentColor" className="text-cyan-400" />
+            <circle cx="26" cy="8" r="0.5" fill="currentColor" className="text-cyan-500" />
+            <circle cx="14" cy="32" r="0.5" fill="currentColor" className="text-cyan-400" />
+            <circle cx="26" cy="32" r="0.5" fill="currentColor" className="text-cyan-500" />
           </g>
         </svg>
       </div>
@@ -96,17 +96,17 @@ const Logo: React.FC<LogoProps> = ({ variant = 'full', size = 'md' }) => {
           >
             <defs>
               <linearGradient id="bgGradient-compact" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" className="stop-color-blue-600" />
-                <stop offset="50%" className="stop-color-purple-600" />
-                <stop offset="100%" className="stop-color-indigo-700" />
+                <stop offset="0%" className="stop-color-cyan-400" />
+                <stop offset="50%" className="stop-color-cyan-500" />
+                <stop offset="100%" className="stop-color-cyan-600" />
               </linearGradient>
               <linearGradient id="playGradient-compact" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" className="stop-color-orange-400" />
-                <stop offset="100%" className="stop-color-red-500" />
+                <stop offset="0%" className="stop-color-cyan-300" />
+                <stop offset="100%" className="stop-color-cyan-500" />
               </linearGradient>
               <linearGradient id="capGradient-compact" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" className="stop-color-emerald-400" />
-                <stop offset="100%" className="stop-color-teal-500" />
+                <stop offset="0%" className="stop-color-cyan-500" />
+                <stop offset="100%" className="stop-color-cyan-600" />
               </linearGradient>
             </defs>
             
@@ -132,7 +132,7 @@ const Logo: React.FC<LogoProps> = ({ variant = 'full', size = 'md' }) => {
           </svg>
         </div>
         
-        <div className={`${text} font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent`}>
+        <div className={`${text} font-bold bg-gradient-to-r from-cyan-500 to-cyan-600 bg-clip-text text-transparent`}>
           CB
         </div>
       </div>
@@ -151,17 +151,17 @@ const Logo: React.FC<LogoProps> = ({ variant = 'full', size = 'md' }) => {
           {/* Background gradient circle */}
           <defs>
             <linearGradient id="bgGradient-full" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" className="stop-color-blue-600" />
-              <stop offset="50%" className="stop-color-purple-600" />
-              <stop offset="100%" className="stop-color-indigo-700" />
+              <stop offset="0%" className="stop-color-cyan-400" />
+              <stop offset="50%" className="stop-color-cyan-500" />
+              <stop offset="100%" className="stop-color-cyan-600" />
             </linearGradient>
             <linearGradient id="playGradient-full" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" className="stop-color-orange-400" />
-              <stop offset="100%" className="stop-color-red-500" />
+              <stop offset="0%" className="stop-color-cyan-300" />
+              <stop offset="100%" className="stop-color-cyan-500" />
             </linearGradient>
             <linearGradient id="capGradient-full" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" className="stop-color-emerald-400" />
-              <stop offset="100%" className="stop-color-teal-500" />
+              <stop offset="0%" className="stop-color-cyan-500" />
+              <stop offset="100%" className="stop-color-cyan-600" />
             </linearGradient>
           </defs>
           
@@ -169,7 +169,7 @@ const Logo: React.FC<LogoProps> = ({ variant = 'full', size = 'md' }) => {
           <circle cx="20" cy="20" r="18" fill="url(#bgGradient-full)" opacity="0.1" />
           
           {/* Circuit lines - subtle AI theme */}
-          <g stroke="currentColor" strokeWidth="0.5" opacity="0.3" className="text-blue-400">
+          <g stroke="currentColor" strokeWidth="0.5" opacity="0.3" className="text-cyan-400">
             <line x1="8" y1="12" x2="32" y2="12" />
             <line x1="8" y1="28" x2="32" y2="28" />
             <circle cx="8" cy="12" r="1" fill="currentColor" />
@@ -202,18 +202,18 @@ const Logo: React.FC<LogoProps> = ({ variant = 'full', size = 'md' }) => {
           
           {/* AI/Tech accent dots */}
           <g className="animate-pulse">
-            <circle cx="14" cy="8" r="0.5" fill="currentColor" className="text-blue-400" />
-            <circle cx="26" cy="8" r="0.5" fill="currentColor" className="text-purple-400" />
-            <circle cx="14" cy="32" r="0.5" fill="currentColor" className="text-indigo-400" />
-            <circle cx="26" cy="32" r="0.5" fill="currentColor" className="text-teal-400" />
+            <circle cx="14" cy="8" r="0.5" fill="currentColor" className="text-cyan-400" />
+            <circle cx="26" cy="8" r="0.5" fill="currentColor" className="text-cyan-500" />
+            <circle cx="14" cy="32" r="0.5" fill="currentColor" className="text-cyan-400" />
+            <circle cx="26" cy="32" r="0.5" fill="currentColor" className="text-cyan-500" />
           </g>
         </svg>
       </div>
       
       {/* Logo Text */}
       <div className="flex flex-col">
-        <div className={`${text} font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent`}>
-          CourseBuild
+        <div className={`${text} font-bold bg-gradient-to-r from-cyan-500 to-cyan-600 bg-clip-text text-transparent`}>
+          Curio
         </div>
       </div>
     </div>

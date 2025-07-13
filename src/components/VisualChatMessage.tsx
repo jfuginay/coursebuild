@@ -313,16 +313,16 @@ Error: ${error instanceof Error ? error.stack : error}
   return (
     <>
       <div className={`chat-message flex ${message.isUser ? 'justify-end' : 'justify-start'} mb-4`}>
-        <div className={`message-content max-w-3xl ${message.isUser ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-gray-800'} rounded-lg p-4`}>
-          <div className="message-text mb-2 whitespace-pre-wrap">{message.text}</div>
+        <div className={`message-content max-w-3xl ${message.isUser ? 'bg-primary text-primary-foreground' : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm'} rounded-lg p-4`}>
+          <div className={`message-text mb-2 whitespace-pre-wrap ${message.isUser ? 'text-primary-foreground' : 'text-gray-900 dark:text-gray-100'}`}>{message.text}</div>
           
           {message.visuals && message.visuals.length > 0 && (
             <div className="visuals-container mt-4 space-y-4">
               {message.visuals.map((visual, index) => (
-                <Card key={index} className="visual-card overflow-hidden">
+                <Card key={index} className="visual-card overflow-hidden bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
                   <div className="p-4">
                     {visual.title && (
-                      <h4 className="text-lg font-semibold mb-2">{visual.title}</h4>
+                      <h4 className="text-lg font-semibold mb-2 text-gray-900 dark:text-gray-100">{visual.title}</h4>
                     )}
                     
                     {visual.description && (
@@ -343,7 +343,7 @@ Error: ${error instanceof Error ? error.stack : error}
                     </div>
                     
                     {visual.interactionHints && visual.interactionHints.length > 0 && (
-                      <div className="interaction-hints mt-3 text-sm text-gray-600 dark:text-gray-400">
+                      <div className="interaction-hints mt-3 text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-3 rounded">
                         {visual.interactionHints.map((hint, i) => (
                           <span key={i} className="block">💡 {hint}</span>
                         ))}
@@ -395,7 +395,7 @@ Error: ${error instanceof Error ? error.stack : error}
             </div>
           )}
           
-          <div className="message-time text-xs opacity-70 mt-2">
+          <div className={`message-time text-xs opacity-70 mt-2 ${message.isUser ? 'text-primary-foreground' : 'text-gray-600 dark:text-gray-400'}`}>
             {new Date(message.timestamp).toLocaleTimeString()}
           </div>
         </div>
