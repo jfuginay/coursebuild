@@ -153,7 +153,7 @@ const saveTranscriptToDatabase = async (
       course_id: courseId,
       video_url: videoUrl,
       video_summary: transcript.video_summary,
-      total_duration: Math.round(totalDuration),
+      total_duration: Math.max(1, Math.round(totalDuration || 0)),
       full_transcript: transcript.full_transcript,
       key_concepts_timeline: transcript.key_concepts_timeline,
       model_used: 'gemini-2.0-flash',
@@ -170,6 +170,18 @@ const saveTranscriptToDatabase = async (
     if (error) {
       console.error('❌ Failed to save transcript:', error);
       throw new Error(`Failed to save transcript: ${error.message}`);
+    }
+
+    // Also update the course with the accurate duration from transcript
+    const { error: courseUpdateError } = await supabaseClient
+      .from('courses')
+      .update({ total_duration: Math.max(1, Math.round(totalDuration || 0)) })
+      .eq('id', courseId);
+    
+    if (courseUpdateError) {
+      console.warn('⚠️ Failed to update course duration from transcript:', courseUpdateError);
+    } else {
+      console.log(`✅ Updated course duration to ${Math.round(totalDuration)}s from transcript`);
     }
     
     console.log('✅ Transcript saved successfully');

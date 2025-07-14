@@ -129,13 +129,17 @@ serve(async (req: Request) => {
       .update({
         is_segmented: shouldSegment,
         total_segments: shouldSegment ? Math.ceil(totalDuration / segment_duration) : 1,
-        segment_duration: segment_duration
+        segment_duration: segment_duration,
+        // Ensure total_duration is always a valid positive integer
+        total_duration: Math.max(1, Math.round(totalDuration || 0))
       })
       .eq('id', course_id);
 
     if (courseUpdateError) {
       throw new Error(`Failed to update course: ${courseUpdateError.message}`);
     }
+
+    console.log(`✅ Updated course with duration: ${Math.round(totalDuration)}s (${Math.round(totalDuration / 60)}m)`);
 
     if (!shouldSegment) {
       console.log('📝 Video is short enough to process in one segment');
