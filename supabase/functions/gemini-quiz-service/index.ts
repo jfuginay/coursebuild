@@ -51,10 +51,11 @@ Target different levels of Bloom's taxonomy:
 - **Quality Check**: Pairs should test understanding of relationships, not memorization
 
 ### SEQUENCING (sequencing)
-- **Best for**: Process steps, logical progression, chronological understanding
-- **Avoid**: Random order of speaker statements
-- **Focus on**: Logical/causal sequences, problem-solving steps, development stages
-- **Quality Check**: Sequence should have educational logic, not just temporal order
+- **Best for**: ESSENTIAL causal processes, logical dependencies, procedural requirements where order is CRUCIAL
+- **ONLY use when**: Each step enables/requires the next, wrong order causes failure/misunderstanding, sequence tests WHY order matters
+- **Avoid**: Video presentation order, arbitrary sequences, lists without causal relationships, steps that could be done in different orders
+- **Focus on**: Causal dependencies, prerequisite relationships, natural law sequences, procedural necessities
+- **CRITICAL Quality Check**: Sequence must have educational logic with meaningful consequences for wrong order, NOT just temporal or presentation order
 
 ## CONTENT ANALYSIS FRAMEWORK
 

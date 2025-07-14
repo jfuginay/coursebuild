@@ -18,7 +18,8 @@ import TranscriptDisplay from '@/components/TranscriptDisplay';
 import InteractiveVideoPlayer from '@/components/InteractiveVideoPlayer';
 import ChatBubble from '@/components/ChatBubble';
 import ProcessingIndicator from '@/components/ProcessingIndicator';
-import { LoginModal, NextCourseModal, RatingModalWrapper } from '@/components/CourseModals';
+import { LoginModal, RatingModalWrapper } from '@/components/CourseModals';
+import NextCourseModal from '@/components/NextCourseModal';
 import { CanvasExportDialog } from '@/components/CanvasExportDialog';
 import { RatingModal, CompactStarRating } from '@/components/StarRating';
 
@@ -982,11 +983,11 @@ export default function CoursePage() {
       />
 
       <NextCourseModal
-        open={showNextCourseModal}
-        onOpenChange={setShowNextCourseModal}
+        isOpen={showNextCourseModal}
+        onClose={() => setShowNextCourseModal(false)}
         nextCourse={nextCourse}
         isLoadingNextCourse={isLoadingNextCourse}
-        onStartNextCourse={handleStartNextCourse}
+        onStartNextCourse={() => handleStartNextCourse()}
         completedCourseId={id as string}
       />
 

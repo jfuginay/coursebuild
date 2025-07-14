@@ -24,6 +24,30 @@ interface UseYouTubePlayerResult {
   stopTimeTracking: () => void;
 }
 
+// Update course duration in database when duration is available
+const updateCourseDuration = async (courseId: string, duration: number) => {
+  try {
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    
+    const { error } = await supabase
+      .from('courses')
+      .update({ total_duration: Math.max(1, Math.round(duration || 0)) })
+      .eq('id', courseId);
+    
+    if (error) {
+      console.warn('Failed to update course duration:', error);
+    } else {
+      console.log(`✅ Updated course ${courseId} duration to ${Math.round(duration)}s`);
+    }
+  } catch (error) {
+    console.warn('Error updating course duration:', error);
+  }
+};
+
 export function useYouTubePlayer({
   courseId,
   youtubeUrl,
@@ -130,15 +154,28 @@ export function useYouTubePlayer({
           
           // Update refs immediately
           currentTimeRef.current = time;
-          durationRef.current = totalDuration;
+          
+          // Only update duration if we get a valid value, or if we don't have one yet
+          if (totalDuration && totalDuration > 0) {
+            durationRef.current = totalDuration;
+            setDuration(totalDuration);
+            onDurationChange(totalDuration);
+            
+            // Update course duration in database if courseId exists and duration changed significantly
+            if (courseId && Math.abs(totalDuration - duration) > 5) {
+              updateCourseDuration(courseId, totalDuration);
+            }
+          } else if (!durationRef.current || durationRef.current <= 0) {
+            // Try to recover duration if we don't have one
+            durationRef.current = totalDuration || 0;
+            setDuration(totalDuration || 0);
+          }
           
           // Update state (might be delayed by re-renders)
           setCurrentTime(time);
-          setDuration(totalDuration);
           
           // Call callbacks with latest values
           onTimeUpdate(time);
-          onDurationChange(totalDuration);
           
           // Reset error count on success
           errorCount = 0;
@@ -163,8 +200,8 @@ export function useYouTubePlayer({
           }
         }
       }
-    }, 100); // Check every 100ms for smooth question timing
-  }, [onTimeUpdate, onDurationChange]);
+         }, 1000); // Check every 1 second for time updates
+   }, [courseId, duration, onTimeUpdate, onDurationChange]);
 
   const stopTimeTracking = useCallback(() => {
     if (intervalRef.current) {
@@ -239,17 +276,31 @@ export function useYouTubePlayer({
               setPlayer(playerInstance);
               playerRef.current = playerInstance;
               
-              // Get initial values with error handling
-              try {
-                const initialDuration = playerInstance.getDuration();
-                if (initialDuration && initialDuration > 0) {
-                  durationRef.current = initialDuration;
-                  setDuration(initialDuration);
-                  onDurationChange(initialDuration);
+              // Get initial values with error handling and retry logic
+              const getDurationWithRetry = (retryCount = 0) => {
+                try {
+                  const initialDuration = playerInstance.getDuration();
+                  if (initialDuration && initialDuration > 0) {
+                    durationRef.current = initialDuration;
+                    setDuration(initialDuration);
+                    onDurationChange(initialDuration);
+                    console.log('✅ Duration retrieved:', initialDuration);
+                  } else if (retryCount < 10) {
+                    // Retry getting duration - sometimes it takes time for YouTube to load metadata
+                    setTimeout(() => getDurationWithRetry(retryCount + 1), 500);
+                  } else {
+                    console.warn('⚠️ Could not get duration after retries');
+                  }
+                } catch (error) {
+                  if (retryCount < 10) {
+                    setTimeout(() => getDurationWithRetry(retryCount + 1), 500);
+                  } else {
+                    console.warn('Could not get initial duration after retries:', error);
+                  }
                 }
-              } catch (error) {
-                console.warn('Could not get initial duration:', error);
-              }
+              };
+              
+              getDurationWithRetry();
               
               // Delay setting video ready to ensure everything is initialized
               setTimeout(() => {

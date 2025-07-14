@@ -33,7 +33,13 @@ function VideoProgressBar({
   const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!progressRef.current || duration <= 0) return;
+    if (!progressRef.current) return;
+    
+    // If duration is not available yet, prevent seeking but don't completely disable
+    if (duration <= 0) {
+      console.warn('⚠️ Cannot seek - video duration not available yet');
+      return;
+    }
     
     const rect = progressRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -44,18 +50,26 @@ function VideoProgressBar({
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!progressRef.current || duration <= 0) return;
+    if (!progressRef.current) return;
     
     const rect = progressRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const percentage = (x / rect.width) * 100;
-    const time = (percentage / 100) * duration;
     
-    setHoverTime(Math.max(0, Math.min(time, duration)));
-    setHoverX(x);
+    // Show hover time even if duration is 0, but don't allow seeking
+    if (duration > 0) {
+      const percentage = (x / rect.width) * 100;
+      const time = (percentage / 100) * duration;
+      
+      setHoverTime(Math.max(0, Math.min(time, duration)));
+      setHoverX(x);
 
-    if (isDragging) {
-      onSeek(Math.max(0, Math.min(time, duration)));
+      if (isDragging) {
+        onSeek(Math.max(0, Math.min(time, duration)));
+      }
+    } else {
+      // Still show hover effects but with placeholder time
+      setHoverTime(0);
+      setHoverX(x);
     }
   };
 
@@ -74,7 +88,13 @@ function VideoProgressBar({
   };
 
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (!progressRef.current || duration <= 0) return;
+    if (!progressRef.current) return;
+    
+    // Prevent touch seeking if duration is not available
+    if (duration <= 0) {
+      console.warn('⚠️ Cannot seek - video duration not available yet');
+      return;
+    }
     
     const touch = e.touches[0];
     const rect = progressRef.current.getBoundingClientRect();
@@ -86,7 +106,13 @@ function VideoProgressBar({
   };
 
   const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (!progressRef.current || duration <= 0) return;
+    if (!progressRef.current) return;
+    
+    // Prevent touch seeking if duration is not available
+    if (duration <= 0) {
+      console.warn('⚠️ Cannot seek - video duration not available yet');
+      return;
+    }
     
     const touch = e.touches[0];
     const rect = progressRef.current.getBoundingClientRect();
@@ -125,10 +151,16 @@ function VideoProgressBar({
         <div className="absolute inset-x-0 -inset-y-2" />
         
         {/* Progress track */}
-        <div className="absolute top-1/2 left-0 right-0 h-2 -translate-y-1/2 bg-muted rounded-full overflow-hidden">
+        <div className={cn(
+          "absolute top-1/2 left-0 right-0 h-2 -translate-y-1/2 bg-muted rounded-full overflow-hidden",
+          duration <= 0 && "animate-pulse" // Pulse when loading
+        )}>
           {/* Progress fill */}
           <div 
-            className="h-full bg-primary transition-all duration-100"
+            className={cn(
+              "h-full transition-all duration-100",
+              duration > 0 ? "bg-primary" : "bg-muted-foreground/30" // Different color when loading
+            )}
             style={{ width: `${progressPercentage}%` }}
           />
           
@@ -143,12 +175,15 @@ function VideoProgressBar({
         
         {/* Current position indicator */}
         <div 
-          className="absolute top-1/2 w-4 h-4 -translate-x-1/2 -translate-y-1/2 bg-primary rounded-full border-2 border-background shadow-md transition-transform group-hover:scale-125"
+          className={cn(
+            "absolute top-1/2 w-4 h-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background shadow-md transition-transform group-hover:scale-125",
+            duration > 0 ? "bg-primary" : "bg-muted-foreground/50" // Different color when loading
+          )}
           style={{ left: `${progressPercentage}%` }}
         />
         
         {/* Question markers */}
-        {questions.map((question, index) => {
+        {duration > 0 && questions.map((question, index) => {
           const position = Math.min(Math.max((question.timestamp / duration) * 100, 0.5), 99.5);
           const questionId = question.id || `question-${index}`;
           const isAnswered = answeredQuestions.has(questionId);
@@ -175,8 +210,8 @@ function VideoProgressBar({
             className="absolute -top-10 -translate-x-1/2 bg-popover text-popover-foreground px-2 py-1 rounded text-xs whitespace-nowrap shadow-md"
             style={{ left: `${hoverX}px` }}
           >
-            {formatTimestamp(hoverTime)}
-            {getQuestionsInRange(hoverTime).length > 0 && (
+            {duration > 0 ? formatTimestamp(hoverTime) : "Video loading..."}
+            {duration > 0 && getQuestionsInRange(hoverTime).length > 0 && (
               <div className="text-orange-500">
                 {getQuestionsInRange(hoverTime).length} question{getQuestionsInRange(hoverTime).length > 1 ? 's' : ''} ahead
               </div>

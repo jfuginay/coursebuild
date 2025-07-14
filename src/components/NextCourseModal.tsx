@@ -200,9 +200,7 @@ export default function NextCourseModal({
             </div>
           )}
           
-          <DialogDescription className="text-center">
-            Great job finishing this course! Ready to continue learning?
-          </DialogDescription>
+
         </DialogHeader>
         
         {nextCourse ? (

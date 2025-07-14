@@ -26,10 +26,10 @@ export default async function handler(
     }
 
     // Get basic course data first (reliable baseline)
+    // Note: We'll sort by weighted rating score after fetching, not by creation date
     let query = supabase
       .from('courses')
-      .select('id, title, description, youtube_url, created_at, published')
-      .order('created_at', { ascending: false });
+      .select('id, title, description, youtube_url, created_at, published');
 
     // Filter by IDs if provided
     if (ids && typeof ids === 'string') {
@@ -123,21 +123,48 @@ export default async function handler(
       })
     );
 
-    // Debug: Log final courses data
-    const coursesWithRatingData = coursesWithRatings.filter(c => c.totalRatings > 0);
-    console.log('📊 Courses API Debug:', {
-      totalCourses: coursesWithRatings.length,
+    // Calculate weighted scores and sort courses by rating priority
+    const coursesWithScores = coursesWithRatings.map(course => {
+      // Calculate weighted score: rating * (1 + log base 10 of (ratings + 1))
+      // This prioritizes both high ratings and courses with more rating data
+      const weightedScore = course.averageRating > 0 
+        ? course.averageRating * (1 + Math.log10(course.totalRatings + 1))
+        : 0;
+      
+      return {
+        ...course,
+        weightedScore
+      };
+    });
+
+    // Sort by weighted score (descending), then by creation date for tie-breaking
+    const sortedCourses = coursesWithScores.sort((a, b) => {
+      if (a.weightedScore !== b.weightedScore) {
+        return b.weightedScore - a.weightedScore; // Higher score first
+      }
+      // Tie-breaker: newer courses first
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+
+    // Remove the temporary weightedScore property before returning
+    const finalCourses = sortedCourses.map(({ weightedScore, ...course }) => course);
+
+    // Debug: Log final courses data with scoring information
+    const coursesWithRatingData = coursesWithScores.filter(c => c.totalRatings > 0);
+    console.log('📊 Courses API Debug (Rating-Weighted):', {
+      totalCourses: finalCourses.length,
       coursesWithRatings: coursesWithRatingData.length,
-      ratingData: coursesWithRatingData.map(c => ({
+      topCourses: coursesWithScores.slice(0, 5).map(c => ({
         title: c.title,
         averageRating: c.averageRating,
-        totalRatings: c.totalRatings
+        totalRatings: c.totalRatings,
+        weightedScore: c.weightedScore.toFixed(2)
       }))
     });
 
     return res.status(200).json({ 
       success: true,
-      courses: coursesWithRatings
+      courses: finalCourses
     });
 
   } catch (error) {

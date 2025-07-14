@@ -65,11 +65,26 @@ export function useNextCourse({
       !nextCourseModalShown &&
       !showNextCourseModal
     ) {
+      // Safeguard: Don't show modal if course is still processing or if duration seems too short
+      // This prevents early modal appearance during processing with incorrect duration
+      const isProcessing = currentCourse && !currentCourse.published;
+      const durationTooShort = duration < 60; // Less than 1 minute seems suspicious
+      
+      if (isProcessing || durationTooShort) {
+        console.log('⚠️ Skipping early modal trigger - course processing or duration too short:', {
+          isProcessing,
+          durationTooShort,
+          duration,
+          published: currentCourse?.published
+        });
+        return;
+      }
+      
       console.log('⏰ Showing next course modal 3 seconds before video ends');
       setNextCourseModalShown(true);
       setShowNextCourseModal(true);
     }
-  }, [currentTime, duration, nextCourseModalShown, showNextCourseModal]);
+  }, [currentTime, duration, nextCourseModalShown, showNextCourseModal, currentCourse]);
 
   const fetchNextCourse = async () => {
     // Prevent multiple API calls - check if already loaded, loading, or already called
